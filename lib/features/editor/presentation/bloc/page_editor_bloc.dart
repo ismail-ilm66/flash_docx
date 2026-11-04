@@ -265,25 +265,13 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         }
         emit(state.copyWith(status: EditorStatus.saved, savedDocumentId: docId));
         // Warm caches in the background; the viewer shows originals until then.
-        unawaited(_warmCaches(docId, doc?.pages ?? pages));
+        unawaited(
+          _renderService.ensureCachesFor(docId).catchError(
+            (Object e) => debugPrint('cache warm failed: $e'),
+          ),
+        );
       },
     );
-  }
-
-  Future<void> _warmCaches(String docId, List<ScanPage> pages) async {
-    for (final pg in pages) {
-      try {
-        final saved = pg.documentId == docId
-            ? pg
-            : pg.copyWith(
-                documentId: docId,
-                originalPath: _files.originalPath(docId, pg.id),
-              );
-        await _renderService.ensurePageCache(saved);
-      } catch (err) {
-        debugPrint('cache warm failed for ${pg.id}: $err');
-      }
-    }
   }
 
   /// Makes a draft page from a raw capture (after auto edits).

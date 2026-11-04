@@ -118,11 +118,12 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
+      if (c == null) return;
       c.dispose();
       _controller = null;
     } else if (state == AppLifecycleState.resumed) {
+      setState(() => _initializing = true);
       unawaited(_init());
     }
   }

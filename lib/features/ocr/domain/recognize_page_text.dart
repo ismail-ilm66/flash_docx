@@ -19,9 +19,17 @@ class RecognizePageText {
 
   Future<Either<Failure, String>> call(ScanPage page, {bool force = false}) async {
     if (!force && page.ocrText != null) return Right(page.ocrText!);
+    // The caller may hold a stale snapshot; check the stored page first.
+    final fresh = (await _repo.get(page.documentId))
+        .toOption()
+        .toNullable()
+        ?.pages
+        .where((p) => p.id == page.id)
+        .firstOrNull;
+    if (!force && fresh?.ocrText != null) return Right(fresh!.ocrText!);
     final ScanPage ready;
     try {
-      ready = await _render.ensurePageCache(page);
+      ready = await _render.ensurePageCache(fresh ?? page);
     } catch (e) {
       return Left(ImageProcessingFailure(e.toString()));
     }

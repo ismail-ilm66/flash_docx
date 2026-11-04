@@ -28,6 +28,14 @@ class PageRenderService {
     }
   }
 
+  /// Re-reads the document so cache writes never clobber persisted fields
+  /// (order, side) with values from in-memory drafts.
+  Future<void> ensureCachesFor(String documentId) async {
+    final r = await _repo.get(documentId);
+    final doc = r.getOrElse((_) => throw StateError('document $documentId not found'));
+    await ensureCaches(doc);
+  }
+
   Future<ScanPage> ensurePageCache(ScanPage page) async {
     if (_inFlight.contains(page.id)) return page;
     final hasProcessed =
