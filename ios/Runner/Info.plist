@@ -62,5 +62,16 @@
 		<string>Flash Dox</string>
 		<key>UIStatusBarHidden</key>
 		<false/>
-	</dict>
+		<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.flashdox.app</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>flashdox</string>
+			</array>
+		</dict>
+	</array>
+</dict>
 </plist>
