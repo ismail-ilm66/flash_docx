@@ -26,10 +26,10 @@ Map<String, dynamic> _$ScanDocumentToJson(_ScanDocument instance) =>
       'id': instance.id,
       'title': instance.title,
       'mode': _$ScanModeEnumMap[instance.mode]!,
-      'pages': instance.pages,
+      'pages': instance.pages.map((e) => e.toJson()).toList(),
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
-      'lastActivity': instance.lastActivity,
+      'lastActivity': instance.lastActivity?.toJson(),
     };
 
 const _$ScanModeEnumMap = {

@@ -36,6 +36,7 @@ class _EnhanceView extends StatefulWidget {
 
 class _EnhanceViewState extends State<_EnhanceView> {
   bool _comparing = false;
+  int _lastAppliedTick = 0;
 
   // Local slider values so the thumb follows the finger at 60 fps while the
   // bloc debounces the actual render.
@@ -70,8 +71,8 @@ class _EnhanceViewState extends State<_EnhanceView> {
         if (s.status == EditorStatus.failed && s.failure != null) {
           context.showSnack(failureMessage(context, s.failure), error: true);
         }
-        if (s.appliedToAllTick > 0) {
-          // Only announce when the tick changed in this listener call.
+        if (s.appliedToAllTick != _lastAppliedTick) {
+          _lastAppliedTick = s.appliedToAllTick;
           context.showSnack(l.enhanceAppliedAll);
         }
         setState(() { _brightness = null; _contrast = null; });

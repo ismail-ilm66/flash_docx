@@ -86,7 +86,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           page.originalPath,
           const PageEdits(filter: FilterType.original),
           size: RenderSize.preview,
-          outputPath: _files.newCapturePath('base_${page.id}'),
+          outputPath: _files.newCapturePath('base_${page.id}_${page.originalPath.hashCode}'),
           jpegQuality: 85,
         );
       }

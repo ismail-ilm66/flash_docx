@@ -41,16 +41,8 @@ android {
         }
     }
 
-    // opencv_dart ships large native libs; keep per-ABI splits for sideload APKs.
-    // Play Store builds use `flutter build appbundle`, which splits automatically.
-    splits {
-        abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64")
-            isUniversalApk = false
-        }
-    }
+    // Per-ABI APKs: `flutter build apk --split-per-abi`. Play builds use
+    // `flutter build appbundle`, which splits automatically.
 }
 
 flutter {

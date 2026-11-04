@@ -27,6 +27,7 @@ class AdMobRewardGate implements RewardGate {
   static const _loadTimeout = Duration(seconds: 8);
 
   /// Runs the UMP consent flow (no-op outside EEA/UK) and initialises the SDK.
+  @override
   Future<void> initialize() async {
     if (_sdkReady) return;
     try {

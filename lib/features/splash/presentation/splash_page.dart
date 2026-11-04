@@ -4,6 +4,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_colors.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:go_router/go_router.dart';
@@ -47,7 +48,10 @@ class _SplashPageState extends State<SplashPage> {
     // Housekeeping: export temp files from the previous run.
     final work = getIt<FileStore>().clearExportTemp().catchError((_) {});
     await Future.wait([minimum, work]);
-    if (mounted) context.go(Routes.home);
+    if (!mounted) return;
+    context.go(Routes.home);
+    // Consent form (EEA/UK) + ads SDK, shown over Home; never blocks start-up.
+    unawaited(getIt<RewardGate>().initialize());
   }
 
   @override

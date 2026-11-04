@@ -22,8 +22,8 @@ _Quad _$QuadFromJson(Map<String, dynamic> json) => _Quad(
 );
 
 Map<String, dynamic> _$QuadToJson(_Quad instance) => <String, dynamic>{
-  'tl': instance.tl,
-  'tr': instance.tr,
-  'br': instance.br,
-  'bl': instance.bl,
+  'tl': instance.tl.toJson(),
+  'tr': instance.tr.toJson(),
+  'br': instance.br.toJson(),
+  'bl': instance.bl.toJson(),
 };

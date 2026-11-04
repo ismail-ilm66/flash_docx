@@ -48,7 +48,8 @@ abstract final class PrintLayoutCalculator {
   /// Copies offered per kind and output.
   static List<int> allowedCopies(PrintKind kind, PrintOutput output) {
     if (kind == PrintKind.passport) return const [1, 2, 4];
-    if (output == PrintOutput.pdfOnePage) return const [1, 2, 4];
+    // One-page pairs and the stacked front/back image only fit up to 4.
+    if (output != PrintOutput.pdfDoubleSided) return const [1, 2, 4];
     return const [1, 2, 4, 6, 8];
   }
 
@@ -120,7 +121,9 @@ abstract final class PrintLayoutCalculator {
       case PrintOutput.image:
         // Fronts, then backs below them (same grid, stacked). When both sides
         // exist we place the two grids in the top and bottom halves.
-        if (!spec.hasBack) return SheetLayout([_gridItems(kind, copies, isBack: false)]);
+        if (!spec.hasBack || !fitsStacked(kind, copies)) {
+          return SheetLayout([_gridItems(kind, copies, isBack: false)]);
+        }
         return SheetLayout([_stackedFrontBack(kind, copies)]);
       case PrintOutput.pdfDoubleSided:
         final fronts = _gridItems(kind, copies, isBack: false);

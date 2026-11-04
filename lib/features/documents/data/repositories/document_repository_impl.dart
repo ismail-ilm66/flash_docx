@@ -96,7 +96,8 @@ class DocumentRepositoryImpl implements DocumentRepository {
     final lastBy = <String, ActivityRow>{};
     for (final a in acts) {
       final cur = lastBy[a.documentId];
-      if (cur == null || a.at.isAfter(cur.at)) lastBy[a.documentId] = a;
+      // Rows arrive in insertion order, so a tie goes to the newer row.
+      if (cur == null || !a.at.isBefore(cur.at)) lastBy[a.documentId] = a;
     }
     return [
       for (final d in docs)

@@ -22,7 +22,7 @@ Map<String, dynamic> _$ScanPageToJson(_ScanPage instance) => <String, dynamic>{
   'id': instance.id,
   'documentId': instance.documentId,
   'originalPath': instance.originalPath,
-  'edits': instance.edits,
+  'edits': instance.edits.toJson(),
   'order': instance.order,
   'side': _$CardSideEnumMap[instance.side],
   'processedPath': instance.processedPath,

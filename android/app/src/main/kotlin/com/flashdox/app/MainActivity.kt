@@ -75,17 +75,18 @@ class MainActivity : FlutterActivity() {
         return uris.mapNotNull { copyToCache(it) }
     }
 
-    private fun copyToCache(uri: Uri): String? = try {
-        val dir = File(cacheDir, "share_in").apply { mkdirs() }
-        val ext = contentResolver.getType(uri)?.substringAfter('/')?.let {
-            if (it == "jpeg") "jpg" else it
-        } ?: "jpg"
-        val out = File(dir, "${System.currentTimeMillis()}_${uri.hashCode()}.$ext")
-        contentResolver.openInputStream(uri)?.use { input ->
-            FileOutputStream(out).use { input.copyTo(it) }
-        } ?: return null
-        out.absolutePath
-    } catch (_: Exception) {
-        null
+    private fun copyToCache(uri: Uri): String? {
+        return try {
+            val dir = File(cacheDir, "share_in").apply { mkdirs() }
+            val ext = contentResolver.getType(uri)?.substringAfter('/')?.let {
+                if (it == "jpeg") "jpg" else it
+            } ?: "jpg"
+            val out = File(dir, "${System.currentTimeMillis()}_${uri.hashCode()}.$ext")
+            val input = contentResolver.openInputStream(uri) ?: return null
+            input.use { FileOutputStream(out).use { o -> it.copyTo(o) } }
+            out.absolutePath
+        } catch (_: Exception) {
+            null
+        }
     }
 }

@@ -1286,6 +1286,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       result: [TableUpdate('activities', kind: UpdateKind.delete)],
     ),
   ]);
+  @override
+  DriftDatabaseOptions get options =>
+      const DriftDatabaseOptions(storeDateTimeAsText: true);
 }
 
 typedef $$DocumentsTableCreateCompanionBuilder =

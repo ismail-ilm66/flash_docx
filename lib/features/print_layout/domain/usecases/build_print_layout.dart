@@ -41,7 +41,10 @@ class BuildPrintLayout {
     final pages = doc.sortedPages;
     if (pages.isEmpty) return const Left(NotFoundFailure());
     final frontPage = doc.pageOfSide(CardSide.front) ?? pages.first;
-    final backPage = doc.pageOfSide(CardSide.back) ?? (pages.length > 1 ? pages[1] : null);
+    // Passports have no back side; ID cards use the back capture (or page 2).
+    final backPage = kind == PrintKind.passport
+        ? null
+        : doc.pageOfSide(CardSide.back) ?? (pages.length > 1 ? pages[1] : null);
     final base = '${doc.title.fileSafe}_print';
     try {
       final front = await _render.renderForExport(

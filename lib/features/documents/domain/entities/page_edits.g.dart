@@ -20,7 +20,7 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
     <String, dynamic>{
-      'crop': instance.crop,
+      'crop': instance.crop?.toJson(),
       'quarterTurns': instance.quarterTurns,
       'filter': _$FilterTypeEnumMap[instance.filter]!,
       'brightness': instance.brightness,

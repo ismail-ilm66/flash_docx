@@ -3,6 +3,12 @@ targets:
     builders:
       freezed:
         options:
-          # Keep generated code smaller; we don't use `when`/`map`.
           when: false
           map: false
+      json_serializable:
+        options:
+          explicit_to_json: true
+      drift_dev:
+        options:
+          # Millisecond precision (ISO-8601 text) instead of unix seconds.
+          store_date_time_values_as_text: true

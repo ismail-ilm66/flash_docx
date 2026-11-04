@@ -88,9 +88,11 @@ class _ShareSheetState extends State<_ShareSheet> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _Label(l.shareFormat),
-              Row(
+              Wrap(
+                spacing: Space.x2,
+                runSpacing: Space.x2,
                 children: [
-                  for (final f in ExportFormat.values) ...[
+                  for (final f in ExportFormat.values)
                     OptionChip(
                       label: switch (f) {
                         ExportFormat.pdf => l.sharePdf,
@@ -101,20 +103,19 @@ class _ShareSheetState extends State<_ShareSheet> {
                       gated: f == ExportFormat.png && !s.unlocked.contains(PremiumFeature.pngExport),
                       onTap: () => _update(o.copyWith(format: f)),
                     ),
-                    const SizedBox(width: Space.x2),
-                  ],
                 ],
               ),
               const SizedBox(height: Space.x4),
               _Label(l.shareQuality),
-              Row(
+              Wrap(
+                spacing: Space.x2,
+                runSpacing: Space.x2,
                 children: [
                   OptionChip(
                     label: l.shareQualityStandard,
                     selected: o.quality == ExportQuality.standard,
                     onTap: () => _update(o.copyWith(quality: ExportQuality.standard)),
                   ),
-                  const SizedBox(width: Space.x2),
                   OptionChip(
                     label: l.shareQualityHigh,
                     selected: o.quality == ExportQuality.high,

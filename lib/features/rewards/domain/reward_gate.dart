@@ -3,6 +3,9 @@ enum PremiumFeature { highQualityExport, pngExport, allPagesText, moreCopies }
 enum RewardResult { granted, cancelled, offline }
 
 abstract interface class RewardGate {
+  /// Consent (UMP) + SDK init. Called once at start-up; safe to call again.
+  Future<void> initialize();
+
   /// Starts loading a rewarded ad so it's ready when the user taps unlock.
   void preload();
 
