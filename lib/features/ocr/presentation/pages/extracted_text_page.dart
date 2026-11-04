@@ -5,7 +5,6 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/share_service.dart';
-import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/ocr/presentation/cubit/ocr_cubit.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/rewards/presentation/unlock_dialog.dart';
@@ -105,44 +104,59 @@ class _OcrViewState extends State<_OcrView> {
         final st = s.status;
         final working = st is OcrWorking;
         final multi = pages.length > 1;
+        final pageIndex = pages.isEmpty ? 0 : pages.indexWhere((p) => p.id == s.page?.id).clamp(0, pages.length - 1);
+        final cubit = context.read<OcrCubit>();
+        void goTo(int i) => cubit.selectPage(pages[i].id);
+        final empty = s.text.isEmpty;
+
         return AppScaffold(
-          topBar: AppTopBar(
-            title: l.ocrTitle,
-            subtitle: doc?.title,
-            actions: [
-              IconButton(
-                tooltip: l.ocrCopyAll,
-                onPressed: s.text.isEmpty ? null : _copyAll,
-                icon: const AppIcon(AppIcons.copy),
-              ),
-            ],
-          ),
+          topBar: AppTopBar(title: l.ocrTitle),
           body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               if (multi)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
+                  padding: const EdgeInsets.fromLTRB(Space.x5, Space.x1, Space.x5, 0),
                   child: SegmentedPills<OcrScope>(
                     values: OcrScope.values,
                     selected: s.scope,
                     labelOf: (v) => v == OcrScope.page ? l.ocrThisPage : l.ocrAllPages,
+                    badgeOf: (v) => v == OcrScope.allPages && !s.allPagesUnlocked ? const VideoBadge(compact: true, size: 16) : null,
                     onChanged: _selectScope,
                   ),
                 ),
               if (multi && s.scope == OcrScope.page)
                 Padding(
-                  padding: const EdgeInsets.only(top: Space.x2),
-                  child: PageStrip(
-                    pages: pages,
-                    index: pages.indexWhere((p) => p.id == s.page?.id).clamp(0, pages.length - 1),
-                    onSelect: (i) => context.read<OcrCubit>().selectPage(pages[i].id),
-                    pathOf: (p) => p.thumbPath ?? p.displayPath,
-                    cacheKeyOf: (p) => p.thumbPath,
+                  padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        tooltip: l.ocrPrevPage,
+                        onPressed: pageIndex > 0 ? () => goTo(pageIndex - 1) : null,
+                        icon: AppIcon(AppIcons.back, size: 20, color: pageIndex > 0 ? c.text : c.muted.withValues(alpha: 0.4)),
+                      ),
+                      Expanded(
+                        child: Text(
+                          l.pageOfTotal(pageIndex + 1, pages.length),
+                          textAlign: TextAlign.center,
+                          style: context.text.labelLarge?.copyWith(fontSize: 13, color: c.muted),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: l.ocrNextPage,
+                        onPressed: pageIndex < pages.length - 1 ? () => goTo(pageIndex + 1) : null,
+                        icon: AppIcon(
+                          AppIcons.chevronRight,
+                          size: 20,
+                          color: pageIndex < pages.length - 1 ? c.text : c.muted.withValues(alpha: 0.4),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               if (working)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
+                  padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, 0),
                   child: Row(
                     children: [
                       SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, value: st.total > 1 ? st.done / st.total : null)),
@@ -156,49 +170,80 @@ class _OcrViewState extends State<_OcrView> {
                 ),
               Expanded(
                 child: st is OcrFailed
-                    ? ErrorView(failure: st.failure, onRetry: context.read<OcrCubit>().run)
-                    : Padding(
-                        padding: const EdgeInsets.all(Space.x4),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: c.surface,
-                            borderRadius: Radii.lgR,
-                            border: Border.all(color: c.border),
-                          ),
-                          padding: const EdgeInsets.all(Space.x3),
-                          child: TextField(
-                            controller: _ctrl,
-                            maxLines: null,
-                            expands: true,
-                            textAlignVertical: TextAlignVertical.top,
-                            style: context.text.bodyLarge?.copyWith(height: 1.5),
-                            onChanged: context.read<OcrCubit>().setText,
-                            decoration: InputDecoration(
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              contentPadding: EdgeInsets.zero,
-                              hintText: st is OcrDone && s.text.isEmpty ? l.ocrEmpty : null,
-                            ),
+                    ? ErrorView(failure: st.failure, onRetry: cubit.run)
+                    : Container(
+                        margin: EdgeInsets.fromLTRB(Space.x5, multi ? Space.x1 : Space.x2, Space.x5, 0),
+                        decoration: BoxDecoration(
+                          color: c.surface,
+                          borderRadius: Radii.lgR,
+                          border: Border.all(color: c.border),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 18),
+                        child: TextField(
+                          controller: _ctrl,
+                          maxLines: null,
+                          expands: true,
+                          textAlignVertical: TextAlignVertical.top,
+                          style: context.text.bodyLarge?.copyWith(fontSize: 15, height: 1.7),
+                          onChanged: cubit.setText,
+                          decoration: InputDecoration(
+                            filled: false,
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            hintText: st is OcrDone && empty ? l.ocrEmpty : null,
                           ),
                         ),
                       ),
               ),
-              Container(
-                decoration: BoxDecoration(color: c.surface, border: Border(top: BorderSide(color: c.border))),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: Space.x1),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        ToolbarAction(icon: AppIcons.cut, label: l.ocrCut, onPressed: s.text.isEmpty ? null : _cut),
-                        ToolbarAction(icon: AppIcons.copy, label: l.ocrCopyAll, onPressed: s.text.isEmpty ? null : _copyAll),
-                        ToolbarAction(icon: AppIcons.share, label: l.ocrShareTxt, onPressed: s.text.isEmpty ? null : _shareTxt, active: true),
-                      ],
-                    ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Space.x5, 10, Space.x5, 0),
+                child: Text(l.ocrHint, style: context.text.bodySmall?.copyWith(color: c.muted)),
+              ),
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.x5, 14, Space.x5, Space.x5),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SecondaryButton(
+                          label: l.ocrCut,
+                          icon: AppIcons.cut,
+                          height: 48,
+                          dense: true,
+                          filled: true,
+                          onPressed: empty ? null : _cut,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Semantics(
+                          label: l.ocrShareTxt,
+                          excludeSemantics: true,
+                          button: true,
+                          child: SecondaryButton(
+                            label: l.ocrTxt,
+                            icon: AppIcons.share,
+                            height: 48,
+                            dense: true,
+                            filled: true,
+                            onPressed: empty ? null : _shareTxt,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: PrimaryButton(
+                          label: l.ocrCopyAll,
+                          icon: AppIcons.copy,
+                          height: 48,
+                          dense: true,
+                          onPressed: empty ? null : _copyAll,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

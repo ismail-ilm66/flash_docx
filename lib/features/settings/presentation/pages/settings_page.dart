@@ -41,6 +41,15 @@ class _SettingsView extends StatelessWidget {
     return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
   }
 
+  String _pageSize(BuildContext context, PdfPageSize p) {
+    final l = context.l10n;
+    return switch (p) {
+      PdfPageSize.a4 => l.sharePageA4,
+      PdfPageSize.letter => l.sharePageLetter,
+      PdfPageSize.fit => l.sharePageFit,
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -49,17 +58,29 @@ class _SettingsView extends StatelessWidget {
     return BlocBuilder<SettingsCubit, SettingsState>(
       builder: (context, s) {
         final cubit = context.read<SettingsCubit>();
+        final format = s.defaultFormat == ExportFormat.png ? ExportFormat.jpg : s.defaultFormat;
         return AppScaffold(
-          topBar: AppTopBar(title: l.settingsTitle, leading: TopBarLeading.none),
-          body: ListView(
-            padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Sizes.navBar + Space.x8),
-            children: [
-              _Section(l.settingsAppearance),
-              _Card(
-                children: [
-                  _RowLabel(l.settingsTheme),
-                  BlocBuilder<ThemeCubit, ThemeMode>(
+          body: SafeArea(
+            bottom: false,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Space.x6),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.x1, Space.x5, Space.x1, Space.x4),
+                  child: Semantics(
+                    header: true,
+                    child: Text(
+                      l.settingsTitle,
+                      style: context.text.headlineMedium?.copyWith(fontSize: 26, fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                ),
+                _Section(
+                  title: l.settingsAppearance,
+                  child: BlocBuilder<ThemeCubit, ThemeMode>(
                     builder: (context, mode) => SegmentedPills<ThemeMode>(
+                      accent: true,
+                      height: 44,
                       values: const [ThemeMode.system, ThemeMode.light, ThemeMode.dark],
                       selected: mode,
                       labelOf: (m) => switch (m) {
@@ -70,108 +91,127 @@ class _SettingsView extends StatelessWidget {
                       onChanged: context.read<ThemeCubit>().set,
                     ),
                   ),
-                ],
-              ),
-              _Section(l.settingsScan),
-              _Card(
-                children: [
-                  _RowLabel(l.settingsDefaultMode),
-                  SegmentedPills<ScanMode>(
-                    values: ScanMode.values,
-                    selected: s.defaultMode,
-                    labelOf: (m) => modeLabel(context, m),
-                    onChanged: cubit.setDefaultMode,
-                  ),
-                  const SizedBox(height: Space.x4),
-                  _RowLabel(l.settingsDefaultFilter),
-                  Wrap(
-                    spacing: Space.x2,
-                    runSpacing: Space.x2,
-                    children: [
-                      for (final f in FilterType.values)
-                        OptionChip(
-                          label: filterLabel(context, f),
-                          selected: s.defaultFilter == f,
-                          onTap: () => cubit.setDefaultFilter(f),
-                        ),
+                ),
+                _Section(
+                  title: l.settingsScan,
+                  child: _Group(
+                    rows: [
+                      _Row(
+                        label: l.settingsDefaultFilter,
+                        value: filterLabel(context, s.defaultFilter),
+                        onTap: () async {
+                          final v = await showChoiceSheet<FilterType>(
+                            context,
+                            title: l.settingsDefaultFilter,
+                            values: FilterType.values,
+                            selected: s.defaultFilter,
+                            labelOf: (f) => filterLabel(context, f),
+                          );
+                          if (v != null) await cubit.setDefaultFilter(v);
+                        },
+                      ),
+                      _Row(
+                        label: l.settingsDefaultMode,
+                        value: modeLabel(context, s.defaultMode),
+                        onTap: () async {
+                          final v = await showChoiceSheet<ScanMode>(
+                            context,
+                            title: l.settingsDefaultMode,
+                            values: ScanMode.values,
+                            selected: s.defaultMode,
+                            labelOf: (m) => modeLabel(context, m),
+                          );
+                          if (v != null) await cubit.setDefaultMode(v);
+                        },
+                      ),
                     ],
                   ),
-                ],
-              ),
-              _Section(l.settingsShare),
-              _Card(
-                children: [
-                  _RowLabel(l.settingsDefaultFormat),
-                  SegmentedPills<ExportFormat>(
-                    values: const [ExportFormat.pdf, ExportFormat.jpg],
-                    selected: s.defaultFormat == ExportFormat.png ? ExportFormat.jpg : s.defaultFormat,
-                    labelOf: (f) => f == ExportFormat.pdf ? l.sharePdf : l.shareJpg,
-                    onChanged: cubit.setDefaultFormat,
-                  ),
-                  const SizedBox(height: Space.x4),
-                  _RowLabel(l.settingsDefaultPageSize),
-                  SegmentedPills<PdfPageSize>(
-                    values: PdfPageSize.values,
-                    selected: s.defaultPageSize,
-                    labelOf: (p) => switch (p) {
-                      PdfPageSize.a4 => l.sharePageA4,
-                      PdfPageSize.letter => l.sharePageLetter,
-                      PdfPageSize.fit => l.sharePageFit,
-                    },
-                    onChanged: cubit.setDefaultPageSize,
-                  ),
-                ],
-              ),
-              _Section(l.settingsStorage),
-              _Card(
-                padding: EdgeInsets.zero,
-                children: [
-                  ListTile(
-                    leading: const AppIcon(AppIcons.storage),
-                    title: Text(l.settingsStorageUsed),
-                    trailing: Text(_bytes(s.storageBytes), style: context.text.labelLarge?.copyWith(color: c.muted)),
-                  ),
-                  Divider(color: c.border, height: 1),
-                  ListTile(
-                    leading: const AppIcon(AppIcons.delete),
-                    title: Text(l.settingsClearTemp),
-                    trailing: s.clearing
-                        ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                        : AppIcon(AppIcons.chevronRight, color: c.muted),
-                    onTap: s.clearing
-                        ? null
-                        : () async {
-                            await cubit.clearTemp();
-                            if (context.mounted) context.showSnack(l.settingsClearedTemp);
-                          },
-                  ),
-                ],
-              ),
-              _Section(l.settingsAbout),
-              _Card(
-                padding: EdgeInsets.zero,
-                children: [
-                  _LinkTile(icon: AppIcons.privacy, label: l.settingsPrivacy, onTap: () => _open(AppInfo.privacyPolicyUrl)),
-                  Divider(color: c.border, height: 1),
-                  _LinkTile(icon: AppIcons.faq, label: l.settingsFaq, onTap: () => _open(AppInfo.faqUrl)),
-                  Divider(color: c.border, height: 1),
-                  _LinkTile(icon: AppIcons.star, label: l.settingsRate, onTap: () => _open(storeUrl)),
-                  Divider(color: c.border, height: 1),
-                  _LinkTile(
-                    icon: AppIcons.share,
-                    label: l.settingsShareApp,
-                    onTap: () => getIt<ShareService>().shareText('${AppInfo.name} — $storeUrl', subject: AppInfo.name),
-                  ),
-                ],
-              ),
-              const SizedBox(height: Space.x4),
-              Center(
-                child: Text(
-                  l.settingsVersion(s.version),
-                  style: context.text.bodySmall?.copyWith(color: c.muted),
                 ),
-              ),
-            ],
+                _Section(
+                  title: l.settingsShare,
+                  child: _Group(
+                    rows: [
+                      _Row(
+                        label: l.settingsDefaultFormat,
+                        value: format == ExportFormat.pdf ? l.sharePdf : l.shareJpg,
+                        onTap: () async {
+                          final v = await showChoiceSheet<ExportFormat>(
+                            context,
+                            title: l.settingsDefaultFormat,
+                            values: const [ExportFormat.pdf, ExportFormat.jpg],
+                            selected: format,
+                            labelOf: (f) => f == ExportFormat.pdf ? l.sharePdf : l.shareJpg,
+                          );
+                          if (v != null) await cubit.setDefaultFormat(v);
+                        },
+                      ),
+                      _Row(
+                        label: l.settingsDefaultPageSize,
+                        value: _pageSize(context, s.defaultPageSize),
+                        onTap: () async {
+                          final v = await showChoiceSheet<PdfPageSize>(
+                            context,
+                            title: l.settingsDefaultPageSize,
+                            values: PdfPageSize.values,
+                            selected: s.defaultPageSize,
+                            labelOf: (p) => _pageSize(context, p),
+                          );
+                          if (v != null) await cubit.setDefaultPageSize(v);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                _Section(
+                  title: l.settingsStorage,
+                  child: _Group(
+                    rows: [
+                      _Row(label: l.settingsStorageUsed, value: _bytes(s.storageBytes)),
+                      _Row(
+                        label: l.settingsClearTemp,
+                        trailing: s.clearing
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                            : null,
+                        onTap: s.clearing
+                            ? null
+                            : () async {
+                                await cubit.clearTemp();
+                                if (context.mounted) context.showSnack(l.settingsClearedTemp);
+                              },
+                      ),
+                    ],
+                  ),
+                ),
+                _Section(
+                  title: l.settingsAbout,
+                  child: _Group(
+                    rows: [
+                      _Row(label: l.settingsPrivacy, onTap: () => _open(AppInfo.privacyPolicyUrl)),
+                      _Row(label: l.settingsFaq, onTap: () => _open(AppInfo.faqUrl)),
+                      _Row(label: l.settingsRate, onTap: () => _open(storeUrl)),
+                      _Row(
+                        label: l.settingsShareApp,
+                        onTap: () => getIt<ShareService>().shareText('${AppInfo.name} — $storeUrl', subject: AppInfo.name),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: Space.x1),
+                Center(
+                  child: Text(
+                    l.settingsVersion(s.version),
+                    style: context.text.bodySmall?.copyWith(color: c.muted),
+                  ),
+                ),
+                const SizedBox(height: Space.x1),
+                Center(
+                  child: Text(
+                    AppInfo.publisher,
+                    style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w700, letterSpacing: 3),
+                  ),
+                ),
+              ],
+            ),
           ),
         );
       },
@@ -180,51 +220,81 @@ class _SettingsView extends StatelessWidget {
 }
 
 class _Section extends StatelessWidget {
-  const _Section(this.text);
-  final String text;
+  const _Section({required this.title, required this.child});
+  final String title;
+  final Widget child;
+
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(Space.x1, Space.x5, Space.x1, Space.x2),
-        child: Text(text, style: context.text.titleMedium?.copyWith(color: context.colors.muted)),
+        padding: const EdgeInsets.only(bottom: 18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SectionLabel(title, padding: const EdgeInsets.only(left: Space.x1, bottom: Space.x2)),
+            child,
+          ],
+        ),
       );
 }
 
-class _Card extends StatelessWidget {
-  const _Card({required this.children, this.padding = const EdgeInsets.all(Space.x4)});
-  final List<Widget> children;
-  final EdgeInsets padding;
+/// Rounded card of rows separated by hairlines.
+class _Group extends StatelessWidget {
+  const _Group({required this.rows});
+  final List<_Row> rows;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     return Container(
-      padding: padding,
       decoration: BoxDecoration(color: c.surface, borderRadius: Radii.lgR, border: Border.all(color: c.border)),
       clipBehavior: Clip.antiAlias,
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
+      child: Column(
+        children: [
+          for (final (i, r) in rows.indexed) ...[
+            if (i > 0) Divider(color: c.border, height: 1),
+            r,
+          ],
+        ],
+      ),
     );
   }
 }
 
-class _RowLabel extends StatelessWidget {
-  const _RowLabel(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: Space.x2),
-        child: Text(text, style: context.text.labelMedium?.copyWith(color: context.colors.muted)),
-      );
-}
-
-class _LinkTile extends StatelessWidget {
-  const _LinkTile({required this.icon, required this.label, required this.onTap});
-  final AppIcons icon;
+/// Label on the left; value, then a chevron when tappable.
+class _Row extends StatelessWidget {
+  const _Row({required this.label, this.value, this.onTap, this.trailing});
   final String label;
-  final VoidCallback onTap;
+  final String? value;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
   @override
-  Widget build(BuildContext context) => ListTile(
-        leading: AppIcon(icon),
-        title: Text(label),
-        trailing: AppIcon(AppIcons.chevronRight, color: context.colors.muted),
-        onTap: onTap,
-      );
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return InkWell(
+      onTap: onTap,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 52),
+        child: Padding(
+          padding: const EdgeInsets.only(left: Space.x4, right: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(label, style: context.text.bodyLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+              if (value != null && value!.isNotEmpty)
+                Text(value!, style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600, color: c.muted)),
+              if (trailing != null) ...[
+                const SizedBox(width: 6),
+                trailing!,
+              ] else if (onTap != null) ...[
+                const SizedBox(width: 6),
+                AppIcon(AppIcons.chevronRight, size: 16, color: c.muted),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

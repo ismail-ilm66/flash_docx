@@ -4,7 +4,6 @@
   "navHome": "Home",
   "navSettings": "Settings",
   "navScan": "Scan",
-
   "homeTitle": "Flash Dox",
   "homeQuickActions": "Quick actions",
   "homeRecentActivity": "Recent activity",
@@ -14,12 +13,10 @@
   "homeImport": "Import",
   "homeImportGallery": "From gallery",
   "homeImportFiles": "From files",
-
   "modeSingle": "Single",
   "modeBatch": "Batch",
   "modeIdCard": "ID card",
   "modePassport": "Passport",
-
   "activityCreated": "Scanned",
   "activityEdited": "Edited",
   "activitySharedPdf": "Shared as PDF",
@@ -27,10 +24,14 @@
   "activitySavedToPhone": "Saved to phone",
   "activityTextCopied": "Text copied",
   "activityPrintLayout": "Print layout created",
-
   "pagesCount": "{count, plural, =1{1 page} other{{count} pages}}",
-  "@pagesCount": {"placeholders": {"count": {"type": "int"}}},
-
+  "@pagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "cameraTitle": "Scan",
   "cameraFlashOn": "Flash on",
   "cameraFlashOff": "Flash off",
@@ -39,22 +40,26 @@
   "cameraGuidePassport": "Passport data page",
   "cameraGuideSingle": "Fit the document in the frame",
   "cameraGuideBatch": "Page {n}",
-  "@cameraGuideBatch": {"placeholders": {"n": {"type": "int"}}},
+  "@cameraGuideBatch": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "cameraDone": "Done",
   "cameraPermissionTitle": "Camera access needed",
   "cameraPermissionBody": "Flash Dox needs the camera to scan documents. You can allow it in Settings.",
   "cameraOpenSettings": "Open settings",
   "cameraImportInstead": "Import instead",
-
   "adjustTitle": "Adjust edges",
   "adjustHint": "Drag the corners to fit the document",
-  "adjustAuto": "Auto",
+  "adjustAuto": "Auto edges",
   "adjustRotateLeft": "Rotate left",
   "adjustRotateRight": "Rotate right",
   "adjustRetake": "Retake",
-  "adjustDeletePage": "Delete page",
+  "adjustDeletePage": "Delete",
   "adjustNext": "Next",
-
   "enhanceTitle": "Enhance",
   "enhanceBrightness": "Brightness",
   "enhanceContrast": "Contrast",
@@ -63,13 +68,11 @@
   "enhanceHoldToCompare": "Hold to compare",
   "enhanceDone": "Done",
   "enhanceReset": "Reset",
-
   "filterOriginal": "Original",
   "filterAuto": "Auto",
   "filterColorBoost": "Color boost",
   "filterGrayscale": "Grayscale",
   "filterBwPrint": "B&W print",
-
   "viewerEdit": "Edit",
   "viewerText": "Text",
   "viewerPrint": "Print",
@@ -80,16 +83,23 @@
   "viewerDelete": "Delete document",
   "viewerDeletePage": "Delete page",
   "viewerPageOf": "{n} of {total}",
-  "@viewerPageOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
+  "@viewerPageOf": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "viewerUntitled": "Untitled",
-
   "renameTitle": "Rename document",
   "renameHint": "Document name",
   "deleteDocTitle": "Delete this document?",
   "deleteDocBody": "All pages will be removed from your phone. This can't be undone.",
   "deletePageTitle": "Delete this page?",
   "deletePageBody": "The page will be removed from the document.",
-
   "ocrTitle": "Extracted text",
   "ocrThisPage": "This page",
   "ocrAllPages": "All pages",
@@ -100,8 +110,13 @@
   "ocrEmpty": "No text found on this page",
   "ocrWorking": "Reading text…",
   "ocrPageSeparator": "--- Page {n} ---",
-  "@ocrPageSeparator": {"placeholders": {"n": {"type": "int"}}},
-
+  "@ocrPageSeparator": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
   "shareTitle": "Share",
   "shareFormat": "Format",
   "sharePdf": "PDF",
@@ -109,7 +124,7 @@
   "sharePng": "PNG",
   "shareQuality": "Quality",
   "shareQualityStandard": "Standard",
-  "shareQualityHigh": "High quality",
+  "shareQualityHigh": "High",
   "sharePageSize": "Page size",
   "sharePageA4": "A4",
   "sharePageLetter": "Letter",
@@ -120,54 +135,62 @@
   "shareSaved": "Saved to phone",
   "sharePreparing": "Preparing…",
   "shareWatchVideo": "Video",
-
   "printTitle": "Print layout",
   "printOutput": "Output",
   "printOutputImage": "Image",
-  "printOutputDoubleSided": "Double-sided PDF",
-  "printOutputOnePage": "One-page PDF",
+  "printOutputDoubleSided": "PDF\ndouble-sided",
+  "printOutputOnePage": "PDF\none page",
   "printCopies": "Copies per sheet",
   "printActualSize": "Print at 100% / Actual size, flip on long edge.",
   "printShare": "Share",
   "printSave": "Save",
   "printNotAvailable": "Not available for this document",
-
   "unlockTitle": "Unlock with a short video",
   "unlockBody": "Watch one video to unlock {feature} for this export.",
-  "@unlockBody": {"placeholders": {"feature": {"type": "String"}}},
+  "@unlockBody": {
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
   "unlockWatch": "Watch video",
   "unlockNotNow": "Not now",
   "unlockOffline": "Needs internet for the video. Free options still work.",
   "unlockLoading": "Loading video…",
-  "featureHighQuality": "High quality export",
+  "featureHighQuality": "High quality",
   "featurePng": "PNG export",
-  "featureAllPagesText": "Text from all pages",
-  "featureMoreCopies": "More copies per sheet",
-
+  "featureAllPagesText": "All pages",
+  "featureMoreCopies": "More copies",
   "settingsTitle": "Settings",
   "settingsAppearance": "Appearance",
   "settingsTheme": "Theme",
   "settingsThemeSystem": "System",
   "settingsThemeLight": "Light",
   "settingsThemeDark": "Dark",
-  "settingsScan": "Scan",
+  "settingsScan": "Scanning",
   "settingsDefaultFilter": "Default filter",
   "settingsDefaultMode": "Default scan mode",
-  "settingsShare": "Share",
+  "settingsShare": "Sharing",
   "settingsDefaultFormat": "Default format",
-  "settingsDefaultPageSize": "Default page size",
+  "settingsDefaultPageSize": "PDF page size",
   "settingsStorage": "Storage",
-  "settingsStorageUsed": "Space used by scans",
+  "settingsStorageUsed": "Used by Flash Dox",
   "settingsClearTemp": "Clear temporary files",
   "settingsClearedTemp": "Temporary files cleared",
   "settingsAbout": "About",
   "settingsPrivacy": "Privacy Policy",
   "settingsFaq": "FAQ",
   "settingsRate": "Rate Flash Dox",
-  "settingsShareApp": "Share Flash Dox",
-  "settingsVersion": "Version {v}",
-  "@settingsVersion": {"placeholders": {"v": {"type": "String"}}},
-
+  "settingsShareApp": "Share the app",
+  "settingsVersion": "Flash Dox · version {v}",
+  "@settingsVersion": {
+    "placeholders": {
+      "v": {
+        "type": "String"
+      }
+    }
+  },
   "commonCancel": "Cancel",
   "commonDelete": "Delete",
   "commonSave": "Save",
@@ -178,12 +201,166 @@
   "commonClose": "Close",
   "commonSelectAll": "Select all",
   "commonCopy": "Copy",
-
   "errorGeneric": "Something went wrong",
   "errorStorage": "Couldn't write to storage",
   "errorImage": "Couldn't process the image",
   "errorOcr": "Couldn't read text from the image",
   "errorPdf": "Couldn't build the PDF",
   "errorPermission": "Permission needed",
-  "errorOffline": "No internet connection"
+  "errorOffline": "No internet connection",
+  "splashTagline": "Scan. Clean. Share.",
+  "homeHeadline": "What are we scanning today?",
+  "homeDocument": "Document",
+  "homeSortLatest": "Latest",
+  "homeSortOldest": "Oldest",
+  "homeSortName": "Name",
+  "homeSortBy": "Sort documents",
+  "homeNoResults": "No documents match your search",
+  "commonMore": "More options",
+  "cameraFlashOnShort": "On",
+  "cameraFlashOffShort": "Off",
+  "cameraTakePhoto": "Take photo",
+  "cameraReview": "{count, plural, =1{Review 1 page} other{Review {count} pages}}",
+  "@cameraReview": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraRemoveLast": "Remove last capture",
+  "pageOfTotal": "Page {n} of {total}",
+  "@pageOfTotal": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "enhanceApplyAllHint": "{count, plural, =1{Same filter and sliders on 1 page} other{Same filter and sliders on {count} pages}}",
+  "@enhanceApplyAllHint": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "viewerCounter": "{n} / {total}",
+  "@viewerCounter": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "viewerHoldToReorder": "Hold to reorder",
+  "dateTodayAt": "Today, {time}",
+  "@dateTodayAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateYesterdayAt": "Yesterday, {time}",
+  "@dateYesterdayAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "ocrHint": "Read on your phone · works offline · you can edit before copying",
+  "ocrTxt": ".txt",
+  "ocrPrevPage": "Previous page",
+  "ocrNextPage": "Next page",
+  "shareOneFile": "1 file",
+  "shareImagesCount": "{count, plural, =1{1 image} other{{count} images}}",
+  "@shareImagesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareQualityStandardHint": "Smaller file · good for chat",
+  "shareQualityHighHint": "Full resolution · for print",
+  "shareButtonFormat": "Share {format}",
+  "@shareButtonFormat": {
+    "placeholders": {
+      "format": {
+        "type": "String"
+      }
+    }
+  },
+  "printSheetFronts": "Sheet {n} · Fronts",
+  "@printSheetFronts": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "printSheetBacks": "Sheet {n} · Backs",
+  "@printSheetBacks": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "printSheetCaption": "A4 · cards at real size, {w} × {h} mm",
+  "@printSheetCaption": {
+    "placeholders": {
+      "w": {
+        "type": "String"
+      },
+      "h": {
+        "type": "String"
+      }
+    }
+  },
+  "printTipDuplex": "Print double-sided, {flip}, at {scale}. Each back lands behind its front.",
+  "@printTipDuplex": {
+    "placeholders": {
+      "flip": {
+        "type": "String"
+      },
+      "scale": {
+        "type": "String"
+      }
+    }
+  },
+  "printTipSingle": "Print at {scale} so cards come out at their real size.",
+  "@printTipSingle": {
+    "placeholders": {
+      "scale": {
+        "type": "String"
+      }
+    }
+  },
+  "printTipFlip": "flip on long edge",
+  "printTipScale": "100% / Actual size",
+  "printShareImage": "Share image",
+  "unlockFeatureTitle": "Unlock {feature}",
+  "@unlockFeatureTitle": {
+    "placeholders": {
+      "feature": {
+        "type": "String"
+      }
+    }
+  },
+  "unlockBodyHighQuality": "Watch a short video to export this file at full resolution.",
+  "unlockBodyPng": "Watch a short video to export lossless PNG images.",
+  "unlockBodyAllPagesText": "Watch a short video to read the text of every page at once.",
+  "unlockBodyMoreCopies": "Watch a short video to fit more copies on one sheet.",
+  "unlockFreeNote": "Scanning, editing and standard sharing always stay free.",
+  "unlockNeedsInternet": "Needs internet for the video",
+  "settingsChoose": "Choose"
 }

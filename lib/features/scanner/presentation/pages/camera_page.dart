@@ -203,15 +203,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         unawaited(_applyFlash(s.flashOn));
       },
       builder: (context, s) {
+        final title = widget.args.retake
+            ? l.adjustRetake
+            : s.count == 0
+                ? modeLabel(context, s.mode)
+                : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
         return AppScaffold(
           forceDark: true,
           backgroundColor: Colors.black,
           body: Stack(
             fit: StackFit.expand,
             children: [
-              _preview(context),
               CameraOverlay(
+                preview: _preview(context),
                 rules: s.rules,
+                title: title,
                 guide: _guideText(l, s),
                 flashOn: s.flashOn,
                 captureCount: s.count,
@@ -224,7 +230,6 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                 onMode: (m) => context.read<ScanSessionBloc>().add(SessionModeChanged(m)),
                 onShutter: _capture,
                 onGallery: widget.args.retake ? null : () => _import(gallery: true),
-                onFiles: widget.args.retake ? null : () => _import(gallery: false),
                 onFinish: () => context.read<ScanSessionBloc>().add(const SessionFinished()),
                 onRemoveLast: s.count == 0
                     ? null
@@ -266,22 +271,17 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         ),
       );
     }
-    // Fill the screen, cropping the preview rather than letterboxing it.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final previewAspect = 1 / c.value.aspectRatio; // portrait
-        return ClipRect(
-          child: OverflowBox(
-            maxWidth: double.infinity,
-            maxHeight: double.infinity,
-            child: SizedBox(
-              width: constraints.maxWidth,
-              height: constraints.maxWidth / previewAspect,
-              child: CameraPreview(c),
-            ),
-          ),
-        );
-      },
+    // Fill the preview well, cropping rather than letterboxing.
+    final portraitAspect = 1 / c.value.aspectRatio;
+    return ClipRect(
+      child: FittedBox(
+        fit: BoxFit.cover,
+        child: SizedBox(
+          width: 1000,
+          height: 1000 / portraitAspect,
+          child: CameraPreview(c),
+        ),
+      ),
     );
   }
 }

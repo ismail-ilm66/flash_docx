@@ -337,7 +337,7 @@ abstract class AppLocalizations {
   /// No description provided for @adjustAuto.
   ///
   /// In en, this message translates to:
-  /// **'Auto'**
+  /// **'Auto edges'**
   String get adjustAuto;
 
   /// No description provided for @adjustRotateLeft.
@@ -361,7 +361,7 @@ abstract class AppLocalizations {
   /// No description provided for @adjustDeletePage.
   ///
   /// In en, this message translates to:
-  /// **'Delete page'**
+  /// **'Delete'**
   String get adjustDeletePage;
 
   /// No description provided for @adjustNext.
@@ -655,7 +655,7 @@ abstract class AppLocalizations {
   /// No description provided for @shareQualityHigh.
   ///
   /// In en, this message translates to:
-  /// **'High quality'**
+  /// **'High'**
   String get shareQualityHigh;
 
   /// No description provided for @sharePageSize.
@@ -739,13 +739,13 @@ abstract class AppLocalizations {
   /// No description provided for @printOutputDoubleSided.
   ///
   /// In en, this message translates to:
-  /// **'Double-sided PDF'**
+  /// **'PDF\ndouble-sided'**
   String get printOutputDoubleSided;
 
   /// No description provided for @printOutputOnePage.
   ///
   /// In en, this message translates to:
-  /// **'One-page PDF'**
+  /// **'PDF\none page'**
   String get printOutputOnePage;
 
   /// No description provided for @printCopies.
@@ -817,7 +817,7 @@ abstract class AppLocalizations {
   /// No description provided for @featureHighQuality.
   ///
   /// In en, this message translates to:
-  /// **'High quality export'**
+  /// **'High quality'**
   String get featureHighQuality;
 
   /// No description provided for @featurePng.
@@ -829,13 +829,13 @@ abstract class AppLocalizations {
   /// No description provided for @featureAllPagesText.
   ///
   /// In en, this message translates to:
-  /// **'Text from all pages'**
+  /// **'All pages'**
   String get featureAllPagesText;
 
   /// No description provided for @featureMoreCopies.
   ///
   /// In en, this message translates to:
-  /// **'More copies per sheet'**
+  /// **'More copies'**
   String get featureMoreCopies;
 
   /// No description provided for @settingsTitle.
@@ -877,7 +877,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsScan.
   ///
   /// In en, this message translates to:
-  /// **'Scan'**
+  /// **'Scanning'**
   String get settingsScan;
 
   /// No description provided for @settingsDefaultFilter.
@@ -895,7 +895,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsShare.
   ///
   /// In en, this message translates to:
-  /// **'Share'**
+  /// **'Sharing'**
   String get settingsShare;
 
   /// No description provided for @settingsDefaultFormat.
@@ -907,7 +907,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsDefaultPageSize.
   ///
   /// In en, this message translates to:
-  /// **'Default page size'**
+  /// **'PDF page size'**
   String get settingsDefaultPageSize;
 
   /// No description provided for @settingsStorage.
@@ -919,7 +919,7 @@ abstract class AppLocalizations {
   /// No description provided for @settingsStorageUsed.
   ///
   /// In en, this message translates to:
-  /// **'Space used by scans'**
+  /// **'Used by Flash Dox'**
   String get settingsStorageUsed;
 
   /// No description provided for @settingsClearTemp.
@@ -961,13 +961,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsShareApp.
   ///
   /// In en, this message translates to:
-  /// **'Share Flash Dox'**
+  /// **'Share the app'**
   String get settingsShareApp;
 
   /// No description provided for @settingsVersion.
   ///
   /// In en, this message translates to:
-  /// **'Version {v}'**
+  /// **'Flash Dox · version {v}'**
   String settingsVersion(String v);
 
   /// No description provided for @commonCancel.
@@ -1071,6 +1071,276 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No internet connection'**
   String get errorOffline;
+
+  /// No description provided for @splashTagline.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan. Clean. Share.'**
+  String get splashTagline;
+
+  /// No description provided for @homeHeadline.
+  ///
+  /// In en, this message translates to:
+  /// **'What are we scanning today?'**
+  String get homeHeadline;
+
+  /// No description provided for @homeDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Document'**
+  String get homeDocument;
+
+  /// No description provided for @homeSortLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get homeSortLatest;
+
+  /// No description provided for @homeSortOldest.
+  ///
+  /// In en, this message translates to:
+  /// **'Oldest'**
+  String get homeSortOldest;
+
+  /// No description provided for @homeSortName.
+  ///
+  /// In en, this message translates to:
+  /// **'Name'**
+  String get homeSortName;
+
+  /// No description provided for @homeSortBy.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort documents'**
+  String get homeSortBy;
+
+  /// No description provided for @homeNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No documents match your search'**
+  String get homeNoResults;
+
+  /// No description provided for @commonMore.
+  ///
+  /// In en, this message translates to:
+  /// **'More options'**
+  String get commonMore;
+
+  /// No description provided for @cameraFlashOnShort.
+  ///
+  /// In en, this message translates to:
+  /// **'On'**
+  String get cameraFlashOnShort;
+
+  /// No description provided for @cameraFlashOffShort.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get cameraFlashOffShort;
+
+  /// No description provided for @cameraTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take photo'**
+  String get cameraTakePhoto;
+
+  /// No description provided for @cameraReview.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Review 1 page} other{Review {count} pages}}'**
+  String cameraReview(int count);
+
+  /// No description provided for @cameraRemoveLast.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove last capture'**
+  String get cameraRemoveLast;
+
+  /// No description provided for @pageOfTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {n} of {total}'**
+  String pageOfTotal(int n, int total);
+
+  /// No description provided for @enhanceApplyAllHint.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Same filter and sliders on 1 page} other{Same filter and sliders on {count} pages}}'**
+  String enhanceApplyAllHint(int count);
+
+  /// No description provided for @viewerCounter.
+  ///
+  /// In en, this message translates to:
+  /// **'{n} / {total}'**
+  String viewerCounter(int n, int total);
+
+  /// No description provided for @viewerHoldToReorder.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold to reorder'**
+  String get viewerHoldToReorder;
+
+  /// No description provided for @dateTodayAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Today, {time}'**
+  String dateTodayAt(String time);
+
+  /// No description provided for @dateYesterdayAt.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday, {time}'**
+  String dateYesterdayAt(String time);
+
+  /// No description provided for @ocrHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Read on your phone · works offline · you can edit before copying'**
+  String get ocrHint;
+
+  /// No description provided for @ocrTxt.
+  ///
+  /// In en, this message translates to:
+  /// **'.txt'**
+  String get ocrTxt;
+
+  /// No description provided for @ocrPrevPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous page'**
+  String get ocrPrevPage;
+
+  /// No description provided for @ocrNextPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get ocrNextPage;
+
+  /// No description provided for @shareOneFile.
+  ///
+  /// In en, this message translates to:
+  /// **'1 file'**
+  String get shareOneFile;
+
+  /// No description provided for @shareImagesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 image} other{{count} images}}'**
+  String shareImagesCount(int count);
+
+  /// No description provided for @shareQualityStandardHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Smaller file · good for chat'**
+  String get shareQualityStandardHint;
+
+  /// No description provided for @shareQualityHighHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Full resolution · for print'**
+  String get shareQualityHighHint;
+
+  /// No description provided for @shareButtonFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Share {format}'**
+  String shareButtonFormat(String format);
+
+  /// No description provided for @printSheetFronts.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} · Fronts'**
+  String printSheetFronts(int n);
+
+  /// No description provided for @printSheetBacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} · Backs'**
+  String printSheetBacks(int n);
+
+  /// No description provided for @printSheetCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'A4 · cards at real size, {w} × {h} mm'**
+  String printSheetCaption(String w, String h);
+
+  /// No description provided for @printTipDuplex.
+  ///
+  /// In en, this message translates to:
+  /// **'Print double-sided, {flip}, at {scale}. Each back lands behind its front.'**
+  String printTipDuplex(String flip, String scale);
+
+  /// No description provided for @printTipSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'Print at {scale} so cards come out at their real size.'**
+  String printTipSingle(String scale);
+
+  /// No description provided for @printTipFlip.
+  ///
+  /// In en, this message translates to:
+  /// **'flip on long edge'**
+  String get printTipFlip;
+
+  /// No description provided for @printTipScale.
+  ///
+  /// In en, this message translates to:
+  /// **'100% / Actual size'**
+  String get printTipScale;
+
+  /// No description provided for @printShareImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Share image'**
+  String get printShareImage;
+
+  /// No description provided for @unlockFeatureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock {feature}'**
+  String unlockFeatureTitle(String feature);
+
+  /// No description provided for @unlockBodyHighQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a short video to export this file at full resolution.'**
+  String get unlockBodyHighQuality;
+
+  /// No description provided for @unlockBodyPng.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a short video to export lossless PNG images.'**
+  String get unlockBodyPng;
+
+  /// No description provided for @unlockBodyAllPagesText.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a short video to read the text of every page at once.'**
+  String get unlockBodyAllPagesText;
+
+  /// No description provided for @unlockBodyMoreCopies.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch a short video to fit more copies on one sheet.'**
+  String get unlockBodyMoreCopies;
+
+  /// No description provided for @unlockFreeNote.
+  ///
+  /// In en, this message translates to:
+  /// **'Scanning, editing and standard sharing always stay free.'**
+  String get unlockFreeNote;
+
+  /// No description provided for @unlockNeedsInternet.
+  ///
+  /// In en, this message translates to:
+  /// **'Needs internet for the video'**
+  String get unlockNeedsInternet;
+
+  /// No description provided for @settingsChoose.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose'**
+  String get settingsChoose;
 }
 
 class _AppLocalizationsDelegate

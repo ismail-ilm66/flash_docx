@@ -7,11 +7,13 @@ import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart'
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
-/// Everything drawn on top of the camera preview: top controls, card frame,
-/// guide label, mode pills, shutter row.
+/// The camera screen chrome: top controls, the preview well (with the
+/// corner frame and guide), mode pills and the shutter row.
 class CameraOverlay extends StatelessWidget {
   const CameraOverlay({
+    required this.preview,
     required this.rules,
+    required this.title,
     required this.guide,
     required this.flashOn,
     required this.captureCount,
@@ -26,11 +28,12 @@ class CameraOverlay extends StatelessWidget {
     super.key,
     this.lastCapturePath,
     this.onGallery,
-    this.onFiles,
     this.onRemoveLast,
   });
 
+  final Widget preview;
   final ScanModeRules rules;
+  final String title;
   final String guide;
   final bool flashOn;
   final int captureCount;
@@ -43,105 +46,136 @@ class CameraOverlay extends StatelessWidget {
   final ValueChanged<ScanMode> onMode;
   final VoidCallback onShutter;
   final VoidCallback? onGallery;
-  final VoidCallback? onFiles;
   final VoidCallback onFinish;
   final VoidCallback? onRemoveLast;
 
+  /// Frame shape for free-form documents (roughly a portrait page).
+  static const double _docAspect = 310 / 410;
+
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     final l = context.l10n;
-    final aspect = rules.aspectRatio;
+    final aspect = rules.aspectRatio ?? _docAspect;
     return SafeArea(
       child: Column(
         children: [
           // ---- top controls ----
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.x2, vertical: Space.x1),
+            padding: const EdgeInsets.symmetric(horizontal: Space.x2, vertical: Space.x3),
             child: Row(
               children: [
-                _RoundIconButton(icon: AppIcons.close, onTap: onClose, tooltip: l.commonClose),
-                const Spacer(),
-                _RoundIconButton(
-                  icon: flashOn ? AppIcons.flashOn : AppIcons.flashOff,
-                  onTap: onFlash,
-                  tooltip: flashOn ? l.cameraFlashOn : l.cameraFlashOff,
-                  active: flashOn,
-                ),
-              ],
-            ),
-          ),
-          // ---- frame + guide ----
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                if (aspect != null)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.x8),
-                    child: AspectRatio(
-                      aspectRatio: aspect,
-                      child: CustomPaint(painter: _CornerFramePainter(color: c.accent)),
-                    ),
-                  ),
-                const SizedBox(height: Space.x5),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: Space.x2),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    borderRadius: Radii.pillR,
-                  ),
-                  child: Text(guide, style: context.text.labelLarge?.copyWith(color: Colors.white)),
-                ),
-              ],
-            ),
-          ),
-          // ---- modes ----
-          if (showModes)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Space.x3),
-              child: SegmentedPills<ScanMode>(
-                values: ScanMode.values,
-                selected: rules.mode,
-                labelOf: (m) => modeLabel(context, m),
-                onChanged: onMode,
-              ),
-            ),
-          // ---- shutter row ----
-          Container(
-            padding: const EdgeInsets.fromLTRB(Space.x5, Space.x3, Space.x5, Space.x4),
-            color: Colors.black.withValues(alpha: 0.6),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 72,
-                  child: onGallery == null
-                      ? null
-                      : Row(
-                          children: [
-                            _RoundIconButton(icon: AppIcons.gallery, onTap: onGallery!, tooltip: l.homeImportGallery),
-                            if (onFiles != null)
-                              _RoundIconButton(icon: AppIcons.files, onTap: onFiles!, tooltip: l.homeImportFiles, small: true),
-                          ],
-                        ),
+                IconButton(
+                  tooltip: l.commonClose,
+                  onPressed: onClose,
+                  icon: const AppIcon(AppIcons.close, color: Colors.white),
                 ),
                 Expanded(
-                  child: Center(
-                    child: _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
+                  child: Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
                   ),
                 ),
-                SizedBox(
-                  width: 72,
-                  child: captureCount == 0
-                      ? null
-                      : _PageStack(
-                          count: captureCount,
-                          path: lastCapturePath,
-                          onTap: canFinish ? onFinish : onRemoveLast,
-                          label: canFinish ? l.cameraDone : null,
-                        ),
-                ),
+                _FlashPill(on: flashOn, onTap: onFlash),
               ],
+            ),
+          ),
+          // ---- preview well ----
+          Expanded(
+            child: Container(
+              margin: const EdgeInsets.only(top: Space.x1),
+              color: const Color(0xFF2A2622),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  preview,
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, 76),
+                      child: AspectRatio(
+                        aspectRatio: aspect,
+                        child: const CustomPaint(painter: _CornerFramePainter()),
+                      ),
+                    ),
+                  ),
+                  Positioned(
+                    left: Space.x4,
+                    right: Space.x4,
+                    bottom: Space.x5,
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        child: Text(
+                          guide,
+                          textAlign: TextAlign.center,
+                          style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // ---- modes + shutter ----
+          ColoredBox(
+            color: Colors.black,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 14, bottom: Space.x3),
+              child: Column(
+                children: [
+                  if (showModes) ...[
+                    _ModePills(selected: rules.mode, onMode: onMode),
+                    const SizedBox(height: Space.x4),
+                  ],
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Space.x8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        SizedBox(
+                          width: 52,
+                          height: 52,
+                          child: onGallery == null
+                              ? null
+                              : Tooltip(
+                                  message: l.homeImportGallery,
+                                  child: Material(
+                                    color: const Color(0xFF24272D),
+                                    borderRadius: BorderRadius.circular(14),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: InkWell(
+                                      onTap: onGallery,
+                                      child: const Center(child: AppIcon(AppIcons.gallery, color: _ink)),
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
+                        SizedBox(
+                          width: 52,
+                          height: 52,
+                          child: captureCount == 0
+                              ? null
+                              : _PageStack(
+                                  count: captureCount,
+                                  path: lastCapturePath,
+                                  onTap: canFinish ? onFinish : onRemoveLast,
+                                  onLongPress: onRemoveLast,
+                                  label: canFinish ? l.cameraReview(captureCount) : l.cameraRemoveLast,
+                                ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -150,43 +184,93 @@ class CameraOverlay extends StatelessWidget {
   }
 }
 
-class _RoundIconButton extends StatelessWidget {
-  const _RoundIconButton({
-    required this.icon,
-    required this.onTap,
-    required this.tooltip,
-    this.active = false,
-    this.small = false,
-  });
+const Color _ink = Color(0xFFF3F3F1);
+const Color _inkMuted = Color(0xFFA6AAB2);
 
-  final AppIcons icon;
+class _FlashPill extends StatelessWidget {
+  const _FlashPill({required this.on, required this.onTap});
+
+  final bool on;
   final VoidCallback onTap;
-  final String tooltip;
-  final bool active;
-  final bool small;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final size = small ? 36.0 : Sizes.tap;
-    return Tooltip(
-      message: tooltip,
+    final l = context.l10n;
+    return Semantics(
+      button: true,
+      label: on ? l.cameraFlashOn : l.cameraFlashOff,
+      excludeSemantics: true,
       child: Material(
-        color: active ? c.accent : Colors.black.withValues(alpha: 0.45),
-        shape: const CircleBorder(),
+        color: Colors.white.withValues(alpha: 0.12),
+        shape: const StadiumBorder(),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: size,
-            height: size,
-            child: AppIcon(
-              icon,
-              size: small ? 18 : 22,
-              color: active ? c.onAccent : Colors.white,
+          child: Container(
+            height: Sizes.tap,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                AppIcon(on ? AppIcons.flashOn : AppIcons.flashOff, size: 18, color: on ? c.accent : _ink),
+                const SizedBox(width: 6),
+                Text(
+                  on ? l.cameraFlashOnShort : l.cameraFlashOffShort,
+                  style: context.text.labelMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+                ),
+              ],
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ModePills extends StatelessWidget {
+  const _ModePills({required this.selected, required this.onMode});
+
+  final ScanMode selected;
+  final ValueChanged<ScanMode> onMode;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+      child: Row(
+        children: [
+          for (final (i, m) in ScanMode.values.indexed) ...[
+            if (i > 0) const SizedBox(width: 6),
+            Semantics(
+              button: true,
+              selected: m == selected,
+              child: Material(
+                color: m == selected ? c.accent : Colors.transparent,
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: () => onMode(m),
+                  child: AnimatedContainer(
+                    duration: Motion.normal,
+                    height: 36,
+                    padding: EdgeInsets.symmetric(horizontal: m == selected ? Space.x4 : Space.x3),
+                    alignment: Alignment.center,
+                    child: Text(
+                      modeLabel(context, m),
+                      style: context.text.labelLarge?.copyWith(
+                        color: m == selected ? c.onAccent : _inkMuted,
+                        fontWeight: m == selected ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -199,15 +283,15 @@ class _Shutter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final c = context.colors;
     return Semantics(
       button: true,
-      label: context.l10n.navScan,
+      label: context.l10n.cameraTakePhoto,
+      excludeSemantics: true,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          width: 76,
-          height: 76,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 4),
@@ -217,11 +301,11 @@ class _Shutter extends StatelessWidget {
             duration: Motion.fast,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: busy ? c.accent.withValues(alpha: 0.5) : c.accent,
+              color: busy ? Colors.white.withValues(alpha: 0.5) : Colors.white,
             ),
             child: busy
                 ? const Padding(
-                    padding: EdgeInsets.all(18),
+                    padding: EdgeInsets.all(20),
                     child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.black),
                   )
                 : null,
@@ -232,85 +316,119 @@ class _Shutter extends StatelessWidget {
   }
 }
 
+/// Fanned stack of captured pages with the count badge.
 class _PageStack extends StatelessWidget {
-  const _PageStack({required this.count, required this.onTap, this.path, this.label});
+  const _PageStack({
+    required this.count,
+    required this.onTap,
+    required this.label,
+    this.onLongPress,
+    this.path,
+  });
+
   final int count;
   final String? path;
   final VoidCallback? onTap;
-  final String? label;
+  final VoidCallback? onLongPress;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final file = path == null ? null : File(path!);
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 44,
-                height: 56,
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 6,
+              top: 0,
+              child: Transform.rotate(
+                angle: 0.105, // 6°
+                child: Container(
+                  width: 40,
+                  height: 50,
+                  decoration: BoxDecoration(color: const Color(0xFFD5D7DB), borderRadius: BorderRadius.circular(6)),
+                ),
+              ),
+            ),
+            Positioned(
+              left: 6,
+              top: 1,
+              child: Container(
+                width: 40,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: c.surface2,
-                  borderRadius: Radii.smR,
-                  border: Border.all(color: Colors.white70),
+                  color: const Color(0xFFF4F2EE),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.white, width: 2),
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: file != null && file.existsSync()
-                    ? Image.file(file, fit: BoxFit.cover, cacheWidth: 120)
+                    ? Image.file(file, fit: BoxFit.cover, cacheWidth: 120, gaplessPlayback: true)
                     : null,
               ),
-              Positioned(
-                top: -6,
-                right: -6,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: c.accent, borderRadius: Radii.pillR),
-                  child: Text('$count', style: context.text.labelSmall?.copyWith(color: c.onAccent)),
+            ),
+            Positioned(
+              right: -6,
+              top: -8,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 24),
+                height: 24,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                alignment: Alignment.center,
+                decoration: BoxDecoration(color: c.accent, borderRadius: Radii.pillR),
+                child: Text(
+                  '$count',
+                  style: context.text.labelMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w800, height: 1, color: c.onAccent),
                 ),
               ),
-            ],
-          ),
-          if (label != null) ...[
-            const SizedBox(height: 4),
-            Text(label!, style: context.text.labelSmall?.copyWith(color: c.accent)),
+            ),
           ],
-        ],
+        ),
       ),
     );
   }
 }
 
+/// Four white corner brackets with rounded outer corners.
 class _CornerFramePainter extends CustomPainter {
-  _CornerFramePainter({required this.color});
-  final Color color;
+  const _CornerFramePainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = color
+      ..color = Colors.white
       ..strokeWidth = 3
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
-    const len = 28.0;
-    final r = Offset.zero & size;
-    void corner(Offset o, double dx, double dy) {
-      canvas.drawLine(o, o + Offset(dx * len, 0), paint);
-      canvas.drawLine(o, o + Offset(0, dy * len), paint);
+    const len = 34.0;
+    const r = 6.0;
+    final w = size.width;
+    final h = size.height;
+    // Each corner: along one edge, round the corner, along the other.
+    final corners = [
+      (const Offset(0, len), const Offset(0, r), const Offset(r, 0), const Offset(len, 0)),
+      (Offset(w - len, 0), Offset(w - r, 0), Offset(w, r), Offset(w, len)),
+      (Offset(w, h - len), Offset(w, h - r), Offset(w - r, h), Offset(w - len, h)),
+      (Offset(len, h), Offset(r, h), Offset(0, h - r), Offset(0, h - len)),
+    ];
+    for (final (a, b, cc, d) in corners) {
+      final path = Path()
+        ..moveTo(a.dx, a.dy)
+        ..lineTo(b.dx, b.dy)
+        ..arcToPoint(cc, radius: const Radius.circular(r))
+        ..lineTo(d.dx, d.dy);
+      canvas.drawPath(path, paint);
     }
-    corner(r.topLeft, 1, 1);
-    corner(r.topRight, -1, 1);
-    corner(r.bottomRight, -1, -1);
-    corner(r.bottomLeft, 1, -1);
-    // Soft dim outside the frame
-    final dim = Paint()..color = Colors.black.withValues(alpha: 0.12);
-    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(8)), dim);
   }
 
   @override
-  bool shouldRepaint(covariant _CornerFramePainter old) => old.color != color;
+  bool shouldRepaint(covariant _CornerFramePainter old) => false;
 }

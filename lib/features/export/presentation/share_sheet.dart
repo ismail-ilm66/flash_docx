@@ -82,87 +82,126 @@ class _ShareSheetState extends State<_ShareSheet> {
         final o = s.options;
         final working = s.status is ExportWorking;
         final progress = s.status is ExportWorking ? (s.status as ExportWorking).progress : null;
+        final pageCount = s.document.pages.length;
+        String formatName(ExportFormat f) => switch (f) {
+              ExportFormat.pdf => l.sharePdf,
+              ExportFormat.jpg => l.shareJpg,
+              ExportFormat.png => l.sharePng,
+            };
+        const gap = SizedBox(height: 18);
         return AppBottomSheet(
           title: l.shareTitle,
+          subtitle: '${s.document.title} · ${l.pagesCount(pageCount)}',
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _Label(l.shareFormat),
-              Wrap(
-                spacing: Space.x2,
-                runSpacing: Space.x2,
+              SectionLabel(l.shareFormat, padding: const EdgeInsets.only(bottom: Space.x2)),
+              Row(
                 children: [
-                  for (final f in ExportFormat.values)
-                    OptionChip(
-                      label: switch (f) {
-                        ExportFormat.pdf => l.sharePdf,
-                        ExportFormat.jpg => l.shareJpg,
-                        ExportFormat.png => l.sharePng,
-                      },
-                      selected: o.format == f,
-                      gated: f == ExportFormat.png && !s.unlocked.contains(PremiumFeature.pngExport),
-                      onTap: () => _update(o.copyWith(format: f)),
+                  for (final (i, f) in ExportFormat.values.indexed) ...[
+                    if (i > 0) const SizedBox(width: Space.x2),
+                    Expanded(
+                      child: OptionCard(
+                        centered: true,
+                        height: 64,
+                        titleSize: 15,
+                        title: formatName(f),
+                        subtitle: f == ExportFormat.pdf ? l.shareOneFile : l.shareImagesCount(pageCount),
+                        selected: o.format == f,
+                        gated: f == ExportFormat.png && !s.unlocked.contains(PremiumFeature.pngExport),
+                        onTap: () => _update(o.copyWith(format: f)),
+                      ),
                     ),
-                ],
-              ),
-              const SizedBox(height: Space.x4),
-              _Label(l.shareQuality),
-              Wrap(
-                spacing: Space.x2,
-                runSpacing: Space.x2,
-                children: [
-                  OptionChip(
-                    label: l.shareQualityStandard,
-                    selected: o.quality == ExportQuality.standard,
-                    onTap: () => _update(o.copyWith(quality: ExportQuality.standard)),
-                  ),
-                  OptionChip(
-                    label: l.shareQualityHigh,
-                    selected: o.quality == ExportQuality.high,
-                    gated: !s.unlocked.contains(PremiumFeature.highQualityExport),
-                    onTap: () => _update(o.copyWith(quality: ExportQuality.high)),
-                  ),
+                  ],
                 ],
               ),
               if (!o.isImage) ...[
-                const SizedBox(height: Space.x4),
-                _Label(l.sharePageSize),
-                SegmentedPills<PdfPageSize>(
-                  values: PdfPageSize.values,
-                  selected: o.pageSize,
-                  labelOf: (p) => switch (p) {
-                    PdfPageSize.a4 => l.sharePageA4,
-                    PdfPageSize.letter => l.sharePageLetter,
-                    PdfPageSize.fit => l.sharePageFit,
-                  },
-                  onChanged: (p) => _update(o.copyWith(pageSize: p)),
+                gap,
+                SectionLabel(l.sharePageSize, padding: const EdgeInsets.only(bottom: Space.x2)),
+                Wrap(
+                  spacing: Space.x2,
+                  runSpacing: Space.x2,
+                  children: [
+                    for (final p in PdfPageSize.values)
+                      OptionChip(
+                        label: switch (p) {
+                          PdfPageSize.a4 => l.sharePageA4,
+                          PdfPageSize.letter => l.sharePageLetter,
+                          PdfPageSize.fit => l.sharePageFit,
+                        },
+                        selected: o.pageSize == p,
+                        onTap: () => _update(o.copyWith(pageSize: p)),
+                      ),
+                  ],
                 ),
               ],
-              const SizedBox(height: Space.x4),
-              _Label(l.shareFileName),
+              gap,
+              SectionLabel(l.shareQuality, padding: const EdgeInsets.only(bottom: Space.x2)),
+              Row(
+                children: [
+                  Expanded(
+                    child: OptionCard(
+                      height: 56,
+                      title: l.shareQualityStandard,
+                      subtitle: l.shareQualityStandardHint,
+                      selected: o.quality == ExportQuality.standard,
+                      onTap: () => _update(o.copyWith(quality: ExportQuality.standard)),
+                    ),
+                  ),
+                  const SizedBox(width: Space.x2),
+                  Expanded(
+                    child: OptionCard(
+                      height: 56,
+                      title: l.shareQualityHigh,
+                      subtitle: l.shareQualityHighHint,
+                      selected: o.quality == ExportQuality.high,
+                      gated: !s.unlocked.contains(PremiumFeature.highQualityExport),
+                      onTap: () => _update(o.copyWith(quality: ExportQuality.high)),
+                    ),
+                  ),
+                ],
+              ),
+              gap,
+              SectionLabel(l.shareFileName, padding: const EdgeInsets.only(bottom: 6)),
               TextField(
                 controller: _name,
                 textInputAction: TextInputAction.done,
-                decoration: InputDecoration(suffixText: '.${o.extension}'),
+                style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  suffixText: '.${o.extension}',
+                  suffixStyle: context.text.bodyMedium?.copyWith(color: c.muted, fontWeight: FontWeight.w600),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
+                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent, width: 1.5)),
+                ),
               ),
-              const SizedBox(height: Space.x5),
+              const SizedBox(height: 22),
               if (working) ...[
                 LinearProgressIndicator(value: progress == 0 ? null : progress, borderRadius: Radii.pillR),
                 const SizedBox(height: Space.x2),
                 Text(l.sharePreparing, style: context.text.bodySmall?.copyWith(color: c.muted)),
                 const SizedBox(height: Space.x3),
               ],
-              PrimaryButton(
-                label: l.shareButton,
-                icon: AppIcons.share,
-                loading: working,
-                onPressed: () => _go(ExportTarget.share),
-              ),
-              const SizedBox(height: Space.x2),
-              SecondaryButton(
-                label: l.shareSaveToPhone,
-                icon: AppIcons.save,
-                onPressed: working ? null : () => _go(ExportTarget.saveToPhone),
+              Row(
+                children: [
+                  Expanded(
+                    child: SecondaryButton(
+                      label: l.shareSaveToPhone,
+                      icon: AppIcons.save,
+                      dense: true,
+                      onPressed: working ? null : () => _go(ExportTarget.saveToPhone),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: PrimaryButton(
+                      label: l.shareButtonFormat(formatName(o.format)),
+                      icon: AppIcons.share,
+                      loading: working,
+                      onPressed: () => _go(ExportTarget.share),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -170,14 +209,4 @@ class _ShareSheetState extends State<_ShareSheet> {
       },
     );
   }
-}
-
-class _Label extends StatelessWidget {
-  const _Label(this.text);
-  final String text;
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: Space.x2),
-        child: Text(text, style: context.text.labelMedium?.copyWith(color: context.colors.muted)),
-      );
 }

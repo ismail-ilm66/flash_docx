@@ -31,45 +31,63 @@ class DocumentTile extends StatelessWidget {
         ? DateFmt.relative(d.updatedAt)
         : '${activityLabel(context, act.type)} · ${DateFmt.relative(act.at)}';
 
+    final isCard = d.mode == ScanMode.idCard || d.mode == ScanMode.passport;
+    final meta = isCard
+        ? '${modeLabel(context, d.mode)} · ${l.pagesCount(d.pages.length)}'
+        : l.pagesCount(d.pages.length);
+
     return InkWell(
       onTap: onTap,
-      borderRadius: Radii.lgR,
       child: Container(
-        padding: const EdgeInsets.all(Space.x3),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: Radii.lgR,
-          border: Border.all(color: c.border),
+          border: Border(bottom: BorderSide(color: c.border)),
         ),
         child: Row(
           children: [
-            PageThumb(
-              path: cover?.thumbPath ?? cover?.processedPath ?? cover?.originalPath,
-              size: 52,
-              cacheKey: cover?.thumbPath ?? cover?.processedPath,
+            Container(
+              width: 52,
+              height: 64,
+              decoration: BoxDecoration(color: c.surface2, borderRadius: Radii.smR),
+              alignment: Alignment.center,
+              child: SizedBox(
+                width: isCard ? 42 : 36,
+                height: isCard ? 27 : 48,
+                child: PageImage(
+                  path: cover?.thumbPath ?? cover?.processedPath ?? cover?.originalPath,
+                  cacheKey: cover?.thumbPath ?? cover?.processedPath,
+                  cacheWidth: 120,
+                  radius: isCard ? 4 : 3,
+                ),
+              ),
             ),
-            const SizedBox(width: Space.x3),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     d.title,
-                    style: context.text.titleSmall,
+                    style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${modeLabel(context, d.mode)} · ${l.pagesCount(d.pages.length)}',
-                    style: context.text.bodySmall?.copyWith(color: c.muted),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    activityLine,
-                    style: context.text.bodySmall?.copyWith(color: c.accentText),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  const SizedBox(height: 3),
+                  Text(meta, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                  const SizedBox(height: 3),
+                  Row(
+                    children: [
+                      AppIcon(AppIcons.clock, size: 13, color: c.accentText),
+                      const SizedBox(width: 5),
+                      Expanded(
+                        child: Text(
+                          activityLine,
+                          style: context.text.bodySmall?.copyWith(color: c.accentText, fontWeight: FontWeight.w600),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -77,8 +95,8 @@ class DocumentTile extends StatelessWidget {
             if (onMore != null)
               IconButton(
                 onPressed: onMore,
-                icon: const AppIcon(AppIcons.more),
-                tooltip: 'More',
+                icon: AppIcon(AppIcons.more, size: 20, color: c.muted),
+                tooltip: l.commonMore,
               ),
           ],
         ),

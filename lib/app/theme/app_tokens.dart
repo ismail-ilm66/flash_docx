@@ -20,12 +20,14 @@ abstract final class Radii {
   static const double md = 14;
   static const double lg = 16;
   static const double xl = 24;
+  static const double xxl = 28;
   static const double pill = 999;
 
   static final BorderRadius smR = BorderRadius.circular(sm);
   static final BorderRadius mdR = BorderRadius.circular(md);
   static final BorderRadius lgR = BorderRadius.circular(lg);
   static final BorderRadius xlR = BorderRadius.circular(xl);
+  static final BorderRadius xxlR = BorderRadius.circular(xxl);
   static final BorderRadius pillR = BorderRadius.circular(pill);
 }
 
@@ -33,8 +35,8 @@ abstract final class Sizes {
   /// Minimum tap target.
   static const double tap = 44;
   static const double fab = 64;
-  static const double navBar = 64;
-  static const double topBar = 56;
+  static const double navBar = 76;
+  static const double topBar = 68;
   static const double icon = 24;
   static const double iconSm = 20;
 }

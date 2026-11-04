@@ -32,7 +32,7 @@ class _QuadEditorState extends State<QuadEditor> {
   int? _active;
   Offset? _touch;
 
-  static const double _handleRadius = 14;
+  static const double _handleRadius = 12;
   static const double _hitRadius = 36;
 
   @override
@@ -148,7 +148,7 @@ class _Magnifier extends StatelessWidget {
   final Offset focal;
   final Size box;
 
-  static const double _size = 110;
+  static const double _size = 96;
   static const double _lift = 90;
 
   @override
@@ -165,9 +165,9 @@ class _Magnifier extends StatelessWidget {
           size: const Size(_size, _size),
           magnificationScale: 2.2,
           focalPointOffset: focal - center,
-          decoration: MagnifierDecoration(
-            shape: CircleBorder(side: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 2)),
-            shadows: const [BoxShadow(color: Colors.black54, blurRadius: 12, offset: Offset(0, 4))],
+          decoration: const MagnifierDecoration(
+            shape: CircleBorder(side: BorderSide(color: Colors.white, width: 3)),
+            shadows: [BoxShadow(color: Color(0x80000000), blurRadius: 20, offset: Offset(0, 6))],
           ),
           child: const Center(child: Icon(Icons.add, size: 18, color: Colors.white70)),
         ),
@@ -192,36 +192,45 @@ class _QuadPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final path = Path()..addPolygon(points, true);
-    // Dim outside the quad.
-    final outside = Path()
-      ..addRect(Offset.zero & size)
-      ..addPath(path, Offset.zero)
-      ..fillType = PathFillType.evenOdd;
-    canvas.drawPath(outside, Paint()..color = Colors.black.withValues(alpha: 0.45));
+    canvas.drawPath(path, Paint()..color = accent.withValues(alpha: 0.10));
     canvas.drawPath(
       path,
       Paint()
         ..color = accent
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round,
     );
-    // Edge midpoints as subtle hints.
+    final white = Paint()..color = Colors.white;
+    final ring = Paint()
+      ..color = accent
+      ..style = PaintingStyle.stroke;
+    // Edge midpoints: small pills laid along each edge.
     for (var i = 0; i < 4; i++) {
-      final mid = (points[i] + points[(i + 1) % 4]) / 2;
-      canvas.drawCircle(mid, 4, Paint()..color = accent.withValues(alpha: 0.6));
-    }
-    for (var i = 0; i < 4; i++) {
-      final isActive = active == i;
-      canvas.drawCircle(points[i], handleRadius + (isActive ? 4 : 0), Paint()..color = accent.withValues(alpha: 0.25));
-      canvas.drawCircle(points[i], isActive ? 9 : 7, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        points[i],
-        isActive ? 9 : 7,
-        Paint()
-          ..color = accent
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5,
+      final a = points[i];
+      final b = points[(i + 1) % 4];
+      final mid = (a + b) / 2;
+      final angle = (b - a).direction;
+      canvas
+        ..save()
+        ..translate(mid.dx, mid.dy)
+        ..rotate(angle);
+      final pill = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: 30, height: 10),
+        const Radius.circular(5),
       );
+      canvas
+        ..drawRRect(pill, white)
+        ..drawRRect(pill.deflate(1), ring..strokeWidth = 2)
+        ..restore();
+    }
+    // Corners: white discs with an accent ring.
+    for (var i = 0; i < 4; i++) {
+      final r = handleRadius + (active == i ? 3 : 0);
+      if (active == i) canvas.drawCircle(points[i], r + 8, Paint()..color = accent.withValues(alpha: 0.25));
+      canvas
+        ..drawCircle(points[i], r, white)
+        ..drawCircle(points[i], r - 1.5, ring..strokeWidth = 3);
     }
   }
 

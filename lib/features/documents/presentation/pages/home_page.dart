@@ -41,6 +41,8 @@ class _HomeView extends StatefulWidget {
 class _HomeViewState extends State<_HomeView> {
   StreamSubscription<List<String>>? _shareSub;
   bool _importing = false;
+  bool _searching = false;
+  final _searchCtrl = TextEditingController();
 
   @override
   void initState() {
@@ -53,6 +55,7 @@ class _HomeViewState extends State<_HomeView> {
   @override
   void dispose() {
     _shareSub?.cancel();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -86,6 +89,57 @@ class _HomeViewState extends State<_HomeView> {
     );
   }
 
+  Future<void> _pickImportSource() async {
+    final l = context.l10n;
+    final gallery = await AppBottomSheet.show<bool>(
+      context,
+      builder: (ctx) => AppBottomSheet(
+        title: l.homeImport,
+        padding: const EdgeInsets.fromLTRB(Space.x2, 0, Space.x2, Space.x4),
+        child: Column(
+          children: [
+            SheetAction(
+              label: l.homeImportGallery,
+              leading: const AppIcon(AppIcons.gallery),
+              onTap: () => Navigator.of(ctx).pop(true),
+            ),
+            SheetAction(
+              label: l.homeImportFiles,
+              leading: const AppIcon(AppIcons.files),
+              onTap: () => Navigator.of(ctx).pop(false),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (gallery == null || !mounted) return;
+    await _importFrom(gallery: gallery);
+  }
+
+  Future<void> _pickSort(BuildContext context, HomeSort current) async {
+    final cubit = context.read<HomeCubit>();
+    final picked = await showChoiceSheet<HomeSort>(
+      context,
+      title: context.l10n.homeSortBy,
+      values: HomeSort.values,
+      selected: current,
+      labelOf: (v) => _sortLabel(context, v),
+    );
+    if (picked != null) cubit.setSort(picked);
+  }
+
+  void _toggleSearch(BuildContext context) {
+    final cubit = context.read<HomeCubit>();
+    setState(() => _searching = !_searching);
+    if (!_searching) {
+      _searchCtrl.clear();
+      cubit.search('');
+    }
+  }
+
+  void _scan(BuildContext context, ScanMode? mode) =>
+      context.push(Routes.camera, extra: CameraArgs(mode: mode));
+
   Future<void> _onMore(BuildContext context, ScanDocument doc) async {
     final cubit = context.read<HomeCubit>();
     final action = await showDocumentMenu(context, doc);
@@ -108,120 +162,129 @@ class _HomeViewState extends State<_HomeView> {
       builder: (context, s) {
         final showEmpty = !s.loading && s.documents.isEmpty && s.search.isEmpty;
         return AppScaffold(
-          body: Stack(
-            children: [
-              CustomScrollView(
-                slivers: [
-                  SliverAppBar(
-                    pinned: true,
-                    backgroundColor: c.bg,
-                    title: Row(
-                      children: [
-                        AppIcon(AppIcons.bolt, color: c.accent),
-                        const SizedBox(width: Space.x2),
-                        Text(l.homeTitle, style: context.text.headlineSmall),
-                      ],
+          body: SafeArea(
+            bottom: false,
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    _Header(searching: _searching, onSearch: () => _toggleSearch(context)),
+                    AnimatedSize(
+                      duration: Motion.normal,
+                      curve: Curves.easeOutCubic,
+                      child: !_searching
+                          ? const SizedBox(width: double.infinity)
+                          : Padding(
+                              padding: const EdgeInsets.fromLTRB(Space.x5, Space.x1, Space.x5, Space.x2),
+                              child: TextField(
+                                controller: _searchCtrl,
+                                autofocus: true,
+                                onChanged: context.read<HomeCubit>().search,
+                                textInputAction: TextInputAction.search,
+                                decoration: InputDecoration(
+                                  hintText: l.homeSearchHint,
+                                  prefixIcon: AppIcon(AppIcons.search, size: 20, color: c.muted),
+                                ),
+                              ),
+                            ),
                     ),
-                  ),
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
-                    sliver: SliverList.list(
-                      children: [
-                        _SectionTitle(l.homeQuickActions),
-                        const SizedBox(height: Space.x2),
-                        GridView.count(
-                          crossAxisCount: 4,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          mainAxisSpacing: Space.x2,
-                          crossAxisSpacing: Space.x2,
-                          childAspectRatio: 0.9,
-                          children: [
-                            QuickActionTile(
-                              icon: AppIcons.single,
-                              label: l.modeSingle,
-                              onTap: () => context.push(Routes.camera, extra: const CameraArgs(mode: ScanMode.single)),
-                            ),
-                            QuickActionTile(
-                              icon: AppIcons.batch,
-                              label: l.modeBatch,
-                              onTap: () => context.push(Routes.camera, extra: const CameraArgs(mode: ScanMode.batch)),
-                            ),
-                            QuickActionTile(
-                              icon: AppIcons.idCard,
-                              label: l.modeIdCard,
-                              onTap: () => context.push(Routes.camera, extra: const CameraArgs(mode: ScanMode.idCard)),
-                            ),
-                            QuickActionTile(
-                              icon: AppIcons.passport,
-                              label: l.modePassport,
-                              onTap: () => context.push(Routes.camera, extra: const CameraArgs(mode: ScanMode.passport)),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: Space.x2),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SecondaryButton(
-                                label: l.homeImportGallery,
-                                icon: AppIcons.gallery,
-                                onPressed: () => _importFrom(gallery: true),
-                              ),
-                            ),
-                            const SizedBox(width: Space.x2),
-                            Expanded(
-                              child: SecondaryButton(
-                                label: l.homeImportFiles,
-                                icon: AppIcons.files,
-                                onPressed: () => _importFrom(gallery: false),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: Space.x6),
-                        _SectionTitle(l.homeRecentActivity),
-                        const SizedBox(height: Space.x2),
-                        if (!showEmpty)
-                          TextField(
-                            onChanged: context.read<HomeCubit>().search,
-                            textInputAction: TextInputAction.search,
-                            decoration: InputDecoration(
-                              hintText: l.homeSearchHint,
-                              prefixIcon: AppIcon(AppIcons.search, color: c.muted),
+                    Expanded(
+                      child: CustomScrollView(
+                        slivers: [
+                          SliverPadding(
+                            padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, 0),
+                            sliver: SliverList.list(
+                              children: [
+                                Text(
+                                  l.homeHeadline,
+                                  style: context.text.headlineMedium?.copyWith(fontSize: 26, fontWeight: FontWeight.w800),
+                                ),
+                                const SizedBox(height: Space.x5),
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    for (final (i, tile) in [
+                                      QuickActionTile(icon: AppIcons.document, label: l.homeDocument, onTap: () => _scan(context, null)),
+                                      QuickActionTile(icon: AppIcons.idCard, label: l.modeIdCard, onTap: () => _scan(context, ScanMode.idCard)),
+                                      QuickActionTile(icon: AppIcons.passport, label: l.modePassport, onTap: () => _scan(context, ScanMode.passport)),
+                                      QuickActionTile(icon: AppIcons.gallery, label: l.homeImport, onTap: _pickImportSource),
+                                    ].indexed) ...[
+                                      if (i > 0) const SizedBox(width: 10),
+                                      Expanded(child: tile),
+                                    ],
+                                  ],
+                                ),
+                              ],
                             ),
                           ),
-                        const SizedBox(height: Space.x3),
-                      ],
-                    ),
-                  ),
-                  if (showEmpty)
-                    SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: EmptyState(title: l.homeEmptyTitle, body: l.homeEmptyBody),
-                    )
-                  else if (s.failure != null)
-                    SliverFillRemaining(hasScrollBody: false, child: ErrorView(failure: s.failure))
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Sizes.navBar + Space.x8),
-                      sliver: SliverList.separated(
-                        itemCount: s.documents.length,
-                        separatorBuilder: (_, __) => const SizedBox(height: Space.x2),
-                        itemBuilder: (context, i) {
-                          final d = s.documents[i];
-                          return DocumentTile(
-                            document: d,
-                            onTap: () => context.push(Routes.viewer(d.id)),
-                            onMore: () => _onMore(context, d),
-                          );
-                        },
+                          SliverToBoxAdapter(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(Space.x5, Space.x5, Space.x3, 6),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      l.homeRecentActivity,
+                                      style: context.text.titleLarge?.copyWith(fontSize: 17),
+                                    ),
+                                  ),
+                                  if (!showEmpty)
+                                    TextButton(
+                                      onPressed: () => _pickSort(context, s.sort),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor: c.muted,
+                                        minimumSize: const Size(Sizes.tap, Sizes.tap),
+                                        padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                                        textStyle: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(_sortLabel(context, s.sort)),
+                                          const SizedBox(width: Space.x1),
+                                          AppIcon(AppIcons.chevronDown, size: 16, color: c.muted),
+                                        ],
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (showEmpty)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: EmptyState(title: l.homeEmptyTitle, body: l.homeEmptyBody),
+                            )
+                          else if (s.failure != null)
+                            SliverFillRemaining(hasScrollBody: false, child: ErrorView(failure: s.failure))
+                          else if (!s.loading && s.documents.isEmpty)
+                            SliverFillRemaining(
+                              hasScrollBody: false,
+                              child: EmptyState(icon: AppIcons.search, title: l.homeNoResults),
+                            )
+                          else
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x2, Space.x6),
+                              sliver: SliverList.builder(
+                                itemCount: s.documents.length,
+                                itemBuilder: (context, i) {
+                                  final d = s.documents[i];
+                                  return DocumentTile(
+                                    document: d,
+                                    onTap: () => context.push(Routes.viewer(d.id)),
+                                    onMore: () => _onMore(context, d),
+                                  );
+                                },
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                ],
-              ),
-              if (_importing) ProgressOverlay(label: l.sharePreparing),
-            ],
+                  ],
+                ),
+                if (_importing) ProgressOverlay(label: l.sharePreparing),
+              ],
+            ),
           ),
         );
       },
@@ -229,11 +292,48 @@ class _HomeViewState extends State<_HomeView> {
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
-  final String text;
+String _sortLabel(BuildContext context, HomeSort s) {
+  final l = context.l10n;
+  return switch (s) {
+    HomeSort.latest => l.homeSortLatest,
+    HomeSort.oldest => l.homeSortOldest,
+    HomeSort.name => l.homeSortName,
+  };
+}
+
+/// Brand mark + wordmark, with the search toggle on the right.
+class _Header extends StatelessWidget {
+  const _Header({required this.searching, required this.onSearch});
+
+  final bool searching;
+  final VoidCallback onSearch;
 
   @override
-  Widget build(BuildContext context) =>
-      Text(text, style: context.text.titleMedium?.copyWith(color: context.colors.muted));
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final l = context.l10n;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.x5, Space.x4, Space.x3, Space.x2),
+      child: Row(
+        children: [
+          BrandMark(color: c.accent),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Semantics(
+              header: true,
+              child: Text(
+                l.appName.toUpperCase(),
+                style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 1),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: searching ? l.commonClose : l.homeSearchHint,
+            onPressed: onSearch,
+            icon: AppIcon(searching ? AppIcons.close : AppIcons.search, size: 22, color: c.text),
+          ),
+        ],
+      ),
+    );
+  }
 }

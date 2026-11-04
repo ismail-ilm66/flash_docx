@@ -4,6 +4,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
@@ -16,6 +17,7 @@ import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 
 class ViewerPage extends StatelessWidget {
   const ViewerPage({required this.documentId, super.key});
@@ -111,111 +113,167 @@ class _ViewerViewState extends State<_ViewerView> {
         }
         final pages = s.pages;
         final cur = s.current;
+        final multi = pages.length > 1;
+        void edit() => context.push(
+              Routes.adjust,
+              extra: EditorArgs(pages: pages, mode: doc.mode, documentId: doc.id, initialIndex: s.index),
+            );
+        Future<void> reorder() async {
+          final ids = await showReorderSheet(context, doc.sortedPages);
+          if (ids != null) await cubit.reorder(ids);
+        }
+
         return AppScaffold(
           topBar: AppTopBar(
-            title: doc.title,
-            subtitle: '${modeLabel(context, doc.mode)} · ${l.pagesCount(pages.length)}',
+            centerTitle: false,
+            titleWidget: _TitleButton(
+              title: doc.title,
+              subtitle: '${l.pagesCount(pages.length)} · ${_stamp(context, doc.updatedAt)}',
+              onTap: () => renameDocumentFlow(context, doc, cubit.rename),
+            ),
             actions: [
               IconButton(
-                tooltip: 'More',
+                tooltip: l.commonMore,
                 onPressed: () => _menu(context, s),
-                icon: const AppIcon(AppIcons.more),
+                icon: AppIcon(AppIcons.more, size: 20, color: c.text),
               ),
             ],
           ),
           body: Column(
             children: [
               Expanded(
-                child: pages.isEmpty
-                    ? EmptyState(title: l.homeEmptyTitle)
-                    : PageView.builder(
-                        controller: _pageCtrl,
-                        itemCount: pages.length,
-                        onPageChanged: cubit.select,
-                        itemBuilder: (context, i) {
-                          final p = pages[i];
-                          final path = p.displayPath;
-                          return Padding(
-                            padding: const EdgeInsets.all(Space.x3),
-                            child: InteractiveViewer(
-                              maxScale: 5,
-                              child: Center(
-                                child: ClipRRect(
-                                  borderRadius: Radii.smR,
-                                  child: Image.file(
-                                    File(path),
-                                    key: ValueKey(path),
-                                    gaplessPlayback: true,
-                                    fit: BoxFit.contain,
-                                  ),
-                                ),
+                child: ColoredBox(
+                  color: c.stage,
+                  child: pages.isEmpty
+                      ? EmptyState(title: l.homeEmptyTitle)
+                      : Column(
+                          children: [
+                            Expanded(
+                              child: PageView.builder(
+                                controller: _pageCtrl,
+                                itemCount: pages.length,
+                                onPageChanged: cubit.select,
+                                itemBuilder: (context, i) {
+                                  final path = pages[i].displayPath;
+                                  return Padding(
+                                    padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, Space.x3),
+                                    child: InteractiveViewer(
+                                      maxScale: 5,
+                                      child: Center(
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(4),
+                                            border: Border.all(color: c.border),
+                                            boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 6))],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(4),
+                                            child: Image.file(
+                                              File(path),
+                                              key: ValueKey(path),
+                                              gaplessPlayback: true,
+                                              fit: BoxFit.contain,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
-                          );
-                        },
-                      ),
+                            Container(
+                              height: 26,
+                              margin: const EdgeInsets.only(bottom: Space.x4),
+                              padding: const EdgeInsets.symmetric(horizontal: Space.x3),
+                              decoration: BoxDecoration(color: c.chip, borderRadius: Radii.pillR),
+                              alignment: Alignment.center,
+                              child: Text(
+                                l.viewerCounter(s.index + 1, pages.length),
+                                style: context.text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
               ),
-              if (pages.length > 1) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: Space.x1),
-                  child: Text(
-                    l.viewerPageOf(s.index + 1, pages.length),
-                    style: context.text.labelSmall?.copyWith(color: c.muted),
-                  ),
+              Padding(
+                padding: const EdgeInsets.only(top: Space.x3, bottom: Space.x1),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: PageStrip(
+                        pages: pages,
+                        index: s.index,
+                        onSelect: _jump,
+                        onLongPress: multi ? reorder : null,
+                        pathOf: (p) => p.thumbPath ?? p.displayPath,
+                        cacheKeyOf: (p) => p.thumbPath,
+                        trailing: _AddPagesTile(
+                          onTap: () => context.push(
+                            Routes.camera,
+                            extra: CameraArgs(mode: ScanMode.batch, addToDocumentId: doc.id),
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (multi)
+                      Padding(
+                        padding: const EdgeInsets.only(right: Space.x4, bottom: 12),
+                        child: Text(
+                          l.viewerHoldToReorder,
+                          style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w500),
+                        ),
+                      ),
+                  ],
                 ),
-                PageStrip(
-                  pages: pages,
-                  index: s.index,
-                  onSelect: _jump,
-                  pathOf: (p) => p.thumbPath ?? p.displayPath,
-                  cacheKeyOf: (p) => p.thumbPath,
-                ),
-              ],
+              ),
               Container(
-                decoration: BoxDecoration(
-                  color: c.surface,
-                  border: Border(top: BorderSide(color: c.border)),
-                ),
+                margin: const EdgeInsets.only(top: 10),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border))),
                 child: SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: Space.x1),
+                    padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 18),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
-                        ToolbarAction(
-                          icon: AppIcons.edit,
-                          label: l.viewerEdit,
-                          onPressed: cur == null
-                              ? null
-                              : () => context.push(
-                                    Routes.adjust,
-                                    extra: EditorArgs(
-                                      pages: pages,
-                                      mode: doc.mode,
-                                      documentId: doc.id,
-                                      initialIndex: s.index,
-                                    ),
-                                  ),
+                        Expanded(
+                          flex: 10,
+                          child: ToolbarAction(
+                            icon: AppIcons.edit,
+                            label: l.viewerEdit,
+                            iconSize: 22,
+                            onPressed: cur == null ? null : edit,
+                          ),
                         ),
-                        ToolbarAction(
-                          icon: AppIcons.text,
-                          label: l.viewerText,
-                          onPressed: cur == null
-                              ? null
-                              : () => context.push('${Routes.text(doc.id)}?page=${cur.id}'),
+                        Expanded(
+                          flex: 10,
+                          child: ToolbarAction(
+                            icon: AppIcons.text,
+                            label: l.viewerText,
+                            iconSize: 22,
+                            onPressed: cur == null ? null : () => context.push('${Routes.text(doc.id)}?page=${cur.id}'),
+                          ),
                         ),
                         if (doc.mode.supportsPrintLayout)
-                          ToolbarAction(
-                            icon: AppIcons.print,
-                            label: l.viewerPrint,
-                            onPressed: () => context.push(Routes.print(doc.id)),
+                          Expanded(
+                            flex: 10,
+                            child: ToolbarAction(
+                              icon: AppIcons.print,
+                              label: l.viewerPrint,
+                              iconSize: 22,
+                              onPressed: () => context.push(Routes.print(doc.id)),
+                            ),
                           ),
-                        ToolbarAction(
-                          icon: AppIcons.share,
-                          label: l.viewerShare,
-                          active: true,
-                          onPressed: pages.isEmpty ? null : () => showShareSheet(context, doc),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          flex: 14,
+                          child: PrimaryButton(
+                            label: l.viewerShare,
+                            icon: AppIcons.share,
+                            height: 48,
+                            onPressed: pages.isEmpty ? null : () => showShareSheet(context, doc),
+                          ),
                         ),
                       ],
                     ),
@@ -226,6 +284,98 @@ class _ViewerViewState extends State<_ViewerView> {
           ),
         );
       },
+    );
+  }
+}
+
+/// "Today, 10:42" / "Yesterday, 10:42" / "Oct 3, 10:42".
+String _stamp(BuildContext context, DateTime d) {
+  final l = context.l10n;
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final day = DateTime(d.year, d.month, d.day);
+  final time = DateFormat.Hm().format(d);
+  if (day == today) return l.dateTodayAt(time);
+  if (day == today.subtract(const Duration(days: 1))) return l.dateYesterdayAt(time);
+  return '${DateFmt.relative(d)}, $time';
+}
+
+/// Title + subtitle with a pencil: tap to rename.
+class _TitleButton extends StatelessWidget {
+  const _TitleButton({required this.title, required this.subtitle, required this.onTap});
+
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      label: '${context.l10n.renameTitle}: $title',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: Radii.smR,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: Sizes.tap),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.x1),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Space.x2),
+                AppIcon(AppIcons.rename, size: 16, color: c.muted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Dashed "+" tile at the end of the page strip.
+class _AddPagesTile extends StatelessWidget {
+  const _AddPagesTile({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      label: context.l10n.viewerAddPages,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: DashedBorder(
+          color: c.isDark ? c.border : c.borderStrong,
+          child: SizedBox(
+            width: 52,
+            height: 68,
+            child: Center(child: AppIcon(AppIcons.addPage, size: 22, color: c.muted)),
+          ),
+        ),
+      ),
     );
   }
 }

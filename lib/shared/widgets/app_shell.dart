@@ -19,7 +19,6 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       backgroundColor: context.colors.bg,
       body: shell,
-      extendBody: true,
       bottomNavigationBar: AppBottomNav(
         index: shell.currentIndex,
         onTab: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
@@ -45,7 +44,7 @@ class AppBottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     final l = context.l10n;
-    return Container(
+    return DecoratedBox(
       decoration: BoxDecoration(
         color: c.surface,
         border: Border(top: BorderSide(color: c.border)),
@@ -64,7 +63,7 @@ class AppBottomNav extends StatelessWidget {
                   onTap: () => onTab(0),
                 ),
               ),
-              ScanFab(onPressed: onScan),
+              Expanded(child: Center(child: ScanFab(onPressed: onScan))),
               Expanded(
                 child: _NavItem(
                   icon: AppIcons.settings,
@@ -97,19 +96,38 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final color = active ? c.accentText : c.muted;
     return Semantics(
       button: true,
       selected: active,
       label: label,
-      child: InkWell(
+      excludeSemantics: true,
+      child: InkResponse(
         onTap: onTap,
+        containedInkWell: true,
+        highlightShape: BoxShape.rectangle,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            AppIcon(icon, color: color),
-            const SizedBox(height: 2),
-            Text(label, style: context.text.labelSmall?.copyWith(color: color)),
+            AnimatedContainer(
+              duration: Motion.normal,
+              curve: Curves.easeOutCubic,
+              width: 56,
+              height: 30,
+              decoration: BoxDecoration(
+                color: active ? c.accentSoft : Colors.transparent,
+                borderRadius: Radii.pillR,
+              ),
+              alignment: Alignment.center,
+              child: AppIcon(icon, size: 22, color: active ? c.accentText : c.muted),
+            ),
+            const SizedBox(height: Space.x1),
+            Text(
+              label,
+              style: context.text.labelMedium?.copyWith(
+                color: active ? c.text : c.muted,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+              ),
+            ),
           ],
         ),
       ),
@@ -117,6 +135,8 @@ class _NavItem extends StatelessWidget {
   }
 }
 
+/// The raised centre scan button: 64 px accent circle ringed in the page
+/// background so it reads as cut out of the bar.
 class ScanFab extends StatelessWidget {
   const ScanFab({required this.onPressed, super.key});
 
@@ -128,20 +148,23 @@ class ScanFab extends StatelessWidget {
     return Semantics(
       button: true,
       label: context.l10n.navScan,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.x4),
-        child: Material(
-          color: c.accent,
-          shape: const CircleBorder(),
-          elevation: 4,
-          shadowColor: c.accent.withValues(alpha: 0.4),
-          child: InkWell(
-            onTap: onPressed,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: AppIcon(AppIcons.camera, color: c.onAccent, size: 26),
+      excludeSemantics: true,
+      child: Transform.translate(
+        offset: const Offset(0, -20),
+        child: Container(
+          width: Sizes.fab,
+          height: Sizes.fab,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: c.bg, width: 5),
+          ),
+          child: Material(
+            color: c.accent,
+            shape: const CircleBorder(),
+            clipBehavior: Clip.antiAlias,
+            child: InkWell(
+              onTap: onPressed,
+              child: Center(child: AppIcon(AppIcons.camera, color: c.onAccent, size: 28)),
             ),
           ),
         ),

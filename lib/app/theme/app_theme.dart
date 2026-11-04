@@ -58,12 +58,14 @@ abstract final class AppTheme {
         modalBackgroundColor: c.surface,
         showDragHandle: false,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.xl)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.xxl)),
         ),
+        modalBarrierColor: c.scrim,
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: c.surface,
-        shape: RoundedRectangleBorder(borderRadius: Radii.xlR),
+        backgroundColor: c.isDark ? c.surface2 : c.surface,
+        barrierColor: c.scrim,
+        shape: RoundedRectangleBorder(borderRadius: Radii.xxlR),
         titleTextStyle: text.titleLarge,
         contentTextStyle: text.bodyMedium?.copyWith(color: c.muted),
       ),
@@ -98,8 +100,8 @@ abstract final class AppTheme {
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: c.accent,
-        inactiveTrackColor: c.border,
-        thumbColor: c.accent,
+        inactiveTrackColor: c.isDark ? c.borderStrong : c.border,
+        thumbColor: Colors.white,
         overlayColor: c.accentSoft,
         trackHeight: 4,
       ),
@@ -110,7 +112,9 @@ abstract final class AppTheme {
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected) ? c.accent : c.surface2,
         ),
-        trackOutlineColor: WidgetStateProperty.all(c.border),
+        trackOutlineColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? c.accent : c.border,
+        ),
       ),
       listTileTheme: ListTileThemeData(
         iconColor: c.text,

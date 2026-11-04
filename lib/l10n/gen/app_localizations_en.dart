@@ -141,7 +141,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adjustHint => 'Drag the corners to fit the document';
 
   @override
-  String get adjustAuto => 'Auto';
+  String get adjustAuto => 'Auto edges';
 
   @override
   String get adjustRotateLeft => 'Rotate left';
@@ -153,7 +153,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adjustRetake => 'Retake';
 
   @override
-  String get adjustDeletePage => 'Delete page';
+  String get adjustDeletePage => 'Delete';
 
   @override
   String get adjustNext => 'Next';
@@ -305,7 +305,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shareQualityStandard => 'Standard';
 
   @override
-  String get shareQualityHigh => 'High quality';
+  String get shareQualityHigh => 'High';
 
   @override
   String get sharePageSize => 'Page size';
@@ -347,10 +347,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get printOutputImage => 'Image';
 
   @override
-  String get printOutputDoubleSided => 'Double-sided PDF';
+  String get printOutputDoubleSided => 'PDF\ndouble-sided';
 
   @override
-  String get printOutputOnePage => 'One-page PDF';
+  String get printOutputOnePage => 'PDF\none page';
 
   @override
   String get printCopies => 'Copies per sheet';
@@ -390,16 +390,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get unlockLoading => 'Loading video…';
 
   @override
-  String get featureHighQuality => 'High quality export';
+  String get featureHighQuality => 'High quality';
 
   @override
   String get featurePng => 'PNG export';
 
   @override
-  String get featureAllPagesText => 'Text from all pages';
+  String get featureAllPagesText => 'All pages';
 
   @override
-  String get featureMoreCopies => 'More copies per sheet';
+  String get featureMoreCopies => 'More copies';
 
   @override
   String get settingsTitle => 'Settings';
@@ -420,7 +420,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsThemeDark => 'Dark';
 
   @override
-  String get settingsScan => 'Scan';
+  String get settingsScan => 'Scanning';
 
   @override
   String get settingsDefaultFilter => 'Default filter';
@@ -429,19 +429,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsDefaultMode => 'Default scan mode';
 
   @override
-  String get settingsShare => 'Share';
+  String get settingsShare => 'Sharing';
 
   @override
   String get settingsDefaultFormat => 'Default format';
 
   @override
-  String get settingsDefaultPageSize => 'Default page size';
+  String get settingsDefaultPageSize => 'PDF page size';
 
   @override
   String get settingsStorage => 'Storage';
 
   @override
-  String get settingsStorageUsed => 'Space used by scans';
+  String get settingsStorageUsed => 'Used by Flash Dox';
 
   @override
   String get settingsClearTemp => 'Clear temporary files';
@@ -462,11 +462,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsRate => 'Rate Flash Dox';
 
   @override
-  String get settingsShareApp => 'Share Flash Dox';
+  String get settingsShareApp => 'Share the app';
 
   @override
   String settingsVersion(String v) {
-    return 'Version $v';
+    return 'Flash Dox · version $v';
   }
 
   @override
@@ -519,4 +519,191 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get errorOffline => 'No internet connection';
+
+  @override
+  String get splashTagline => 'Scan. Clean. Share.';
+
+  @override
+  String get homeHeadline => 'What are we scanning today?';
+
+  @override
+  String get homeDocument => 'Document';
+
+  @override
+  String get homeSortLatest => 'Latest';
+
+  @override
+  String get homeSortOldest => 'Oldest';
+
+  @override
+  String get homeSortName => 'Name';
+
+  @override
+  String get homeSortBy => 'Sort documents';
+
+  @override
+  String get homeNoResults => 'No documents match your search';
+
+  @override
+  String get commonMore => 'More options';
+
+  @override
+  String get cameraFlashOnShort => 'On';
+
+  @override
+  String get cameraFlashOffShort => 'Off';
+
+  @override
+  String get cameraTakePhoto => 'Take photo';
+
+  @override
+  String cameraReview(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Review $count pages',
+      one: 'Review 1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get cameraRemoveLast => 'Remove last capture';
+
+  @override
+  String pageOfTotal(int n, int total) {
+    return 'Page $n of $total';
+  }
+
+  @override
+  String enhanceApplyAllHint(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Same filter and sliders on $count pages',
+      one: 'Same filter and sliders on 1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String viewerCounter(int n, int total) {
+    return '$n / $total';
+  }
+
+  @override
+  String get viewerHoldToReorder => 'Hold to reorder';
+
+  @override
+  String dateTodayAt(String time) {
+    return 'Today, $time';
+  }
+
+  @override
+  String dateYesterdayAt(String time) {
+    return 'Yesterday, $time';
+  }
+
+  @override
+  String get ocrHint =>
+      'Read on your phone · works offline · you can edit before copying';
+
+  @override
+  String get ocrTxt => '.txt';
+
+  @override
+  String get ocrPrevPage => 'Previous page';
+
+  @override
+  String get ocrNextPage => 'Next page';
+
+  @override
+  String get shareOneFile => '1 file';
+
+  @override
+  String shareImagesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get shareQualityStandardHint => 'Smaller file · good for chat';
+
+  @override
+  String get shareQualityHighHint => 'Full resolution · for print';
+
+  @override
+  String shareButtonFormat(String format) {
+    return 'Share $format';
+  }
+
+  @override
+  String printSheetFronts(int n) {
+    return 'Sheet $n · Fronts';
+  }
+
+  @override
+  String printSheetBacks(int n) {
+    return 'Sheet $n · Backs';
+  }
+
+  @override
+  String printSheetCaption(String w, String h) {
+    return 'A4 · cards at real size, $w × $h mm';
+  }
+
+  @override
+  String printTipDuplex(String flip, String scale) {
+    return 'Print double-sided, $flip, at $scale. Each back lands behind its front.';
+  }
+
+  @override
+  String printTipSingle(String scale) {
+    return 'Print at $scale so cards come out at their real size.';
+  }
+
+  @override
+  String get printTipFlip => 'flip on long edge';
+
+  @override
+  String get printTipScale => '100% / Actual size';
+
+  @override
+  String get printShareImage => 'Share image';
+
+  @override
+  String unlockFeatureTitle(String feature) {
+    return 'Unlock $feature';
+  }
+
+  @override
+  String get unlockBodyHighQuality =>
+      'Watch a short video to export this file at full resolution.';
+
+  @override
+  String get unlockBodyPng =>
+      'Watch a short video to export lossless PNG images.';
+
+  @override
+  String get unlockBodyAllPagesText =>
+      'Watch a short video to read the text of every page at once.';
+
+  @override
+  String get unlockBodyMoreCopies =>
+      'Watch a short video to fit more copies on one sheet.';
+
+  @override
+  String get unlockFreeNote =>
+      'Scanning, editing and standard sharing always stay free.';
+
+  @override
+  String get unlockNeedsInternet => 'Needs internet for the video';
+
+  @override
+  String get settingsChoose => 'Choose';
 }

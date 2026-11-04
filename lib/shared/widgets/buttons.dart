@@ -12,6 +12,8 @@ class PrimaryButton extends StatelessWidget {
     this.icon,
     this.loading = false,
     this.expand = true,
+    this.height = 52,
+    this.dense = false,
   });
 
   final String label;
@@ -19,6 +21,10 @@ class PrimaryButton extends StatelessWidget {
   final AppIcons? icon;
   final bool loading;
   final bool expand;
+  final double height;
+
+  /// Tighter padding and 14 px label, for three buttons in a row.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -36,10 +42,10 @@ class PrimaryButton extends StatelessWidget {
         foregroundColor: c.onAccent,
         disabledBackgroundColor: c.accent.withValues(alpha: 0.4),
         disabledForegroundColor: c.onAccent.withValues(alpha: 0.6),
-        minimumSize: const Size(Sizes.tap, 52),
-        padding: const EdgeInsets.symmetric(horizontal: Space.x5),
-        shape: RoundedRectangleBorder(borderRadius: Radii.mdR),
-        textStyle: context.text.labelLarge,
+        minimumSize: Size(Sizes.tap, height),
+        padding: EdgeInsets.symmetric(horizontal: dense ? Space.x2 : Space.x5),
+        shape: const StadiumBorder(),
+        textStyle: context.text.labelLarge?.copyWith(fontSize: dense ? 14 : 15, fontWeight: FontWeight.w800),
       ),
       child: child,
     );
@@ -56,6 +62,9 @@ class SecondaryButton extends StatelessWidget {
     this.loading = false,
     this.expand = true,
     this.destructive = false,
+    this.height = 52,
+    this.filled = false,
+    this.dense = false,
   });
 
   final String label;
@@ -64,6 +73,13 @@ class SecondaryButton extends StatelessWidget {
   final bool loading;
   final bool expand;
   final bool destructive;
+  final double height;
+
+  /// Surface fill instead of transparent (used over the page background).
+  final bool filled;
+
+  /// Tighter padding and 14 px label, for three buttons in a row.
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -73,12 +89,12 @@ class SecondaryButton extends StatelessWidget {
       onPressed: loading ? null : onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: fg,
-        backgroundColor: c.surface,
-        side: BorderSide(color: c.border),
-        minimumSize: const Size(Sizes.tap, 52),
-        padding: const EdgeInsets.symmetric(horizontal: Space.x5),
-        shape: RoundedRectangleBorder(borderRadius: Radii.mdR),
-        textStyle: context.text.labelLarge,
+        backgroundColor: filled ? c.surface : Colors.transparent,
+        side: BorderSide(color: c.borderStrong),
+        minimumSize: Size(Sizes.tap, height),
+        padding: EdgeInsets.symmetric(horizontal: dense ? Space.x2 : Space.x4),
+        shape: const StadiumBorder(),
+        textStyle: context.text.labelLarge?.copyWith(fontSize: dense ? 14 : 15),
       ),
       child: _ButtonContent(label: label, icon: icon, loading: loading, color: fg),
     );
@@ -112,7 +128,7 @@ class _ButtonContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (icon != null) ...[
-          AppIcon(icon!, size: Sizes.iconSm, color: color),
+          AppIcon(icon!, size: 18, color: color),
           const SizedBox(width: Space.x2),
         ],
         Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
@@ -130,6 +146,7 @@ class ToolbarAction extends StatelessWidget {
     super.key,
     this.active = false,
     this.destructive = false,
+    this.iconSize = Sizes.icon,
   });
 
   final AppIcons icon;
@@ -137,6 +154,7 @@ class ToolbarAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool active;
   final bool destructive;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) {
@@ -156,20 +174,23 @@ class ToolbarAction extends StatelessWidget {
         onTap: onPressed,
         borderRadius: Radii.mdR,
         child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: 64, minHeight: Sizes.tap),
+          constraints: const BoxConstraints(minWidth: 56, minHeight: Sizes.tap),
           child: Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: Space.x2,
+              horizontal: Space.x1,
               vertical: Space.x2,
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AppIcon(icon, color: color),
-                const SizedBox(height: Space.x1),
+                AppIcon(icon, size: iconSize, color: color),
+                const SizedBox(height: 6),
                 Text(
                   label,
-                  style: context.text.labelSmall?.copyWith(color: color),
+                  style: context.text.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -178,6 +199,46 @@ class ToolbarAction extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Accent text action for a top bar ("Next", "Done").
+class TopBarTextAction extends StatelessWidget {
+  const TopBarTextAction({
+    required this.label,
+    required this.onPressed,
+    super.key,
+    this.loading = false,
+  });
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    if (loading) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+        child: SizedBox(
+          width: 20,
+          height: 20,
+          child: CircularProgressIndicator(strokeWidth: 2.2, color: c.accentText),
+        ),
+      );
+    }
+    return TextButton(
+      onPressed: onPressed,
+      style: TextButton.styleFrom(
+        foregroundColor: c.accentText,
+        disabledForegroundColor: c.muted,
+        minimumSize: const Size(Sizes.tap, Sizes.tap),
+        padding: const EdgeInsets.symmetric(horizontal: Space.x3),
+        textStyle: context.text.labelLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w800),
+      ),
+      child: Text(label),
     );
   }
 }

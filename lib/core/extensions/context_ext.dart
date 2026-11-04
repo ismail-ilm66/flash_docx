@@ -15,7 +15,13 @@ extension BuildContextX on BuildContext {
       ..hideCurrentSnackBar()
       ..showSnackBar(
         SnackBar(
-          content: Text(message),
+          // Dark mode's danger red is light, so it takes dark text.
+          content: Text(
+            message,
+            style: error
+                ? text.bodyMedium?.copyWith(color: colors.isDark ? const Color(0xFF2A0A0A) : Colors.white)
+                : null,
+          ),
           backgroundColor: error ? colors.danger : null,
         ),
       );

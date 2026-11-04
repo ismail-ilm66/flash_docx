@@ -4,6 +4,7 @@ import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
 import 'package:flutter/material.dart';
 
+/// Home quick action: accent-tinted icon square over a label.
 class QuickActionTile extends StatelessWidget {
   const QuickActionTile({
     required this.icon,
@@ -16,43 +17,47 @@ class QuickActionTile extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
+  static final _radius = BorderRadius.circular(18);
+
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: Radii.lgR,
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Space.x3,
-          vertical: Space.x4,
-        ),
-        decoration: BoxDecoration(
-          color: c.surface,
-          borderRadius: Radii.lgR,
-          border: Border.all(color: c.border),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: c.accentSoft,
-                borderRadius: Radii.mdR,
-              ),
-              child: AppIcon(icon, color: c.accentText),
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: c.surface,
+        shape: RoundedRectangleBorder(borderRadius: _radius, side: BorderSide(color: c.border)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Space.x1, 14, Space.x1, Space.x3),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: c.accentSoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  alignment: Alignment.center,
+                  child: AppIcon(icon, size: 22, color: c.accentText),
+                ),
+                const SizedBox(height: Space.x2),
+                Text(
+                  label,
+                  style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
             ),
-            const SizedBox(height: Space.x2),
-            Text(
-              label,
-              style: context.text.labelMedium,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
+          ),
         ),
       ),
     );

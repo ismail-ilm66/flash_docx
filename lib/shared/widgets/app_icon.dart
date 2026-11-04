@@ -15,11 +15,20 @@ class AppIcon extends StatelessWidget {
     final c = color ?? IconTheme.of(context).color;
     final asset = icon.asset;
     if (asset != null) {
-      return SvgPicture.asset(
-        asset,
+      // Same box model as Material's Icon: a size×size box with the glyph
+      // centred, so a tight parent never stretches the artwork.
+      return SizedBox(
         width: size,
         height: size,
-        colorFilter: c == null ? null : ColorFilter.mode(c, BlendMode.srcIn),
+        child: Center(
+          child: SvgPicture.asset(
+            asset,
+            width: size,
+            height: size,
+            excludeFromSemantics: true,
+            colorFilter: c == null ? null : ColorFilter.mode(c, BlendMode.srcIn),
+          ),
+        ),
       );
     }
     return Icon(icon.fallback, size: size, color: c);
