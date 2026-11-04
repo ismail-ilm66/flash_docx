@@ -115,6 +115,16 @@ class _ShareSheetState extends State<_ShareSheet> {
                   ],
                 ],
               ),
+              if (s.document.mode.supportsPrintLayout && s.document.pages.length >= 2) ...[
+                const SizedBox(height: Space.x4),
+                SectionLabel(l.shareLayout, padding: const EdgeInsets.only(bottom: Space.x2)),
+                SegmentedPills<ExportLayout>(
+                  values: ExportLayout.values,
+                  selected: o.layout,
+                  labelOf: (v) => v == ExportLayout.oneImage ? l.shareLayoutOneImage : l.shareLayoutSeparate,
+                  onChanged: (v) => _update(o.copyWith(layout: v)),
+                ),
+              ],
               if (!o.isImage) ...[
                 gap,
                 SectionLabel(l.sharePageSize, padding: const EdgeInsets.only(bottom: Space.x2)),

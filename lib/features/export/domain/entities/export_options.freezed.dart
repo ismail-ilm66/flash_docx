@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ExportOptions {
 
- ExportFormat get format; ExportQuality get quality; PdfPageSize get pageSize; String get fileName;
+ ExportFormat get format; ExportQuality get quality; PdfPageSize get pageSize; String get fileName; ExportLayout get layout;
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $ExportOptionsCopyWith<ExportOptions> get copyWith => _$ExportOptionsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $ExportOptionsCopyWith<$Res>  {
   factory $ExportOptionsCopyWith(ExportOptions value, $Res Function(ExportOptions) _then) = _$ExportOptionsCopyWithImpl;
 @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout
 });
 
 
@@ -62,13 +62,14 @@ class _$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,}) {
   return _then(_self.copyWith(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
 as ExportQuality,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,fileName: null == fileName ? _self.fileName : fileName // ignore: cast_nullable_to_non_nullable
-as String,
+as String,layout: null == layout ? _self.layout : layout // ignore: cast_nullable_to_non_nullable
+as ExportLayout,
   ));
 }
 
@@ -80,13 +81,14 @@ as String,
 
 
 class _ExportOptions extends ExportOptions {
-  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.a4, this.fileName = ''}): super._();
+  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.a4, this.fileName = '', this.layout = ExportLayout.oneImage}): super._();
   
 
 @override@JsonKey() final  ExportFormat format;
 @override@JsonKey() final  ExportQuality quality;
 @override@JsonKey() final  PdfPageSize pageSize;
 @override@JsonKey() final  String fileName;
+@override@JsonKey() final  ExportLayout layout;
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -98,16 +100,16 @@ _$ExportOptionsCopyWith<_ExportOptions> get copyWith => __$ExportOptionsCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout)';
 }
 
 
@@ -118,7 +120,7 @@ abstract mixin class _$ExportOptionsCopyWith<$Res> implements $ExportOptionsCopy
   factory _$ExportOptionsCopyWith(_ExportOptions value, $Res Function(_ExportOptions) _then) = __$ExportOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout
 });
 
 
@@ -135,13 +137,14 @@ class __$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,}) {
   return _then(_ExportOptions(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
 as ExportQuality,pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,fileName: null == fileName ? _self.fileName : fileName // ignore: cast_nullable_to_non_nullable
-as String,
+as String,layout: null == layout ? _self.layout : layout // ignore: cast_nullable_to_non_nullable
+as ExportLayout,
   ));
 }
 

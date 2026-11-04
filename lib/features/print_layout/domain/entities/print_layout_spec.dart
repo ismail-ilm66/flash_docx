@@ -15,6 +15,8 @@ abstract class PrintLayoutSpec with _$PrintLayoutSpec {
     required String frontPath,
     String? backPath,
     String? title,
+    /// Light-grey corner crop marks in the gaps (PDF outputs).
+    @Default(true) bool cutGuides,
   }) = _PrintLayoutSpec;
   const PrintLayoutSpec._();
 

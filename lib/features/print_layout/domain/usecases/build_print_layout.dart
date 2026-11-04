@@ -37,14 +37,19 @@ class BuildPrintLayout {
     required PrintOutput output,
     required int copies,
     required ExportTarget target,
+    bool cutGuides = true,
+    bool swapSides = false,
   }) async {
     final pages = doc.sortedPages;
     if (pages.isEmpty) return const Left(NotFoundFailure());
-    final frontPage = doc.pageOfSide(CardSide.front) ?? pages.first;
+    var frontPage = doc.pageOfSide(CardSide.front) ?? pages.first;
     // Passports have no back side; ID cards use the back capture (or page 2).
-    final backPage = kind == PrintKind.passport
+    var backPage = kind == PrintKind.passport
         ? null
         : doc.pageOfSide(CardSide.back) ?? (pages.length > 1 ? pages[1] : null);
+    if (swapSides && backPage != null) {
+      (frontPage, backPage) = (backPage, frontPage);
+    }
     final base = '${doc.title.fileSafe}_print';
     try {
       final front = await _render.renderForExport(
@@ -69,6 +74,7 @@ class BuildPrintLayout {
         frontPath: front,
         backPath: back,
         title: doc.title,
+        cutGuides: cutGuides,
       );
       final File file;
       if (output == PrintOutput.image) {

@@ -14,7 +14,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$PrintLayoutSpec {
 
- PrintKind get kind; PrintOutput get output; int get copies; String get frontPath; String? get backPath; String? get title;
+ PrintKind get kind; PrintOutput get output; int get copies; String get frontPath; String? get backPath; String? get title;/// Light-grey corner crop marks in the gaps (PDF outputs).
+ bool get cutGuides;
 /// Create a copy of PrintLayoutSpec
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +26,16 @@ $PrintLayoutSpecCopyWith<PrintLayoutSpec> get copyWith => _$PrintLayoutSpecCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrintLayoutSpec&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.output, output) || other.output == output)&&(identical(other.copies, copies) || other.copies == copies)&&(identical(other.frontPath, frontPath) || other.frontPath == frontPath)&&(identical(other.backPath, backPath) || other.backPath == backPath)&&(identical(other.title, title) || other.title == title));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PrintLayoutSpec&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.output, output) || other.output == output)&&(identical(other.copies, copies) || other.copies == copies)&&(identical(other.frontPath, frontPath) || other.frontPath == frontPath)&&(identical(other.backPath, backPath) || other.backPath == backPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.cutGuides, cutGuides) || other.cutGuides == cutGuides));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,kind,output,copies,frontPath,backPath,title);
+int get hashCode => Object.hash(runtimeType,kind,output,copies,frontPath,backPath,title,cutGuides);
 
 @override
 String toString() {
-  return 'PrintLayoutSpec(kind: $kind, output: $output, copies: $copies, frontPath: $frontPath, backPath: $backPath, title: $title)';
+  return 'PrintLayoutSpec(kind: $kind, output: $output, copies: $copies, frontPath: $frontPath, backPath: $backPath, title: $title, cutGuides: $cutGuides)';
 }
 
 
@@ -45,7 +46,7 @@ abstract mixin class $PrintLayoutSpecCopyWith<$Res>  {
   factory $PrintLayoutSpecCopyWith(PrintLayoutSpec value, $Res Function(PrintLayoutSpec) _then) = _$PrintLayoutSpecCopyWithImpl;
 @useResult
 $Res call({
- PrintKind kind, PrintOutput output, int copies, String frontPath, String? backPath, String? title
+ PrintKind kind, PrintOutput output, int copies, String frontPath, String? backPath, String? title, bool cutGuides
 });
 
 
@@ -62,7 +63,7 @@ class _$PrintLayoutSpecCopyWithImpl<$Res>
 
 /// Create a copy of PrintLayoutSpec
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? kind = null,Object? output = null,Object? copies = null,Object? frontPath = null,Object? backPath = freezed,Object? title = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? kind = null,Object? output = null,Object? copies = null,Object? frontPath = null,Object? backPath = freezed,Object? title = freezed,Object? cutGuides = null,}) {
   return _then(_self.copyWith(
 kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as PrintKind,output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
@@ -70,7 +71,8 @@ as PrintOutput,copies: null == copies ? _self.copies : copies // ignore: cast_nu
 as int,frontPath: null == frontPath ? _self.frontPath : frontPath // ignore: cast_nullable_to_non_nullable
 as String,backPath: freezed == backPath ? _self.backPath : backPath // ignore: cast_nullable_to_non_nullable
 as String?,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,cutGuides: null == cutGuides ? _self.cutGuides : cutGuides // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -82,7 +84,7 @@ as String?,
 
 
 class _PrintLayoutSpec extends PrintLayoutSpec {
-  const _PrintLayoutSpec({required this.kind, required this.output, required this.copies, required this.frontPath, this.backPath, this.title}): super._();
+  const _PrintLayoutSpec({required this.kind, required this.output, required this.copies, required this.frontPath, this.backPath, this.title, this.cutGuides = true}): super._();
   
 
 @override final  PrintKind kind;
@@ -91,6 +93,8 @@ class _PrintLayoutSpec extends PrintLayoutSpec {
 @override final  String frontPath;
 @override final  String? backPath;
 @override final  String? title;
+/// Light-grey corner crop marks in the gaps (PDF outputs).
+@override@JsonKey() final  bool cutGuides;
 
 /// Create a copy of PrintLayoutSpec
 /// with the given fields replaced by the non-null parameter values.
@@ -102,16 +106,16 @@ _$PrintLayoutSpecCopyWith<_PrintLayoutSpec> get copyWith => __$PrintLayoutSpecCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrintLayoutSpec&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.output, output) || other.output == output)&&(identical(other.copies, copies) || other.copies == copies)&&(identical(other.frontPath, frontPath) || other.frontPath == frontPath)&&(identical(other.backPath, backPath) || other.backPath == backPath)&&(identical(other.title, title) || other.title == title));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PrintLayoutSpec&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.output, output) || other.output == output)&&(identical(other.copies, copies) || other.copies == copies)&&(identical(other.frontPath, frontPath) || other.frontPath == frontPath)&&(identical(other.backPath, backPath) || other.backPath == backPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.cutGuides, cutGuides) || other.cutGuides == cutGuides));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,kind,output,copies,frontPath,backPath,title);
+int get hashCode => Object.hash(runtimeType,kind,output,copies,frontPath,backPath,title,cutGuides);
 
 @override
 String toString() {
-  return 'PrintLayoutSpec(kind: $kind, output: $output, copies: $copies, frontPath: $frontPath, backPath: $backPath, title: $title)';
+  return 'PrintLayoutSpec(kind: $kind, output: $output, copies: $copies, frontPath: $frontPath, backPath: $backPath, title: $title, cutGuides: $cutGuides)';
 }
 
 
@@ -122,7 +126,7 @@ abstract mixin class _$PrintLayoutSpecCopyWith<$Res> implements $PrintLayoutSpec
   factory _$PrintLayoutSpecCopyWith(_PrintLayoutSpec value, $Res Function(_PrintLayoutSpec) _then) = __$PrintLayoutSpecCopyWithImpl;
 @override @useResult
 $Res call({
- PrintKind kind, PrintOutput output, int copies, String frontPath, String? backPath, String? title
+ PrintKind kind, PrintOutput output, int copies, String frontPath, String? backPath, String? title, bool cutGuides
 });
 
 
@@ -139,7 +143,7 @@ class __$PrintLayoutSpecCopyWithImpl<$Res>
 
 /// Create a copy of PrintLayoutSpec
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? kind = null,Object? output = null,Object? copies = null,Object? frontPath = null,Object? backPath = freezed,Object? title = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? kind = null,Object? output = null,Object? copies = null,Object? frontPath = null,Object? backPath = freezed,Object? title = freezed,Object? cutGuides = null,}) {
   return _then(_PrintLayoutSpec(
 kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
 as PrintKind,output: null == output ? _self.output : output // ignore: cast_nullable_to_non_nullable
@@ -147,7 +151,8 @@ as PrintOutput,copies: null == copies ? _self.copies : copies // ignore: cast_nu
 as int,frontPath: null == frontPath ? _self.frontPath : frontPath // ignore: cast_nullable_to_non_nullable
 as String,backPath: freezed == backPath ? _self.backPath : backPath // ignore: cast_nullable_to_non_nullable
 as String?,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,cutGuides: null == cutGuides ? _self.cutGuides : cutGuides // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 

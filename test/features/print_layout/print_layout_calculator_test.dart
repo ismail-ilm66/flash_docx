@@ -29,7 +29,8 @@ void main() {
 
     test('passport × 4 is rotated', () {
       expect(PrintLayoutCalculator.grid(PrintKind.passport, 4), (cols: 2, rows: 2, rotated: true));
-      expect(PrintLayoutCalculator.allowedCopies(PrintKind.passport, PrintOutput.image), [1, 2, 4]);
+      expect(PrintLayoutCalculator.allowedCopies(PrintKind.passport, PrintOutput.pdfDoubleSided), [1, 2, 4]);
+      expect(PrintLayoutCalculator.allowedCopies(PrintKind.idCard, PrintOutput.image), [1]);
     });
 
     test('every layout stays inside A4 at real size', () {
@@ -99,13 +100,45 @@ void main() {
   });
 
   group('image', () {
-    test('front grid above back grid', () {
-      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.image, 2)).pages.single;
-      final fronts = items.where((i) => !i.isBack).toList();
-      final backs = items.where((i) => i.isBack).toList();
-      expect(fronts.length, 2);
-      expect(backs.length, 2);
-      expect(backs.first.y, greaterThan(fronts.last.y));
+    test('is one front above one back, whatever copies says', () {
+      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.image, 8)).pages.single;
+      expect(items.length, 2);
+      expect(items[0].isBack, isFalse);
+      expect(items[1].isBack, isTrue);
+      expect(items[1].y, greaterThan(items[0].y + items[0].h));
+      expect(items[1].x, items[0].x);
+      expect(items[0].w, 85.6);
+      expect(items[0].h, 54);
+    });
+
+    test('content box wraps the cards with a 6 mm margin', () {
+      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.image, 1)).pages.single;
+      final box = PrintLayoutCalculator.contentBox(items);
+      expect(box.w, closeTo(85.6 + 12, 1e-9));
+      expect(box.h, closeTo(54 * 2 + PrintLayoutCalculator.gap * 2 + 12, 1e-9));
+      expect(box.x, closeTo(items[0].x - 6, 1e-9));
+    });
+  });
+
+  group('crop marks', () {
+    test('eight marks per card, all outside the card and inside the sheet', () {
+      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.pdfDoubleSided, 8)).pages.first;
+      final marks = PrintLayoutCalculator.cropMarks(items);
+      expect(marks.length, items.length * 8);
+      for (final it in items) {
+        for (final ((x1, y1), (x2, y2)) in marks) {
+          final insideCard = x1 > it.x && x1 < it.x + it.w && y1 > it.y && y1 < it.y + it.h;
+          expect(insideCard, isFalse, reason: 'mark ($x1,$y1)-($x2,$y2) overlaps $it');
+        }
+      }
+      for (final ((x1, y1), (x2, y2)) in marks) {
+        for (final v in [x1, x2]) {
+          expect(v, inInclusiveRange(0, a4W));
+        }
+        for (final v in [y1, y2]) {
+          expect(v, inInclusiveRange(0, a4H));
+        }
+      }
     });
   });
 }

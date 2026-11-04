@@ -47,6 +47,9 @@ class PrintLayoutState extends Equatable {
     this.status = const PrintIdle(),
     this.moreCopiesUnlocked = false,
     this.failure,
+    this.cutGuides = true,
+    this.swapSides = false,
+    this.sheet = 0,
   });
 
   final ScanDocument? document;
@@ -55,6 +58,11 @@ class PrintLayoutState extends Equatable {
   final PrintStatus status;
   final bool moreCopiesUnlocked;
   final Failure? failure;
+  final bool cutGuides;
+  final bool swapSides;
+
+  /// Which sheet the preview shows (double-sided PDFs have two).
+  final int sheet;
 
   PrintKind? get kind => switch (document?.mode) {
         ScanMode.idCard => PrintKind.idCard,
@@ -78,6 +86,9 @@ class PrintLayoutState extends Equatable {
     PrintStatus? status,
     bool? moreCopiesUnlocked,
     Failure? failure,
+    bool? cutGuides,
+    bool? swapSides,
+    int? sheet,
   }) =>
       PrintLayoutState(
         document: document ?? this.document,
@@ -86,10 +97,16 @@ class PrintLayoutState extends Equatable {
         status: status ?? this.status,
         moreCopiesUnlocked: moreCopiesUnlocked ?? this.moreCopiesUnlocked,
         failure: failure,
+        cutGuides: cutGuides ?? this.cutGuides,
+        swapSides: swapSides ?? this.swapSides,
+        sheet: sheet ?? this.sheet,
       );
 
   @override
-  List<Object?> get props => [document, output, copies, status, moreCopiesUnlocked, failure];
+  List<Object?> get props =>
+      [document, output, copies, status, moreCopiesUnlocked, failure, cutGuides, swapSides, sheet];
+
+  bool get hasBack => kind == PrintKind.idCard && (document?.pages.length ?? 0) > 1;
 }
 
 @injectable
@@ -117,10 +134,16 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
 
   void setOutput(PrintOutput o) {
     final allowed = state.kind == null ? const [1] : PrintLayoutCalculator.allowedCopies(state.kind!, o);
-    emit(state.copyWith(output: o, copies: allowed.contains(state.copies) ? state.copies : allowed.first, status: const PrintIdle()));
+    emit(state.copyWith(output: o, copies: allowed.contains(state.copies) ? state.copies : allowed.first, status: const PrintIdle(), sheet: 0));
   }
 
   void setCopies(int n) => emit(state.copyWith(copies: n, status: const PrintIdle()));
+
+  void setCutGuides(bool on) => emit(state.copyWith(cutGuides: on));
+
+  void toggleSwapSides() => emit(state.copyWith(swapSides: !state.swapSides));
+
+  void setSheet(int i) => emit(state.copyWith(sheet: i));
 
   void unlockMoreCopies() => emit(state.copyWith(moreCopiesUnlocked: true));
 
@@ -129,7 +152,15 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
     final kind = state.kind;
     if (doc == null || kind == null || state.status is PrintWorking) return;
     emit(state.copyWith(status: const PrintWorking()));
-    final r = await _build(doc, kind: kind, output: state.output, copies: state.copies, target: target);
+    final r = await _build(
+      doc,
+      kind: kind,
+      output: state.output,
+      copies: state.copies,
+      target: target,
+      cutGuides: state.cutGuides,
+      swapSides: state.swapSides,
+    );
     emit(
       r.fold(
         (f) => state.copyWith(status: f is CancelledFailure ? const PrintIdle() : PrintFailed(f)),

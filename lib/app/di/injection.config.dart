@@ -234,16 +234,6 @@ extension GetItInjectableX on _i174.GetIt {
         args,
       ),
     );
-    gh.factory<_i402.ExportDocument>(
-      () => _i402.ExportDocument(
-        gh<_i120.PageRenderService>(),
-        gh<_i435.PdfBuilder>(),
-        gh<_i626.FileStore>(),
-        gh<_i856.ShareService>(),
-        gh<_i792.SaveService>(),
-        gh<_i132.DocumentRepository>(),
-      ),
-    );
     gh.factory<_i904.RewardCubit>(
       () => _i904.RewardCubit(gh<_i607.RewardGate>()),
     );
@@ -272,6 +262,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i922.PreparePages>(),
         gh<_i567.PrefsService>(),
         initialMode,
+      ),
+    );
+    gh.factory<_i402.ExportDocument>(
+      () => _i402.ExportDocument(
+        gh<_i120.PageRenderService>(),
+        gh<_i435.PdfBuilder>(),
+        gh<_i626.FileStore>(),
+        gh<_i856.ShareService>(),
+        gh<_i792.SaveService>(),
+        gh<_i132.DocumentRepository>(),
+        gh<_i84.SheetImageRenderer>(),
       ),
     );
     gh.factory<_i60.BuildPrintLayout>(

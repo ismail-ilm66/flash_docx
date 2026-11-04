@@ -12,6 +12,8 @@ import 'package:flash_dox/features/editor/data/services/page_render_service.dart
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
+import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart';
+import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 
@@ -26,6 +28,7 @@ class ExportDocument {
     this._share,
     this._save,
     this._repo,
+    this._sheet,
   );
 
   final PageRenderService _render;
@@ -34,6 +37,12 @@ class ExportDocument {
   final ShareService _share;
   final SaveService _save;
   final DocumentRepository _repo;
+  final SheetImageRenderer _sheet;
+
+  /// True when the document is a two-sided card and the user asked for both
+  /// sides in one picture / one PDF page.
+  static bool usesOneImage(ScanDocument doc, ExportOptions o) =>
+      doc.mode.supportsPrintLayout && doc.pages.length >= 2 && o.layout == ExportLayout.oneImage;
 
   Future<Either<Failure, Unit>> call(
     ScanDocument doc,
@@ -53,15 +62,16 @@ class ExportDocument {
     final rendered = <String>[];
     try {
       for (final (i, page) in pages.indexed) {
-        final name = options.isImage && pages.length > 1
+        final oneImage = usesOneImage(doc, options);
+        final name = options.isImage && !oneImage && pages.length > 1
             ? '${baseName}_${i + 1}.$imgExt'
-            : options.isImage
+            : options.isImage && !oneImage
                 ? '$baseName.$imgExt'
                 : 'page_${i + 1}.jpg';
         final out = await _render.renderForExport(
           page,
           size: size,
-          outputPath: _files.exportPath(options.isImage ? name : 'pdf_${doc.id}/$name'),
+          outputPath: _files.exportPath(options.isImage && !oneImage ? name : 'pdf_${doc.id}/$name'),
           jpegQuality: jpegQ,
         );
         rendered.add(out);
@@ -72,7 +82,27 @@ class ExportDocument {
     }
 
     final List<File> files;
-    if (options.isImage) {
+    if (usesOneImage(doc, options)) {
+      // Front above back at real size (P1-2): same layout as the print
+      // screen's Image output. PDF puts both on one A4 page.
+      final spec = PrintLayoutSpec(
+        kind: doc.mode == ScanMode.passport ? PrintKind.passport : PrintKind.idCard,
+        output: PrintOutput.image,
+        copies: 1,
+        frontPath: rendered[0],
+        backPath: rendered[1],
+        title: doc.title,
+        cutGuides: false,
+      );
+      try {
+        final file = options.isImage
+            ? File(await _sheet.render(spec, outputPath: _files.exportPath('$baseName.$imgExt')))
+            : await _pdf.printSheet(spec, outputPath: _files.exportPath('$baseName.pdf'));
+        files = [file];
+      } catch (e) {
+        return Left(options.isImage ? ImageProcessingFailure(e.toString()) : PdfFailure(e.toString()));
+      }
+    } else if (options.isImage) {
       files = rendered.map(File.new).toList();
     } else {
       try {

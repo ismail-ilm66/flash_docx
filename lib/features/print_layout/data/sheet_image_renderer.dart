@@ -8,7 +8,9 @@ import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.d
 import 'package:injectable/injectable.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
-/// Renders the A4 sheet layout as a 300 DPI image (JPG or PNG by extension).
+/// Renders the layout as a 300 DPI image (JPG or PNG by extension). The
+/// image output is cropped to the cards plus a 6 mm white margin, so it is a
+/// front-above-back picture rather than a mostly empty A4 sheet.
 @lazySingleton
 class SheetImageRenderer {
   SheetImageRenderer(this._runner);
@@ -29,8 +31,9 @@ String _render(_Msg m) {
   const dpi = RenderPx.printDpi;
   int px(double mm) => (mm / 25.4 * dpi).round();
   final layout = PrintLayoutCalculator.layout(m.spec);
-  final sheetW = px(PrintLayoutCalculator.sheetW);
-  final sheetH = px(PrintLayoutCalculator.sheetH);
+  final box = PrintLayoutCalculator.contentBox(layout.pages.first);
+  final sheetW = px(box.w);
+  final sheetH = px(box.h);
   final sheet = cv.Mat.fromScalar(sheetH, sheetW, cv.MatType.CV_8UC3, cv.Scalar.all(255));
   final front = pipe.readUpright(m.spec.frontPath);
   final back = m.spec.backPath == null ? null : pipe.readUpright(m.spec.backPath!);
@@ -47,7 +50,7 @@ String _render(_Msg m) {
       } else {
         placed = cv.resize(src, (w, h), interpolation: cv.INTER_AREA);
       }
-      final roi = sheet.region(cv.Rect(px(it.x), px(it.y), w, h));
+      final roi = sheet.region(cv.Rect(px(it.x - box.x), px(it.y - box.y), w, h));
       placed.copyTo(roi);
       roi.dispose();
       placed.dispose();

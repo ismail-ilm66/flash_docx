@@ -45,11 +45,13 @@ abstract final class PrintLayoutCalculator {
         PrintKind.passport => (w: CardMm.id3Width, h: CardMm.id3Height),
       };
 
-  /// Copies offered per kind and output.
+  /// Copies offered per kind and output. The image output is always one
+  /// front-above-back image, so it has no copies choice.
   static List<int> allowedCopies(PrintKind kind, PrintOutput output) {
+    if (output == PrintOutput.image) return const [1];
     if (kind == PrintKind.passport) return const [1, 2, 4];
-    // One-page pairs and the stacked front/back image only fit up to 4.
-    if (output != PrintOutput.pdfDoubleSided) return const [1, 2, 4];
+    // One-page pairs only fit up to 4.
+    if (output == PrintOutput.pdfOnePage) return const [1, 2, 4];
     return const [1, 2, 4, 6, 8];
   }
 
@@ -119,12 +121,9 @@ abstract final class PrintLayoutCalculator {
     final copies = spec.copies;
     switch (spec.output) {
       case PrintOutput.image:
-        // Fronts, then backs below them (same grid, stacked). When both sides
-        // exist we place the two grids in the top and bottom halves.
-        if (!spec.hasBack || !fitsStacked(kind, copies)) {
-          return SheetLayout([_gridItems(kind, copies, isBack: false)]);
-        }
-        return SheetLayout([_stackedFrontBack(kind, copies)]);
+        // One front above one back (or just the front), centred on A4.
+        if (!spec.hasBack) return SheetLayout([_gridItems(kind, 1, isBack: false)]);
+        return SheetLayout([_stackedFrontBack(kind, 1)]);
       case PrintOutput.pdfDoubleSided:
         final fronts = _gridItems(kind, copies, isBack: false);
         if (!spec.hasBack) return SheetLayout([fronts]);
@@ -170,6 +169,50 @@ abstract final class PrintLayoutCalculator {
       }
     }
     return items;
+  }
+
+  /// Bounding box of all items on a page plus [margin] on each side, in mm.
+  /// Used to crop the image output to the content instead of a full A4.
+  static ({double x, double y, double w, double h}) contentBox(List<PlacedItem> items, {double margin = 6}) {
+    var minX = double.infinity;
+    var minY = double.infinity;
+    var maxX = 0.0;
+    var maxY = 0.0;
+    for (final it in items) {
+      if (it.x < minX) minX = it.x;
+      if (it.y < minY) minY = it.y;
+      if (it.x + it.w > maxX) maxX = it.x + it.w;
+      if (it.y + it.h > maxY) maxY = it.y + it.h;
+    }
+    return (x: minX - margin, y: minY - margin, w: maxX - minX + 2 * margin, h: maxY - minY + 2 * margin);
+  }
+
+  /// Crop marks: for each item, four L-shaped corner marks drawn just
+  /// outside the item (in the gap), [len] mm long, [offset] mm away from the
+  /// edge so they never overlap the card. Each mark is a (from, to) segment.
+  static List<((double, double), (double, double))> cropMarks(
+    List<PlacedItem> items, {
+    double len = 2.5,
+    double offset = 0.5,
+  }) {
+    final marks = <((double, double), (double, double))>[];
+    for (final it in items) {
+      final l = it.x;
+      final r = it.x + it.w;
+      final t = it.y;
+      final b = it.y + it.h;
+      // Horizontal ticks beyond left/right edges, at top and bottom lines.
+      for (final y in [t, b]) {
+        marks.add(((l - offset - len, y), (l - offset, y)));
+        marks.add(((r + offset, y), (r + offset + len, y)));
+      }
+      // Vertical ticks beyond top/bottom edges, at left and right lines.
+      for (final x in [l, r]) {
+        marks.add(((x, t - offset - len), (x, t - offset)));
+        marks.add(((x, b + offset), (x, b + offset + len)));
+      }
+    }
+    return marks;
   }
 
   /// Does a stacked image layout fit the sheet? (ID card × 8 does not.)

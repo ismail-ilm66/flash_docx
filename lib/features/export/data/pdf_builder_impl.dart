@@ -95,6 +95,27 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
         pageFormat: format,
         build: (_) => pw.Stack(
           children: [
+            if (spec.cutGuides && spec.output != PrintOutput.image)
+              pw.Positioned.fill(
+                child: pw.CustomPaint(
+                  size: const PdfPoint(
+                    PrintLayoutCalculator.sheetW * _mm,
+                    PrintLayoutCalculator.sheetH * _mm,
+                  ),
+                  painter: (canvas, size) {
+                    canvas
+                      ..setStrokeColor(PdfColors.grey400)
+                      ..setLineWidth(0.3);
+                    // pdf's canvas origin is bottom-left; flip y.
+                    for (final ((x1, y1), (x2, y2)) in PrintLayoutCalculator.cropMarks(items)) {
+                      canvas
+                        ..moveTo(x1 * _mm, size.y - y1 * _mm)
+                        ..lineTo(x2 * _mm, size.y - y2 * _mm);
+                    }
+                    canvas.strokePath();
+                  },
+                ),
+              ),
             for (final it in items)
               pw.Positioned(
                 left: it.x * _mm,

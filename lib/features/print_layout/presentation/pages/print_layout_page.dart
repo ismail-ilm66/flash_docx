@@ -36,6 +36,20 @@ class _PrintView extends StatefulWidget {
 class _PrintViewState extends State<_PrintView> {
   /// Which sheet of the layout is previewed (duplex: fronts, backs).
   int _sheet = 0;
+  final PageController _pageCtrl = PageController();
+
+  void _goSheet(int i) {
+    setState(() => _sheet = i);
+    if (_pageCtrl.hasClients) {
+      _pageCtrl.animateToPage(i, duration: Motion.normal, curve: Curves.easeOutCubic);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pageCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickCopies(BuildContext context, int n) async {
     final cubit = context.read<PrintLayoutCubit>();
@@ -80,13 +94,16 @@ class _PrintViewState extends State<_PrintView> {
           output: s.output,
           copies: s.copies,
           frontPath: '',
-          backPath: doc.pages.length > 1 ? '' : null,
+          backPath: s.hasBack ? '' : null,
+          cutGuides: s.cutGuides,
         );
         final layout = PrintLayoutCalculator.layout(spec);
         final sheets = layout.pages.length;
         final sheet = _sheet.clamp(0, sheets - 1);
         final card = PrintLayoutCalculator.cardSize(kind);
         final pages = doc.sortedPages;
+        final frontPage = s.swapSides && pages.length > 1 ? pages[1] : pages.first;
+        final backPage = pages.length > 1 ? (s.swapSides ? pages.first : pages[1]) : null;
         final duplex = s.output == PrintOutput.pdfDoubleSided && sheets > 1;
         final scale = l.printTipScale;
         final flip = l.printTipFlip;
@@ -130,21 +147,27 @@ class _PrintViewState extends State<_PrintView> {
                                     ? (i.isEven ? l.printSheetFronts(i + 1) : l.printSheetBacks(i + 1))
                                     : l.pageOfTotal(i + 1, sheets),
                                 selected: i == sheet,
-                                onTap: () => setState(() => _sheet = i),
+                                onTap: () => _goSheet(i),
                               ),
                             ],
                           ],
                         ),
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: Space.x6, vertical: Space.x3),
-                          child: Center(
-                            child: AspectRatio(
-                              aspectRatio: PrintLayoutCalculator.sheetW / PrintLayoutCalculator.sheetH,
-                              child: _SheetPreview(
-                                items: layout.pages[sheet],
-                                frontPath: pages.first.thumbPath ?? pages.first.displayPath,
-                                backPath: pages.length > 1 ? (pages[1].thumbPath ?? pages[1].displayPath) : null,
+                        child: PageView.builder(
+                          controller: _pageCtrl,
+                          itemCount: sheets,
+                          onPageChanged: (i) => setState(() => _sheet = i),
+                          itemBuilder: (context, i) => Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: Space.x6, vertical: Space.x3),
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: PrintLayoutCalculator.sheetW / PrintLayoutCalculator.sheetH,
+                                child: _SheetPreview(
+                                  items: layout.pages[i],
+                                  cutGuides: s.cutGuides && s.output != PrintOutput.image,
+                                  frontPath: frontPage.thumbPath ?? frontPage.displayPath,
+                                  backPath: backPage == null ? null : (backPage.thumbPath ?? backPage.displayPath),
+                                ),
                               ),
                             ),
                           ),
@@ -163,23 +186,48 @@ class _PrintViewState extends State<_PrintView> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    SectionLabel(l.printCopies, padding: const EdgeInsets.only(bottom: Space.x2)),
+                    if (s.output != PrintOutput.image) ...[
+                      SectionLabel(l.printCopies, padding: const EdgeInsets.only(bottom: Space.x2)),
+                      Row(
+                        children: [
+                          for (final (i, n) in s.allowedCopies.indexed) ...[
+                            if (i > 0) const SizedBox(width: Space.x2),
+                            Expanded(
+                              child: _CopiesButton(
+                                n: n,
+                                selected: s.copies == n,
+                                locked: s.copiesGated(n),
+                                onTap: () => _pickCopies(context, n),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: Space.x3),
+                    ],
                     Row(
                       children: [
-                        for (final (i, n) in s.allowedCopies.indexed) ...[
-                          if (i > 0) const SizedBox(width: Space.x2),
+                        if (s.output != PrintOutput.image)
                           Expanded(
-                            child: _CopiesButton(
-                              n: n,
-                              selected: s.copies == n,
-                              locked: s.copiesGated(n),
-                              onTap: () => _pickCopies(context, n),
+                            child: Row(
+                              children: [
+                                Switch.adaptive(value: s.cutGuides, onChanged: cubit.setCutGuides),
+                                const SizedBox(width: Space.x1),
+                                Flexible(child: Text(l.printCutGuides, style: context.text.labelMedium)),
+                              ],
                             ),
+                          )
+                        else
+                          const Spacer(),
+                        if (s.hasBack)
+                          TextButton.icon(
+                            onPressed: cubit.toggleSwapSides,
+                            icon: const AppIcon(AppIcons.reorder, size: 18),
+                            label: Text(l.printSwapSides),
                           ),
-                        ],
                       ],
                     ),
-                    const SizedBox(height: Space.x3),
+                    const SizedBox(height: Space.x2),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: Space.x3, vertical: 10),
                       decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(12)),
@@ -364,10 +412,16 @@ class _CopiesButton extends StatelessWidget {
 
 /// Scaled-down drawing of one sheet, using page thumbnails.
 class _SheetPreview extends StatelessWidget {
-  const _SheetPreview({required this.items, required this.frontPath, this.backPath});
+  const _SheetPreview({
+    required this.items,
+    required this.frontPath,
+    this.backPath,
+    this.cutGuides = false,
+  });
   final List<PlacedItem> items;
   final String frontPath;
   final String? backPath;
+  final bool cutGuides;
 
   @override
   Widget build(BuildContext context) {
@@ -382,6 +436,10 @@ class _SheetPreview extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Stack(
             children: [
+              if (cutGuides)
+                Positioned.fill(
+                  child: CustomPaint(painter: _CropMarksPainter(items, k)),
+                ),
               for (final it in items)
                 Positioned(
                   left: it.x * k,
@@ -403,4 +461,23 @@ class _SheetPreview extends StatelessWidget {
       },
     );
   }
+}
+
+class _CropMarksPainter extends CustomPainter {
+  _CropMarksPainter(this.items, this.k);
+  final List<PlacedItem> items;
+  final double k;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFBDBDBD)
+      ..strokeWidth = 1;
+    for (final ((x1, y1), (x2, y2)) in PrintLayoutCalculator.cropMarks(items)) {
+      canvas.drawLine(Offset(x1 * k, y1 * k), Offset(x2 * k, y2 * k), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CropMarksPainter old) => old.items != items || old.k != k;
 }

@@ -20,6 +20,9 @@ enum PdfPageSize {
 
 enum ExportTarget { share, saveToPhone }
 
+/// ID card / passport only: both sides as one picture, or one file per page.
+enum ExportLayout { oneImage, separate }
+
 @freezed
 abstract class ExportOptions with _$ExportOptions {
   const factory ExportOptions({
@@ -27,6 +30,7 @@ abstract class ExportOptions with _$ExportOptions {
     @Default(ExportQuality.standard) ExportQuality quality,
     @Default(PdfPageSize.a4) PdfPageSize pageSize,
     @Default('') String fileName,
+    @Default(ExportLayout.oneImage) ExportLayout layout,
   }) = _ExportOptions;
   const ExportOptions._();
 
