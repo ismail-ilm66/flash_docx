@@ -85,7 +85,7 @@ class _Gallery extends StatelessWidget {
 void main() {
   for (final dark in [false, true]) {
     final name = dark ? 'dark' : 'light';
-    testWidgets('shared widgets gallery ($name)', (tester) async {
+    testWidgets('shared widgets gallery ($name)', tags: ['golden'], (tester) async {
       await tester.pumpApp(const _Gallery(), dark: dark, size: const Size(390, 1400));
       await expectLater(find.byType(_Gallery), matchesGoldenFile('goldens/widgets_gallery_$name.png'));
     });
