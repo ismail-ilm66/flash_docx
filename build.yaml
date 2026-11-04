@@ -1,0 +1,8 @@
+targets:
+  $default:
+    builders:
+      freezed:
+        options:
+          # Keep generated code smaller; we don't use `when`/`map`.
+          when: false
+          map: false
