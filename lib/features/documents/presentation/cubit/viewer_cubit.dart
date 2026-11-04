@@ -54,6 +54,7 @@ class ViewerCubit extends Cubit<ViewerState> {
     this._delete,
     this._deletePage,
     this._reorder,
+    this._addPages,
     this._render,
     @factoryParam String documentId,
   ) : super(const ViewerState()) {
@@ -67,6 +68,7 @@ class ViewerCubit extends Cubit<ViewerState> {
   final DeleteDocument _delete;
   final DeletePage _deletePage;
   final ReorderPages _reorder;
+  final AddPages _addPages;
   final PageRenderService _render;
   StreamSubscription<ScanDocument?>? _sub;
 
@@ -92,6 +94,9 @@ class ViewerCubit extends Cubit<ViewerState> {
     if (p == null) return null;
     return (await _deletePage(p.id)).fold((f) => f, (_) => null);
   }
+
+  Future<Failure?> addPages(List<ScanPage> pages) async =>
+      (await _addPages(state.document!.id, pages)).fold((f) => f, (_) => null);
 
   Future<Failure?> reorder(List<String> ids) async =>
       (await _reorder(state.document!.id, ids)).fold((f) => f, (_) => null);

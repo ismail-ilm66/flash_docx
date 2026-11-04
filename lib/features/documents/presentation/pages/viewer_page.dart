@@ -8,11 +8,10 @@ import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
-import 'package:flash_dox/features/documents/presentation/widgets/reorder_sheet.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
-import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
+import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -65,9 +64,6 @@ class _ViewerViewState extends State<_ViewerView> {
         child: Column(
           children: [
             SheetAction(label: l.viewerRename, leading: const AppIcon(AppIcons.rename), onTap: () => Navigator.of(ctx).pop(_ViewerAction.rename)),
-            SheetAction(label: l.viewerAddPages, leading: const AppIcon(AppIcons.addPage), onTap: () => Navigator.of(ctx).pop(_ViewerAction.addPages)),
-            if (doc.pages.length > 1)
-              SheetAction(label: l.viewerReorder, leading: const AppIcon(AppIcons.reorder), onTap: () => Navigator.of(ctx).pop(_ViewerAction.reorder)),
             if (doc.pages.length > 1)
               SheetAction(label: l.viewerDeletePage, leading: const AppIcon(AppIcons.delete), onTap: () => Navigator.of(ctx).pop(_ViewerAction.deletePage)),
             SheetAction(label: l.viewerDelete, leading: const AppIcon(AppIcons.delete), destructive: true, onTap: () => Navigator.of(ctx).pop(_ViewerAction.delete)),
@@ -79,11 +75,6 @@ class _ViewerViewState extends State<_ViewerView> {
     switch (action) {
       case _ViewerAction.rename:
         await renameDocumentFlow(context, doc, cubit.rename);
-      case _ViewerAction.addPages:
-        await context.push(Routes.camera, extra: CameraArgs(mode: ScanMode.batch, addToDocumentId: doc.id));
-      case _ViewerAction.reorder:
-        final ids = await showReorderSheet(context, doc.sortedPages);
-        if (ids != null) await cubit.reorder(ids);
       case _ViewerAction.deletePage:
         final ok = await AppDialog.confirm(context, title: l.deletePageTitle, body: l.deletePageBody, confirmLabel: l.commonDelete, destructive: true);
         if (ok) await cubit.deleteCurrentPage();
@@ -118,9 +109,11 @@ class _ViewerViewState extends State<_ViewerView> {
               Routes.adjust,
               extra: EditorArgs(pages: pages, mode: doc.mode, documentId: doc.id, initialIndex: s.index),
             );
-        Future<void> reorder() async {
-          final ids = await showReorderSheet(context, doc.sortedPages);
-          if (ids != null) await cubit.reorder(ids);
+        Future<void> addPages() async {
+          final added = await collectNewPages(context, mode: doc.mode);
+          if (added == null || added.isEmpty || !context.mounted) return;
+          final err = await cubit.addPages(added);
+          if (err != null && context.mounted) context.showSnack(failureMessage(context, err), error: true);
         }
 
         return AppScaffold(
@@ -206,15 +199,10 @@ class _ViewerViewState extends State<_ViewerView> {
                         pages: pages,
                         index: s.index,
                         onSelect: _jump,
-                        onLongPress: multi ? reorder : null,
+                        onReorder: multi ? cubit.reorder : null,
                         pathOf: (p) => p.thumbPath ?? p.displayPath,
                         cacheKeyOf: (p) => p.thumbPath,
-                        trailing: AddPageTile(
-                          onTap: () => context.push(
-                            Routes.camera,
-                            extra: CameraArgs(mode: ScanMode.batch, addToDocumentId: doc.id),
-                          ),
-                        ),
+                        trailing: AddPageTile(onTap: addPages),
                       ),
                     ),
                     if (multi)
@@ -351,4 +339,4 @@ class _TitleButton extends StatelessWidget {
   }
 }
 
-enum _ViewerAction { rename, addPages, reorder, deletePage, delete }
+enum _ViewerAction { rename, deletePage, delete }

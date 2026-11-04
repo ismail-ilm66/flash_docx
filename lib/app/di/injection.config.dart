@@ -237,17 +237,6 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i904.RewardCubit>(
       () => _i904.RewardCubit(gh<_i607.RewardGate>()),
     );
-    gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
-      (documentId, _) => _i411.ViewerCubit(
-        gh<_i310.WatchDocument>(),
-        gh<_i310.RenameDocument>(),
-        gh<_i310.DeleteDocument>(),
-        gh<_i310.DeletePage>(),
-        gh<_i310.ReorderPages>(),
-        gh<_i120.PageRenderService>(),
-        documentId,
-      ),
-    );
     gh.factoryParam<_i323.OcrCubit, String, String?>(
       (documentId, pageId) => _i323.OcrCubit(
         gh<_i310.GetDocument>(),
@@ -262,6 +251,18 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i922.PreparePages>(),
         gh<_i567.PrefsService>(),
         initialMode,
+      ),
+    );
+    gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
+      (documentId, _) => _i411.ViewerCubit(
+        gh<_i310.WatchDocument>(),
+        gh<_i310.RenameDocument>(),
+        gh<_i310.DeleteDocument>(),
+        gh<_i310.DeletePage>(),
+        gh<_i310.ReorderPages>(),
+        gh<_i310.AddPages>(),
+        gh<_i120.PageRenderService>(),
+        documentId,
       ),
     );
     gh.factory<_i402.ExportDocument>(
