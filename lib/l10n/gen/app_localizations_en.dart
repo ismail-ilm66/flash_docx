@@ -709,4 +709,66 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get addFromCamera => 'Camera';
+
+  @override
+  String get backLeaveTitle => 'Leave Flash Dox?';
+
+  @override
+  String get backLeave => 'Leave';
+
+  @override
+  String get backStay => 'Stay';
+
+  @override
+  String get discardScanTitle => 'Discard this scan?';
+
+  @override
+  String discardScanBody(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pages will be lost.',
+      one: '1 page will be lost.',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get discardScan => 'Discard';
+
+  @override
+  String get keepScanning => 'Keep scanning';
+
+  @override
+  String get adjustEdgesNotFound =>
+      'Couldn\'t find the edges — drag the corners';
+
+  @override
+  String get settingsShutterSound => 'Shutter sound';
+
+  @override
+  String get settingsDefaultQuality => 'Default quality';
+
+  @override
+  String get printCutGuides => 'Cut guides';
+
+  @override
+  String get printSwapSides => 'Swap front/back';
+
+  @override
+  String printSheetOf(int n, int total) {
+    return 'Sheet $n of $total';
+  }
+
+  @override
+  String get shareLayout => 'Layout';
+
+  @override
+  String get shareLayoutOneImage => 'One image (front + back)';
+
+  @override
+  String get shareLayoutSeparate => 'Separate images';
+
+  @override
+  String get defaultDocName => 'Flash Scan';
 }

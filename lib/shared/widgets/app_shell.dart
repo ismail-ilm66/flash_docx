@@ -3,6 +3,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/back_guards.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -16,13 +17,16 @@ class AppShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: context.colors.bg,
-      body: shell,
-      bottomNavigationBar: AppBottomNav(
-        index: shell.currentIndex,
-        onTab: (i) => shell.goBranch(i, initialLocation: i == shell.currentIndex),
-        onScan: () => context.push(Routes.camera),
+    return LeaveAppGuard(
+      child: Scaffold(
+        backgroundColor: context.colors.bg,
+        body: shell,
+        bottomNavigationBar: AppBottomNav(
+          index: shell.currentIndex,
+          onTab: (i) =>
+              shell.goBranch(i, initialLocation: i == shell.currentIndex),
+          onScan: () => context.push(Routes.camera),
+        ),
       ),
     );
   }
@@ -63,7 +67,9 @@ class AppBottomNav extends StatelessWidget {
                   onTap: () => onTab(0),
                 ),
               ),
-              Expanded(child: Center(child: ScanFab(onPressed: onScan))),
+              Expanded(
+                child: Center(child: ScanFab(onPressed: onScan)),
+              ),
               Expanded(
                 child: _NavItem(
                   icon: AppIcons.settings,
@@ -118,7 +124,11 @@ class _NavItem extends StatelessWidget {
                 borderRadius: Radii.pillR,
               ),
               alignment: Alignment.center,
-              child: AppIcon(icon, size: 22, color: active ? c.accentText : c.muted),
+              child: AppIcon(
+                icon,
+                size: 22,
+                color: active ? c.accentText : c.muted,
+              ),
             ),
             const SizedBox(height: Space.x1),
             Text(
@@ -164,7 +174,9 @@ class ScanFab extends StatelessWidget {
             clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: onPressed,
-              child: Center(child: AppIcon(AppIcons.camera, color: c.onAccent, size: 28)),
+              child: Center(
+                child: AppIcon(AppIcons.camera, color: c.onAccent, size: 28),
+              ),
             ),
           ),
         ),

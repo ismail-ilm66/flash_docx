@@ -39,7 +39,7 @@ void main() {
         var ok = quad != null;
         if (ok) {
           for (var i = 0; i < 4; i++) {
-            if ((quad!.points[i].x - expected.points[i].x).abs() > 0.03 ||
+            if ((quad.points[i].x - expected.points[i].x).abs() > 0.03 ||
                 (quad.points[i].y - expected.points[i].y).abs() > 0.03) {
               ok = false;
             }

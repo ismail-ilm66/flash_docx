@@ -64,20 +64,24 @@ class _EnhanceViewState extends State<_EnhanceView> {
     final l = context.l10n;
     final c = context.colors;
     return BlocConsumer<PageEditorBloc, PageEditorState>(
-      listenWhen: (a, b) =>
-          a.status != b.status || a.index != b.index,
+      listenWhen: (a, b) => a.status != b.status || a.index != b.index,
       listener: (context, s) {
         if (s.status == EditorStatus.saved) _onSaved(context, s);
         if (s.status == EditorStatus.failed && s.failure != null) {
           context.showSnack(failureMessage(context, s.failure), error: true);
         }
-        setState(() { _brightness = null; _contrast = null; });
+        setState(() {
+          _brightness = null;
+          _contrast = null;
+        });
       },
       builder: (context, s) {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
         final edits = s.edits;
-        final preview = _comparing ? s.basePreview : (s.enhancePreview ?? s.basePreview);
+        final preview = _comparing
+            ? s.basePreview
+            : (s.enhancePreview ?? s.basePreview);
         final multi = s.pages.length > 1;
         final saving = s.status == EditorStatus.saving;
 
@@ -85,216 +89,278 @@ class _EnhanceViewState extends State<_EnhanceView> {
           if (_applyAll && multi) bloc.add(const EditorApplyLookToAll());
         }
 
-        return AppScaffold(
-          forceDark: true,
-          topBar: AppTopBar(
-            title: l.enhanceTitle,
-            subtitle: multi && page != null ? l.pageOfTotal(s.index + 1, s.pages.length) : null,
-            actions: [
-              TextButton(
-                onPressed: page == null || saving
-                    ? null
-                    : () {
-                        setState(() {
-                          _brightness = null;
-                          _contrast = null;
-                        });
-                        bloc.add(const EditorLookReset());
-                        changed();
-                      },
-                style: TextButton.styleFrom(
-                  foregroundColor: c.muted,
-                  minimumSize: const Size(Sizes.tap, Sizes.tap),
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x2),
-                  textStyle: context.text.labelLarge?.copyWith(fontSize: 15),
-                ),
-                child: Text(l.enhanceReset),
-              ),
-              TopBarTextAction(
-                label: l.enhanceDone,
-                loading: saving,
-                onPressed: page == null
-                    ? null
-                    : () {
-                        changed();
-                        bloc.add(const EditorSaveRequested());
-                      },
-              ),
-            ],
-          ),
-          body: Stack(
-            children: [
-              Column(
-                children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(Space.x10, Space.x2, Space.x10, 64),
-                            child: Center(
-                              child: preview == null
-                                  ? const CircularProgressIndicator()
-                                  : GestureDetector(
-                                      onLongPressStart: (_) => setState(() => _comparing = true),
-                                      onLongPressEnd: (_) => setState(() => _comparing = false),
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(4),
-                                          boxShadow: const [BoxShadow(color: Color(0x80000000), blurRadius: 28, offset: Offset(0, 8))],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(4),
-                                          child: _comparing
-                                              ? RotatedBox(
-                                                  quarterTurns: edits.normalizedTurns,
-                                                  child: Image.file(File(preview), gaplessPlayback: true),
-                                                )
-                                              : Image.file(File(preview), key: ValueKey(preview), gaplessPlayback: true),
-                                        ),
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                        if (s.rendering && !_comparing)
-                          Positioned(
-                            top: Space.x2,
-                            right: Space.x5,
-                            child: SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: c.accent),
-                            ),
-                          ),
-                        if (multi)
-                          Positioned(
-                            left: Space.x3,
-                            bottom: Space.x2,
-                            child: PageDots(
-                              count: s.pages.length,
-                              index: s.index,
-                              onSelect: (i) => bloc.add(EditorPageSelected(i)),
-                            ),
-                          ),
-                        Positioned(
-                          right: Space.x5,
-                          bottom: Space.x4,
-                          child: _CompareButton(
-                            comparing: _comparing,
-                            onChanged: (v) => setState(() => _comparing = v),
-                          ),
-                        ),
-                      ],
-                    ),
+        return DiscardScanGuard(
+          guard: bloc.guardBack,
+          pageCount: s.pages.length,
+          onDiscard: () {
+            bloc.popAllowed = true;
+            context
+              ..pop()
+              ..pop();
+          },
+          child: AppScaffold(
+            forceDark: true,
+            topBar: AppTopBar(
+              title: l.enhanceTitle,
+              subtitle: multi && page != null
+                  ? l.pageOfTotal(s.index + 1, s.pages.length)
+                  : null,
+              actions: [
+                TextButton(
+                  onPressed: page == null || saving
+                      ? null
+                      : () {
+                          setState(() {
+                            _brightness = null;
+                            _contrast = null;
+                          });
+                          bloc.add(const EditorLookReset());
+                          changed();
+                        },
+                  style: TextButton.styleFrom(
+                    foregroundColor: c.muted,
+                    minimumSize: const Size(Sizes.tap, Sizes.tap),
+                    padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                    textStyle: context.text.labelLarge?.copyWith(fontSize: 15),
                   ),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(Radii.xl)),
-                    ),
-                    padding: const EdgeInsets.only(top: Space.x4, bottom: 18),
-                    child: SafeArea(
-                      top: false,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                  child: Text(l.enhanceReset),
+                ),
+                TopBarTextAction(
+                  label: l.enhanceDone,
+                  loading: saving,
+                  onPressed: page == null
+                      ? null
+                      : () {
+                          changed();
+                          bloc.add(const EditorSaveRequested());
+                        },
+                ),
+              ],
+            ),
+            body: Stack(
+              children: [
+                Column(
+                  children: [
+                    Expanded(
+                      child: Stack(
                         children: [
-                          SizedBox(
-                            height: 98,
-                            child: ListView.separated(
-                              scrollDirection: Axis.horizontal,
-                              padding: const EdgeInsets.symmetric(horizontal: Space.x4),
-                              itemCount: FilterType.values.length,
-                              separatorBuilder: (_, __) => const SizedBox(width: 10),
-                              itemBuilder: (context, i) {
-                                final f = FilterType.values[i];
-                                return _FilterSwatch(
-                                  filter: f,
-                                  label: filterLabel(context, f),
-                                  selected: edits.filter == f,
-                                  onTap: () {
-                                    bloc.add(EditorFilterChanged(f));
-                                    changed();
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-                          const SizedBox(height: Space.x4),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: Space.x5),
-                            child: Column(
-                              children: [
-                                LabeledSlider(
-                                  label: l.enhanceBrightness,
-                                  value: _brightness ?? edits.brightness,
-                                  onChanged: (v) {
-                                    setState(() => _brightness = v);
-                                    bloc.add(EditorBrightnessChanged(v));
-                                  },
-                                  onChangeEnd: (_) {
-                                    setState(() => _brightness = null);
-                                    changed();
-                                  },
-                                ),
-                                const SizedBox(height: Space.x2),
-                                LabeledSlider(
-                                  label: l.enhanceContrast,
-                                  value: _contrast ?? edits.contrast,
-                                  onChanged: (v) {
-                                    setState(() => _contrast = v);
-                                    bloc.add(EditorContrastChanged(v));
-                                  },
-                                  onChangeEnd: (_) {
-                                    setState(() => _contrast = null);
-                                    changed();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (multi) ...[
-                            const SizedBox(height: Space.x3),
-                            MergeSemantics(
-                              child: Padding(
-                                padding: const EdgeInsets.only(left: Space.x5, right: Space.x4),
-                                child: Row(
-                                  children: [
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(l.enhanceApplyAll, style: context.text.labelLarge),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            l.enhanceApplyAllHint(s.pages.length),
-                                            style: context.text.bodySmall?.copyWith(color: c.muted),
+                          Positioned.fill(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(
+                                Space.x10,
+                                Space.x2,
+                                Space.x10,
+                                64,
+                              ),
+                              child: Center(
+                                child: preview == null
+                                    ? const CircularProgressIndicator()
+                                    : GestureDetector(
+                                        onLongPressStart: (_) =>
+                                            setState(() => _comparing = true),
+                                        onLongPressEnd: (_) =>
+                                            setState(() => _comparing = false),
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color(0x80000000),
+                                                blurRadius: 28,
+                                                offset: Offset(0, 8),
+                                              ),
+                                            ],
                                           ),
-                                        ],
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            child: _comparing
+                                                ? RotatedBox(
+                                                    quarterTurns:
+                                                        edits.normalizedTurns,
+                                                    child: Image.file(
+                                                      File(preview),
+                                                      gaplessPlayback: true,
+                                                    ),
+                                                  )
+                                                : Image.file(
+                                                    File(preview),
+                                                    key: ValueKey(preview),
+                                                    gaplessPlayback: true,
+                                                  ),
+                                          ),
+                                        ),
                                       ),
-                                    ),
-                                    Switch(
-                                      value: _applyAll,
-                                      onChanged: saving
-                                          ? null
-                                          : (v) {
-                                              setState(() => _applyAll = v);
-                                              if (v) bloc.add(const EditorApplyLookToAll());
-                                            },
-                                    ),
-                                  ],
+                              ),
+                            ),
+                          ),
+                          if (s.rendering && !_comparing)
+                            Positioned(
+                              top: Space.x2,
+                              right: Space.x5,
+                              child: SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: c.accent,
                                 ),
                               ),
                             ),
-                          ],
+                          if (multi)
+                            Positioned(
+                              left: Space.x3,
+                              bottom: Space.x2,
+                              child: PageDots(
+                                count: s.pages.length,
+                                index: s.index,
+                                onSelect: (i) =>
+                                    bloc.add(EditorPageSelected(i)),
+                              ),
+                            ),
+                          Positioned(
+                            right: Space.x5,
+                            bottom: Space.x4,
+                            child: _CompareButton(
+                              comparing: _comparing,
+                              onChanged: (v) => setState(() => _comparing = v),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                ],
-              ),
-              if (saving) ProgressOverlay(label: l.sharePreparing),
-            ],
+                    Container(
+                      decoration: BoxDecoration(
+                        color: c.surface,
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(Radii.xl),
+                        ),
+                      ),
+                      padding: const EdgeInsets.only(top: Space.x4, bottom: 18),
+                      child: SafeArea(
+                        top: false,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              height: 98,
+                              child: ListView.separated(
+                                scrollDirection: Axis.horizontal,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: Space.x4,
+                                ),
+                                itemCount: FilterType.values.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(width: 10),
+                                itemBuilder: (context, i) {
+                                  final f = FilterType.values[i];
+                                  return _FilterSwatch(
+                                    filter: f,
+                                    label: filterLabel(context, f),
+                                    selected: edits.filter == f,
+                                    onTap: () {
+                                      bloc.add(EditorFilterChanged(f));
+                                      changed();
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: Space.x4),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Space.x5,
+                              ),
+                              child: Column(
+                                children: [
+                                  LabeledSlider(
+                                    label: l.enhanceBrightness,
+                                    value: _brightness ?? edits.brightness,
+                                    onChanged: (v) {
+                                      setState(() => _brightness = v);
+                                      bloc.add(EditorBrightnessChanged(v));
+                                    },
+                                    onChangeEnd: (_) {
+                                      setState(() => _brightness = null);
+                                      changed();
+                                    },
+                                  ),
+                                  const SizedBox(height: Space.x2),
+                                  LabeledSlider(
+                                    label: l.enhanceContrast,
+                                    value: _contrast ?? edits.contrast,
+                                    onChanged: (v) {
+                                      setState(() => _contrast = v);
+                                      bloc.add(EditorContrastChanged(v));
+                                    },
+                                    onChangeEnd: (_) {
+                                      setState(() => _contrast = null);
+                                      changed();
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (multi) ...[
+                              const SizedBox(height: Space.x3),
+                              MergeSemantics(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(
+                                    left: Space.x5,
+                                    right: Space.x4,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              l.enhanceApplyAll,
+                                              style: context.text.labelLarge,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              l.enhanceApplyAllHint(
+                                                s.pages.length,
+                                              ),
+                                              style: context.text.bodySmall
+                                                  ?.copyWith(color: c.muted),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      Switch(
+                                        value: _applyAll,
+                                        onChanged: saving
+                                            ? null
+                                            : (v) {
+                                                setState(() => _applyAll = v);
+                                                if (v) {
+                                                  bloc.add(
+                                                    const EditorApplyLookToAll(),
+                                                  );
+                                                }
+                                              },
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (saving) ProgressOverlay(label: l.sharePreparing),
+              ],
+            ),
           ),
         );
       },
@@ -336,7 +402,9 @@ class _CompareButton extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 comparing ? l.filterOriginal : l.enhanceHoldToCompare,
-                style: context.text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                style: context.text.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ],
           ),
@@ -361,23 +429,23 @@ class _FilterSwatch extends StatelessWidget {
   final VoidCallback onTap;
 
   static (Color paper, Color ink) _tone(FilterType f) => switch (f) {
-        FilterType.original => (const Color(0xFFE9E3D8), const Color(0xFF8E9196)),
-        FilterType.auto => (const Color(0xFFFFFFFF), const Color(0xFF4A4D55)),
-        FilterType.colorBoost => (const Color(0xFFFFFDF6), const Color(0xFF24406E)),
-        FilterType.grayscale => (const Color(0xFFF2F2F2), const Color(0xFF6B6B6B)),
-        FilterType.bwPrint => (const Color(0xFFFFFFFF), const Color(0xFF000000)),
-      };
+    FilterType.original => (const Color(0xFFE9E3D8), const Color(0xFF8E9196)),
+    FilterType.auto => (const Color(0xFFFFFFFF), const Color(0xFF4A4D55)),
+    FilterType.colorBoost => (const Color(0xFFFFFDF6), const Color(0xFF24406E)),
+    FilterType.grayscale => (const Color(0xFFF2F2F2), const Color(0xFF6B6B6B)),
+    FilterType.bwPrint => (const Color(0xFFFFFFFF), const Color(0xFF000000)),
+  };
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final (paper, ink) = _tone(filter);
     Widget line(double w, double h) => Container(
-          margin: const EdgeInsets.only(bottom: 5),
-          width: w,
-          height: h,
-          color: ink,
-        );
+      margin: const EdgeInsets.only(bottom: 5),
+      width: w,
+      height: h,
+      color: ink,
+    );
     return Semantics(
       button: true,
       selected: selected,
@@ -396,15 +464,29 @@ class _FilterSwatch extends StatelessWidget {
                 padding: const EdgeInsets.all(Space.x1),
                 decoration: BoxDecoration(
                   borderRadius: Radii.smR,
-                  border: Border.all(color: selected ? c.accent : Colors.transparent, width: 2),
+                  border: Border.all(
+                    color: selected ? c.accent : Colors.transparent,
+                    width: 2,
+                  ),
                 ),
                 child: Container(
-                  decoration: BoxDecoration(color: paper, borderRadius: BorderRadius.circular(6)),
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: Space.x2),
+                  decoration: BoxDecoration(
+                    color: paper,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: Space.x2,
+                  ),
                   alignment: Alignment.topLeft,
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [line(22, 4), line(36, 2), line(36, 2), line(27, 2)],
+                    children: [
+                      line(22, 4),
+                      line(36, 2),
+                      line(36, 2),
+                      line(27, 2),
+                    ],
                   ),
                 ),
               ),

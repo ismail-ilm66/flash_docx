@@ -33,17 +33,18 @@ class AppDialog extends StatelessWidget {
     required String title,
     required String body,
     required String confirmLabel,
+    String? cancelLabel,
     bool destructive = false,
   }) async {
     final r = await showDialog<bool>(
       context: context,
       builder: (ctx) => AppDialog(
         title: title,
-        body: body,
+        body: body.isEmpty ? null : body,
         destructive: destructive,
         primaryLabel: confirmLabel,
         onPrimary: () => Navigator.of(ctx).pop(true),
-        secondaryLabel: ctx.l10n.commonCancel,
+        secondaryLabel: cancelLabel ?? ctx.l10n.commonCancel,
         onSecondary: () => Navigator.of(ctx).pop(false),
       ),
     );

@@ -1347,6 +1347,108 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Camera'**
   String get addFromCamera;
+
+  /// No description provided for @backLeaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave Flash Dox?'**
+  String get backLeaveTitle;
+
+  /// No description provided for @backLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave'**
+  String get backLeave;
+
+  /// No description provided for @backStay.
+  ///
+  /// In en, this message translates to:
+  /// **'Stay'**
+  String get backStay;
+
+  /// No description provided for @discardScanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard this scan?'**
+  String get discardScanTitle;
+
+  /// No description provided for @discardScanBody.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page will be lost.} other{{count} pages will be lost.}}'**
+  String discardScanBody(int count);
+
+  /// No description provided for @discardScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get discardScan;
+
+  /// No description provided for @keepScanning.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep scanning'**
+  String get keepScanning;
+
+  /// No description provided for @adjustEdgesNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t find the edges — drag the corners'**
+  String get adjustEdgesNotFound;
+
+  /// No description provided for @settingsShutterSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Shutter sound'**
+  String get settingsShutterSound;
+
+  /// No description provided for @settingsDefaultQuality.
+  ///
+  /// In en, this message translates to:
+  /// **'Default quality'**
+  String get settingsDefaultQuality;
+
+  /// No description provided for @printCutGuides.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut guides'**
+  String get printCutGuides;
+
+  /// No description provided for @printSwapSides.
+  ///
+  /// In en, this message translates to:
+  /// **'Swap front/back'**
+  String get printSwapSides;
+
+  /// No description provided for @printSheetOf.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} of {total}'**
+  String printSheetOf(int n, int total);
+
+  /// No description provided for @shareLayout.
+  ///
+  /// In en, this message translates to:
+  /// **'Layout'**
+  String get shareLayout;
+
+  /// No description provided for @shareLayoutOneImage.
+  ///
+  /// In en, this message translates to:
+  /// **'One image (front + back)'**
+  String get shareLayoutOneImage;
+
+  /// No description provided for @shareLayoutSeparate.
+  ///
+  /// In en, this message translates to:
+  /// **'Separate images'**
+  String get shareLayoutSeparate;
+
+  /// No description provided for @defaultDocName.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash Scan'**
+  String get defaultDocName;
 }
 
 class _AppLocalizationsDelegate

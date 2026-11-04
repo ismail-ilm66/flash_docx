@@ -131,7 +131,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     } on CameraException catch (e) {
       setState(() {
         _initializing = false;
-        _permissionDenied = e.code.toLowerCase().contains('accessdenied') ||
+        _permissionDenied =
+            e.code.toLowerCase().contains('accessdenied') ||
             e.code.toLowerCase().contains('permission');
       });
     } catch (_) {
@@ -165,7 +166,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// Lets focus settle on the frame centre before a capture, unless the
   /// user just tapped a point.
   Future<void> _settleFocus(CameraController c) async {
-    final recent = _focusedAt != null &&
+    final recent =
+        _focusedAt != null &&
         DateTime.now().difference(_focusedAt!) < const Duration(seconds: 3);
     if (!recent) {
       await _trySet(() => c.setFocusPoint(const Offset(0.5, 0.5)));
@@ -177,7 +179,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Future<void> _captureFeedback(String path) async {
     unawaited(HapticFeedback.mediumImpact());
     if (getIt<PrefsService>().shutterSound) {
-      unawaited(_shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9));
+      unawaited(
+        _shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9),
+      );
     }
     if (!mounted) return;
     setState(() {
@@ -219,7 +223,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Future<void> _capture() async {
     final c = _controller;
     final bloc = context.read<ScanSessionBloc>();
-    if (c == null || !c.value.isInitialized || _capturing || !bloc.state.canCapture) {
+    if (c == null ||
+        !c.value.isInitialized ||
+        _capturing ||
+        !bloc.state.canCapture) {
       return;
     }
     setState(() => _capturing = true);
@@ -298,50 +305,76 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         final title = widget.args.retake
             ? l.adjustRetake
             : s.count == 0
-                ? modeLabel(context, s.mode)
-                : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
-        return AppScaffold(
-          forceDark: true,
-          backgroundColor: Colors.black,
-          body: Stack(
-            fit: StackFit.expand,
-            children: [
-              CameraOverlay(
-                preview: _preview(context),
-                rules: s.rules,
-                title: title,
-                guide: _guideText(l, s),
-                flashOn: s.flashOn,
-                captureCount: s.count,
-                lastCapturePath: s.captures.lastOrNull?.path,
-                canFinish: s.canFinish && !widget.args.retake,
-                showModes: !widget.args.retake && !widget.args.returnPages && widget.args.addToDocumentId == null,
-                capturing: _capturing || s.status == SessionStatus.preparing,
-                onClose: () => context.pop(),
-                onFlash: () => context.read<ScanSessionBloc>().add(const SessionFlashToggled()),
-                onMode: (m) => context.read<ScanSessionBloc>().add(SessionModeChanged(m)),
-                onShutter: _capture,
-                onGallery: widget.args.retake ? null : () => _import(gallery: true),
-                onFinish: () => context.read<ScanSessionBloc>().add(const SessionFinished()),
-                onRemoveLast: s.count == 0
-                    ? null
-                    : () => context.read<ScanSessionBloc>().add(SessionCaptureRemoved(s.count - 1)),
-                focusPoint: _focusPoint,
-                flashTick: _flashTick,
-                onPreviewTap: _onPreviewTap,
-                stackKey: _stackKey,
-                flyPath: _flyPath,
-              ),
-              if (s.status == SessionStatus.preparing)
-                ProgressOverlay(label: l.sharePreparing),
-            ],
+            ? modeLabel(context, s.mode)
+            : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
+        final guard =
+            !widget.args.retake &&
+            s.count > 0 &&
+            s.status != SessionStatus.ready;
+        return DiscardScanGuard(
+          guard: guard,
+          pageCount: s.count,
+          onDiscard: () {
+            context.read<ScanSessionBloc>().add(const SessionReset());
+            context.pop();
+          },
+          child: AppScaffold(
+            forceDark: true,
+            backgroundColor: Colors.black,
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                CameraOverlay(
+                  preview: _preview(context),
+                  rules: s.rules,
+                  title: title,
+                  guide: _guideText(l, s),
+                  flashOn: s.flashOn,
+                  captureCount: s.count,
+                  lastCapturePath: s.captures.lastOrNull?.path,
+                  canFinish: s.canFinish && !widget.args.retake,
+                  showModes:
+                      !widget.args.retake &&
+                      !widget.args.returnPages &&
+                      widget.args.addToDocumentId == null,
+                  capturing: _capturing || s.status == SessionStatus.preparing,
+                  onClose: () => Navigator.of(context).maybePop(),
+                  onFlash: () => context.read<ScanSessionBloc>().add(
+                    const SessionFlashToggled(),
+                  ),
+                  onMode: (m) => context.read<ScanSessionBloc>().add(
+                    SessionModeChanged(m),
+                  ),
+                  onShutter: _capture,
+                  onGallery: widget.args.retake
+                      ? null
+                      : () => _import(gallery: true),
+                  onFinish: () => context.read<ScanSessionBloc>().add(
+                    const SessionFinished(),
+                  ),
+                  onRemoveLast: s.count == 0
+                      ? null
+                      : () => context.read<ScanSessionBloc>().add(
+                          SessionCaptureRemoved(s.count - 1),
+                        ),
+                  focusPoint: _focusPoint,
+                  flashTick: _flashTick,
+                  onPreviewTap: _onPreviewTap,
+                  stackKey: _stackKey,
+                  flyPath: _flyPath,
+                ),
+                if (s.status == SessionStatus.preparing)
+                  ProgressOverlay(label: l.sharePreparing),
+              ],
+            ),
           ),
         );
       },
     );
   }
 
-  String _guideText(AppLocalizations l, ScanSessionState s) => switch (s.guide) {
+  String _guideText(AppLocalizations l, ScanSessionState s) =>
+      switch (s.guide) {
         GuideLabel.single => l.cameraGuideSingle,
         GuideLabel.batchPage => l.cameraGuideBatch(s.count + 1),
         GuideLabel.front => l.cameraGuideFront,

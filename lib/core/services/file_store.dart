@@ -46,6 +46,21 @@ class FileStore {
   String thumbPath(String docId, String pageId) =>
       p.join(docDir(docId).path, 'thumb', '$pageId.jpg');
 
+  /// OCR image cache, keyed by the crop/rotation so a new crop invalidates it.
+  String ocrPath(String docId, String pageId, int cropKey) =>
+      p.join(docDir(docId).path, 'processed', '${pageId}_ocr_$cropKey.jpg');
+
+  /// Removes stale OCR images for [pageId] other than [keep].
+  Future<void> pruneOcrImages(String docId, String pageId, {String? keep}) async {
+    final dir = Directory(p.join(docDir(docId).path, 'processed'));
+    if (!dir.existsSync()) return;
+    await for (final f in dir.list()) {
+      if (f is File && p.basename(f.path).startsWith('${pageId}_ocr_') && f.path != keep) {
+        await f.delete();
+      }
+    }
+  }
+
   /// A fresh path for a raw capture / import before it belongs to a document.
   String newCapturePath(String id) => p.join(_captureTemp.path, '$id.jpg');
 

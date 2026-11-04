@@ -66,6 +66,13 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final LogActivity _logActivity;
   final PageRenderService _renderService;
 
+  /// Set once the scan was saved or the user confirmed discarding it, so the
+  /// editor screens pop without asking again.
+  bool popAllowed = false;
+
+  bool get holdsUnsavedScan => state.args.isNewDocument || state.args.addingPages;
+  bool get guardBack => holdsUnsavedScan && !popAllowed;
+
   static EventTransformer<E> _debounceRestartable<E>(Duration d) {
     return (events, mapper) => restartable<E>()(
           events.transform(_DebounceTransformer<E>(d)),
@@ -281,6 +288,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         if (!args.isNewDocument && !args.addingPages) {
           await _logActivity(docId, ActivityType.edited);
         }
+        popAllowed = true;
         emit(state.copyWith(status: EditorStatus.saved, savedDocumentId: docId));
         // Warm caches in the background; the viewer shows originals until then.
         unawaited(

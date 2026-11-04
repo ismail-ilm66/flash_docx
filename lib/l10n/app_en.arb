@@ -363,5 +363,25 @@
   "unlockFreeNote": "Scanning, editing and standard sharing always stay free.",
   "unlockNeedsInternet": "Needs internet for the video",
   "settingsChoose": "Choose",
-  "addFromCamera": "Camera"
+  "addFromCamera": "Camera",
+
+  "backLeaveTitle": "Leave Flash Dox?",
+  "backLeave": "Leave",
+  "backStay": "Stay",
+  "discardScanTitle": "Discard this scan?",
+  "discardScanBody": "{count, plural, =1{1 page will be lost.} other{{count} pages will be lost.}}",
+  "@discardScanBody": {"placeholders": {"count": {"type": "int"}}},
+  "discardScan": "Discard",
+  "keepScanning": "Keep scanning",
+  "adjustEdgesNotFound": "Couldn't find the edges \u2014 drag the corners",
+  "settingsShutterSound": "Shutter sound",
+  "settingsDefaultQuality": "Default quality",
+  "printCutGuides": "Cut guides",
+  "printSwapSides": "Swap front/back",
+  "printSheetOf": "Sheet {n} of {total}",
+  "@printSheetOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
+  "shareLayout": "Layout",
+  "shareLayoutOneImage": "One image (front + back)",
+  "shareLayoutSeparate": "Separate images",
+  "defaultDocName": "Flash Scan"
 }

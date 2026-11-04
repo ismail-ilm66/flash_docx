@@ -22,7 +22,8 @@ class AdjustEdgesPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => getIt<PageEditorBloc>(param1: args)..add(EditorStarted(args)),
+      create: (_) =>
+          getIt<PageEditorBloc>(param1: args)..add(EditorStarted(args)),
       child: const _AdjustView(),
     );
   }
@@ -67,83 +68,121 @@ class _AdjustView extends StatelessWidget {
         final multi = s.pages.length > 1;
         // New scans only: an existing document gets pages from the viewer.
         final mode = s.args.mode;
-        final canAdd = (s.args.isNewDocument || s.args.addingPages) &&
+        final canAdd =
+            (s.args.isNewDocument || s.args.addingPages) &&
             (mode == ScanMode.single || mode == ScanMode.batch);
         final showStrip = multi || canAdd;
-        return AppScaffold(
-          forceDark: true,
-          topBar: AppTopBar(
-            title: l.adjustTitle,
-            subtitle: multi && page != null ? l.pageOfTotal(s.index + 1, s.pages.length) : l.adjustHint,
-            actions: [
-              TopBarTextAction(
-                label: l.adjustNext,
-                onPressed: page == null ? null : () => context.push(Routes.enhance, extra: bloc),
-              ),
-            ],
-          ),
-          body: Column(
-            children: [
-              Expanded(
-                child: ColoredBox(
-                  color: Colors.black,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(Space.x6, Space.x6, Space.x6, Space.x6),
-                          child: page == null || base == null
-                              ? (s.status == EditorStatus.failed
-                                  ? ErrorView(failure: s.failure)
-                                  : const Center(child: CircularProgressIndicator()))
-                              : RotatedBox(
-                                  quarterTurns: page.edits.normalizedTurns,
-                                  child: QuadEditor(
-                                    key: ValueKey(page.id),
-                                    imagePath: base,
-                                    quad: page.edits.crop ?? Quad.full(),
-                                    onCornerMoved: (i, p) => bloc.add(EditorCornerMoved(i, p)),
-                                    onDragEnd: () => bloc.add(const EditorCornerDragEnded()),
+        final notFound = page != null && !page.edgesDetected;
+        return DiscardScanGuard(
+          guard: bloc.guardBack,
+          pageCount: s.pages.length,
+          onDiscard: () {
+            bloc.popAllowed = true;
+            context.pop();
+          },
+          child: AppScaffold(
+            forceDark: true,
+            topBar: AppTopBar(
+              title: l.adjustTitle,
+              subtitle: notFound
+                  ? l.adjustEdgesNotFound
+                  : multi && page != null
+                  ? l.pageOfTotal(s.index + 1, s.pages.length)
+                  : l.adjustHint,
+              actions: [
+                TopBarTextAction(
+                  label: l.adjustNext,
+                  onPressed: page == null
+                      ? null
+                      : () => context.push(Routes.enhance, extra: bloc),
+                ),
+              ],
+            ),
+            body: Column(
+              children: [
+                Expanded(
+                  child: ColoredBox(
+                    color: Colors.black,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(
+                              Space.x6,
+                              Space.x6,
+                              Space.x6,
+                              Space.x6,
+                            ),
+                            child: page == null || base == null
+                                ? (s.status == EditorStatus.failed
+                                      ? ErrorView(failure: s.failure)
+                                      : const Center(
+                                          child: CircularProgressIndicator(),
+                                        ))
+                                : RotatedBox(
+                                    quarterTurns: page.edits.normalizedTurns,
+                                    child: QuadEditor(
+                                      key: ValueKey(page.id),
+                                      imagePath: base,
+                                      quad: page.edits.crop ?? Quad.full(),
+                                      onCornerMoved: (i, p) =>
+                                          bloc.add(EditorCornerMoved(i, p)),
+                                      onDragEnd: () => bloc.add(
+                                        const EditorCornerDragEnded(),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              if (showStrip)
-                Padding(
-                  padding: const EdgeInsets.only(top: Space.x3),
-                  child: PageStrip(
-                    pages: s.pages,
-                    index: s.index,
-                    onSelect: (i) => bloc.add(EditorPageSelected(i)),
-                    pathOf: (p) => s.basePreviews[p.id] ?? p.originalPath,
-                    trailing: canAdd
-                        ? AddPageTile(
-                            onTap: () async {
-                              final added = await collectNewPages(context, mode: mode);
-                              if (added != null && added.isNotEmpty) bloc.add(EditorPagesAdded(added));
-                            },
-                          )
-                        : null,
+                if (showStrip)
+                  Padding(
+                    padding: const EdgeInsets.only(top: Space.x3),
+                    child: PageStrip(
+                      pages: s.pages,
+                      index: s.index,
+                      onSelect: (i) => bloc.add(EditorPageSelected(i)),
+                      pathOf: (p) => s.basePreviews[p.id] ?? p.originalPath,
+                      trailing: canAdd
+                          ? AddPageTile(
+                              onTap: () async {
+                                final added = await collectNewPages(
+                                  context,
+                                  mode: mode,
+                                );
+                                if (added != null && added.isNotEmpty) {
+                                  bloc.add(EditorPagesAdded(added));
+                                }
+                              },
+                            )
+                          : null,
+                    ),
+                  ),
+                SafeArea(
+                  top: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      Space.x1,
+                      Space.x1,
+                      Space.x1,
+                      18,
+                    ),
+                    child: _Toolbar(
+                      onAuto: () => bloc.add(const EditorAutoEdgesRequested()),
+                      onRotateLeft: () =>
+                          bloc.add(const EditorRotated(clockwise: false)),
+                      onRotateRight: () =>
+                          bloc.add(const EditorRotated(clockwise: true)),
+                      onRetake: () => _retake(context),
+                      onDelete: () => _deletePage(context, s),
+                    ),
                   ),
                 ),
-              SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x1, Space.x1, Space.x1, 18),
-                  child: _Toolbar(
-                    onAuto: () => bloc.add(const EditorAutoEdgesRequested()),
-                    onRotateLeft: () => bloc.add(const EditorRotated(clockwise: false)),
-                    onRotateRight: () => bloc.add(const EditorRotated(clockwise: true)),
-                    onRetake: () => _retake(context),
-                    onDelete: () => _deletePage(context, s),
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -171,11 +210,43 @@ class _Toolbar extends StatelessWidget {
     final l = context.l10n;
     return Row(
       children: [
-        Expanded(child: ToolbarAction(icon: AppIcons.rotateLeft, label: l.adjustRotateLeft, onPressed: onRotateLeft)),
-        Expanded(child: ToolbarAction(icon: AppIcons.rotateRight, label: l.adjustRotateRight, onPressed: onRotateRight)),
-        Expanded(child: ToolbarAction(icon: AppIcons.autoEdges, label: l.adjustAuto, onPressed: onAuto, active: true)),
-        Expanded(child: ToolbarAction(icon: AppIcons.retake, label: l.adjustRetake, onPressed: onRetake)),
-        Expanded(child: ToolbarAction(icon: AppIcons.delete, label: l.adjustDeletePage, onPressed: onDelete, destructive: true)),
+        Expanded(
+          child: ToolbarAction(
+            icon: AppIcons.rotateLeft,
+            label: l.adjustRotateLeft,
+            onPressed: onRotateLeft,
+          ),
+        ),
+        Expanded(
+          child: ToolbarAction(
+            icon: AppIcons.rotateRight,
+            label: l.adjustRotateRight,
+            onPressed: onRotateRight,
+          ),
+        ),
+        Expanded(
+          child: ToolbarAction(
+            icon: AppIcons.autoEdges,
+            label: l.adjustAuto,
+            onPressed: onAuto,
+            active: true,
+          ),
+        ),
+        Expanded(
+          child: ToolbarAction(
+            icon: AppIcons.retake,
+            label: l.adjustRetake,
+            onPressed: onRetake,
+          ),
+        ),
+        Expanded(
+          child: ToolbarAction(
+            icon: AppIcons.delete,
+            label: l.adjustDeletePage,
+            onPressed: onDelete,
+            destructive: true,
+          ),
+        ),
       ],
     );
   }

@@ -6,6 +6,7 @@ export 'app_icons.dart';
 export 'app_scaffold.dart';
 export 'app_shell.dart';
 export 'app_top_bar.dart';
+export 'back_guards.dart';
 export 'brand_mark.dart';
 export 'buttons.dart';
 export 'dashed_border.dart';

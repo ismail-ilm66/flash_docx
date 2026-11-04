@@ -35,7 +35,7 @@ void main() {
   ScanPage page(String id) => ScanPage(id: id, documentId: '', originalPath: '/x', edits: const PageEdits(), order: 0);
 
   test('single mode finishes after one capture and hands over draft pages', () async {
-    when(() => prepare(any(), mode: any(named: 'mode'), sides: any(named: 'sides'), copySource: any(named: 'copySource')))
+    when(() => prepare(any(), mode: any(named: 'mode'), sides: any(named: 'sides'), fallbacks: any(named: 'fallbacks'), copySource: any(named: 'copySource')))
         .thenAnswer((_) async => Right([page('a')]));
     final bloc = ScanSessionBloc(prepare, prefs, ScanMode.single);
     bloc.add(SessionCaptured(shot('1')));
@@ -82,7 +82,7 @@ void main() {
   });
 
   test('import of several images switches single to batch; failure surfaces', () async {
-    when(() => prepare(any(), mode: ScanMode.batch, sides: any(named: 'sides'), copySource: any(named: 'copySource')))
+    when(() => prepare(any(), mode: ScanMode.batch, sides: any(named: 'sides'), fallbacks: any(named: 'fallbacks'), copySource: any(named: 'copySource')))
         .thenAnswer((_) async => const Left(ImageProcessingFailure('x')));
     final bloc = ScanSessionBloc(prepare, prefs, ScanMode.single);
     bloc.add(const SessionImported(['/a', '/b']));
