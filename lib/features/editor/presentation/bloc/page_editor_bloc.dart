@@ -135,6 +135,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       emit,
       (ed) {
         final q = (ed.crop ?? Quad.full()).withPoint(e.corner, e.point.clamp01());
+        // A bent or self-crossing shape is rejected: the corner stays put.
+        if (!q.isConvex || q.area < 0.01) return ed;
         return ed.copyWith(crop: q);
       },
       preview: false,

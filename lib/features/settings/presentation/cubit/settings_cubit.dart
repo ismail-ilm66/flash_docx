@@ -16,6 +16,8 @@ class SettingsState extends Equatable {
     this.defaultMode = ScanMode.single,
     this.defaultFormat = ExportFormat.pdf,
     this.defaultPageSize = PdfPageSize.a4,
+    this.defaultQuality = ExportQuality.standard,
+    this.shutterSound = true,
     this.storageBytes,
     this.version = '',
     this.clearing = false,
@@ -25,6 +27,8 @@ class SettingsState extends Equatable {
   final ScanMode defaultMode;
   final ExportFormat defaultFormat;
   final PdfPageSize defaultPageSize;
+  final ExportQuality defaultQuality;
+  final bool shutterSound;
   final int? storageBytes;
   final String version;
   final bool clearing;
@@ -34,6 +38,8 @@ class SettingsState extends Equatable {
     ScanMode? defaultMode,
     ExportFormat? defaultFormat,
     PdfPageSize? defaultPageSize,
+    ExportQuality? defaultQuality,
+    bool? shutterSound,
     int? storageBytes,
     String? version,
     bool? clearing,
@@ -43,6 +49,8 @@ class SettingsState extends Equatable {
         defaultMode: defaultMode ?? this.defaultMode,
         defaultFormat: defaultFormat ?? this.defaultFormat,
         defaultPageSize: defaultPageSize ?? this.defaultPageSize,
+        defaultQuality: defaultQuality ?? this.defaultQuality,
+        shutterSound: shutterSound ?? this.shutterSound,
         storageBytes: storageBytes ?? this.storageBytes,
         version: version ?? this.version,
         clearing: clearing ?? this.clearing,
@@ -50,7 +58,7 @@ class SettingsState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [defaultFilter, defaultMode, defaultFormat, defaultPageSize, storageBytes, version, clearing];
+      [defaultFilter, defaultMode, defaultFormat, defaultPageSize, defaultQuality, shutterSound, storageBytes, version, clearing];
 }
 
 @injectable
@@ -72,6 +80,8 @@ class SettingsCubit extends Cubit<SettingsState> {
         defaultMode: _enum(ScanMode.values, p.defaultScanMode, ScanMode.single),
         defaultFormat: _enum(ExportFormat.values, p.defaultExportFormat, ExportFormat.pdf),
         defaultPageSize: _enum(PdfPageSize.values, p.defaultPageSize, PdfPageSize.a4),
+        defaultQuality: _enum(ExportQuality.values, p.defaultQuality, ExportQuality.standard),
+        shutterSound: p.shutterSound,
       );
 
   Future<void> _loadVersion() async {
@@ -104,6 +114,16 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> setDefaultPageSize(PdfPageSize s) async {
     emit(state.copyWith(defaultPageSize: s));
     await _prefs.setDefaultPageSize(s.name);
+  }
+
+  Future<void> setDefaultQuality(ExportQuality q) async {
+    emit(state.copyWith(defaultQuality: q));
+    await _prefs.setDefaultQuality(q.name);
+  }
+
+  Future<void> setShutterSound(bool on) async {
+    emit(state.copyWith(shutterSound: on));
+    await _prefs.setShutterSound(on);
   }
 
   Future<void> clearTemp() async {

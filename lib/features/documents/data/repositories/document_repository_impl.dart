@@ -126,7 +126,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
   }) async {
     final docId = newId();
     final now = DateTime.now();
-    final docTitle = title ?? _defaultTitle(mode, now);
+    final docTitle = title ?? await _uniqueDefaultTitle(now);
     try {
       // Move originals into the document folder first so the DB never points
       // at files that don't exist.
@@ -180,15 +180,23 @@ class DocumentRepositoryImpl implements DocumentRepository {
     }
   }
 
-  String _defaultTitle(ScanMode mode, DateTime at) {
-    final prefix = switch (mode) {
-      ScanMode.single => 'Scan',
-      ScanMode.batch => 'Scan',
-      ScanMode.idCard => 'ID card',
-      ScanMode.passport => 'Passport',
-    };
-    String two(int v) => v.toString().padLeft(2, '0');
-    return '$prefix ${at.year}-${two(at.month)}-${two(at.day)} ${two(at.hour)}${two(at.minute)}';
+  /// "Flash Scan - 05 Nov 2026", then "… (2)", "… (3)" on the same day.
+  Future<String> _uniqueDefaultTitle(DateTime at) async {
+    final base = defaultTitleFor(at);
+    final rows = await (_db.select(_db.documents)..where((d) => d.title.like('$base%'))).get();
+    final taken = rows.map((r) => r.title).toSet();
+    if (!taken.contains(base)) return base;
+    var n = 2;
+    while (taken.contains('$base ($n)')) {
+      n++;
+    }
+    return '$base ($n)';
+  }
+
+  static String defaultTitleFor(DateTime at) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final day = at.day.toString().padLeft(2, '0');
+    return 'Flash Scan - $day ${months[at.month - 1]} ${at.year}';
   }
 
   @override

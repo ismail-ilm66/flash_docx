@@ -60,7 +60,18 @@ void main() {
 
     final all = await repo.watchAll().first;
     expect(all.single.id, doc.id);
-    expect(all.single.title, startsWith('Scan '));
+    expect(all.single.title, startsWith('Flash Scan - '));
+  });
+
+  test('default names are "Flash Scan - DD Mon YYYY", then (2), (3)', () async {
+    final titles = <String>[];
+    for (var i = 0; i < 3; i++) {
+      final d = (await repo.create(mode: ScanMode.single, pages: [draft('p$i')])).getOrElse((f) => fail('$f'));
+      titles.add(d.title);
+    }
+    final base = DocumentRepositoryImpl.defaultTitleFor(DateTime.now());
+    expect(base, matches(RegExp(r'^Flash Scan - \d{2} [A-Z][a-z]{2} \d{4}$')));
+    expect(titles, [base, '$base (2)', '$base (3)']);
   });
 
   test('rename, addPages, reorder, deletePage, delete', () async {

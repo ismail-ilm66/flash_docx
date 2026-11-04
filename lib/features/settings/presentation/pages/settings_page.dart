@@ -124,6 +124,11 @@ class _SettingsView extends StatelessWidget {
                           if (v != null) await cubit.setDefaultMode(v);
                         },
                       ),
+                      _Row(
+                        label: l.settingsShutterSound,
+                        trailing: Switch.adaptive(value: s.shutterSound, onChanged: cubit.setShutterSound),
+                        onTap: () => cubit.setShutterSound(!s.shutterSound),
+                      ),
                     ],
                   ),
                 ),
@@ -157,6 +162,20 @@ class _SettingsView extends StatelessWidget {
                             labelOf: (p) => _pageSize(context, p),
                           );
                           if (v != null) await cubit.setDefaultPageSize(v);
+                        },
+                      ),
+                      _Row(
+                        label: l.settingsDefaultQuality,
+                        value: s.defaultQuality == ExportQuality.high ? l.shareQualityHigh : l.shareQualityStandard,
+                        onTap: () async {
+                          final v = await showChoiceSheet<ExportQuality>(
+                            context,
+                            title: l.settingsDefaultQuality,
+                            values: ExportQuality.values,
+                            selected: s.defaultQuality,
+                            labelOf: (q) => q == ExportQuality.high ? l.shareQualityHigh : l.shareQualityStandard,
+                          );
+                          if (v != null) await cubit.setDefaultQuality(v);
                         },
                       ),
                     ],

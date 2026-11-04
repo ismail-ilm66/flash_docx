@@ -33,6 +33,17 @@ void main() {
       expect(q.tl, const Pt(0, 0));
     });
 
+    test('bent and crossed shapes are not convex', () {
+      // Dragging BR past TL folds the shape.
+      final bent = Quad.full().withPoint(2, const Pt(0.1, 0.1));
+      expect(bent.isConvex, isFalse);
+      // Crossing: swap TR and BR.
+      const crossed = Quad(tl: Pt(0, 0), tr: Pt(1, 1), br: Pt(1, 0), bl: Pt(0, 1));
+      expect(crossed.isConvex, isFalse);
+      // A normal drag stays convex.
+      expect(Quad.full().withPoint(2, const Pt(0.8, 0.9)).isConvex, isTrue);
+    });
+
     test('json round-trip', () {
       final q = Quad.full(inset: 0.05);
       expect(Quad.fromJson(q.toJson()), q);

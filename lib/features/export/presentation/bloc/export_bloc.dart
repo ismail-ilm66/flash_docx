@@ -112,6 +112,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
   static ExportOptions _defaults(PrefsService p, ScanDocument doc) => ExportOptions(
         format: ExportFormat.values.where((f) => f.name == p.defaultExportFormat).firstOrNull ?? ExportFormat.pdf,
         pageSize: PdfPageSize.values.where((s) => s.name == p.defaultPageSize).firstOrNull ?? PdfPageSize.a4,
+        quality: ExportQuality.values.where((q) => q.name == p.defaultQuality).firstOrNull ?? ExportQuality.standard,
         fileName: doc.title,
       );
 
