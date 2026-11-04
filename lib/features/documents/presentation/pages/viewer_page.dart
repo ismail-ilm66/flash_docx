@@ -209,7 +209,7 @@ class _ViewerViewState extends State<_ViewerView> {
                         onLongPress: multi ? reorder : null,
                         pathOf: (p) => p.thumbPath ?? p.displayPath,
                         cacheKeyOf: (p) => p.thumbPath,
-                        trailing: _AddPagesTile(
+                        trailing: AddPageTile(
                           onTap: () => context.push(
                             Routes.camera,
                             extra: CameraArgs(mode: ScanMode.batch, addToDocumentId: doc.id),
@@ -344,35 +344,6 @@ class _TitleButton extends StatelessWidget {
                 AppIcon(AppIcons.rename, size: 16, color: c.muted),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Dashed "+" tile at the end of the page strip.
-class _AddPagesTile extends StatelessWidget {
-  const _AddPagesTile({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Semantics(
-      button: true,
-      label: context.l10n.viewerAddPages,
-      excludeSemantics: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: DashedBorder(
-          color: c.isDark ? c.border : c.borderStrong,
-          child: SizedBox(
-            width: 52,
-            height: 68,
-            child: Center(child: AppIcon(AppIcons.addPage, size: 22, color: c.muted)),
           ),
         ),
       ),

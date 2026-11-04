@@ -1341,6 +1341,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Choose'**
   String get settingsChoose;
+
+  /// No description provided for @addFromCamera.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera'**
+  String get addFromCamera;
 }
 
 class _AppLocalizationsDelegate

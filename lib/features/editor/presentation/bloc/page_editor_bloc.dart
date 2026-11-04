@@ -5,7 +5,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
-import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
@@ -45,6 +44,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorContrastChanged>(_onContrast);
     on<EditorLookReset>(_onLookReset);
     on<EditorApplyLookToAll>(_onApplyToAll);
+    on<EditorPagesAdded>(_onPagesAdded);
     on<EditorPageDeleted>(_onPageDeleted);
     on<EditorPageRetaken>(_onRetaken);
     // Preview renders are debounced and restartable: a newer request cancels
@@ -149,7 +149,10 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       cur.originalPath,
       snapAspectRatio: rules.aspectRatio,
     );
-    _updateCurrent(emit, (ed) => ed.copyWith(crop: quad ?? Quad.full(inset: 0.02)));
+    final pages = [...state.pages];
+    pages[state.index] = cur.copyWith(edgesDetected: quad != null);
+    emit(state.copyWith(pages: pages));
+    _updateCurrent(emit, (ed) => ed.copyWith(crop: quad ?? Quad.full(inset: 0.05)));
   }
 
   void _onFilter(EditorFilterChanged e, Emitter<PageEditorState> emit) {
@@ -181,6 +184,18 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(pages: pages, appliedToAllTick: state.appliedToAllTick + 1));
   }
 
+  void _onPagesAdded(EditorPagesAdded e, Emitter<PageEditorState> emit) {
+    if (e.pages.isEmpty) return;
+    final start = state.pages.length;
+    final pages = [
+      ...state.pages,
+      for (final (i, pg) in e.pages.indexed) pg.copyWith(order: start + i),
+    ];
+    emit(state.copyWith(pages: pages, index: start));
+    // Builds base previews for the new pages, then the current preview.
+    add(EditorStarted(state.args));
+  }
+
   void _onPageDeleted(EditorPageDeleted e, Emitter<PageEditorState> emit) {
     if (state.pages.isEmpty) return;
     final pages = [...state.pages]..removeAt(state.index);
@@ -194,11 +209,14 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(status: EditorStatus.loading));
     try {
       final rules = ScanModeRules.of(state.args.mode);
-      final edits = await _processor.autoEdits(
+      final auto = await _processor.autoEdits(
         e.newOriginalPath,
         snapAspectRatio: rules.aspectRatio,
+        filter: cur.edits.filter,
       );
-      final replaced = cur.copyWith(originalPath: e.newOriginalPath).withEdits(edits);
+      final replaced = cur
+          .copyWith(originalPath: e.newOriginalPath, edgesDetected: auto.detected)
+          .withEdits(auto.edits);
       final pages = [...state.pages];
       pages[state.index] = replaced;
       final base = Map<String, String>.from(state.basePreviews)..remove(cur.id);
@@ -271,25 +289,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           ),
         );
       },
-    );
-  }
-
-  /// Makes a draft page from a raw capture (after auto edits).
-  static Future<ScanPage> draftFromCapture(
-    ImageProcessor processor,
-    String path, {
-    required ScanMode mode,
-    CardSide? side,
-  }) async {
-    final rules = ScanModeRules.of(mode);
-    final edits = await processor.autoEdits(path, snapAspectRatio: rules.aspectRatio);
-    return ScanPage(
-      id: newId(),
-      documentId: '',
-      originalPath: path,
-      edits: edits,
-      order: 0,
-      side: side,
     );
   }
 }

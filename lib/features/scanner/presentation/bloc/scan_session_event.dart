@@ -14,8 +14,9 @@ class SessionFlashToggled extends ScanSessionEvent {
 }
 
 class SessionCaptured extends ScanSessionEvent {
-  const SessionCaptured(this.path);
+  const SessionCaptured(this.path, {this.guide});
   final String path;
+  final Quad? guide;
 }
 
 class SessionCaptureRemoved extends ScanSessionEvent {

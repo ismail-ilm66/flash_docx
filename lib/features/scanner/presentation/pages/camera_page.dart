@@ -1,12 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
@@ -14,6 +16,7 @@ import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/bloc/scan_session_bloc.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -22,7 +25,12 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 class CameraArgs {
-  const CameraArgs({this.mode, this.addToDocumentId, this.retake = false});
+  const CameraArgs({
+    this.mode,
+    this.addToDocumentId,
+    this.retake = false,
+    this.returnPages = false,
+  });
 
   final ScanMode? mode;
 
@@ -31,6 +39,10 @@ class CameraArgs {
 
   /// Single capture that pops with the new file path (used by "Retake").
   final bool retake;
+
+  /// Pops with the prepared draft pages instead of opening Adjust edges
+  /// (adding pages to a scan that is already being edited).
+  final bool returnPages;
 }
 
 class CameraPage extends StatelessWidget {
@@ -63,6 +75,22 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   bool _initializing = true;
   bool _capturing = false;
 
+  // Feedback + focus state (P0-4 / P0-5).
+  final GlobalKey _stackKey = GlobalKey();
+  final AudioPlayer _shutterPlayer = AudioPlayer();
+  Offset? _focusPoint; // fractions of the preview well
+  DateTime? _focusedAt;
+  int _flashTick = 0;
+  String? _flyPath;
+  Timer? _focusRingTimer;
+
+  /// Portrait aspect (width / height) of the capture, or 3:4 until known.
+  double get _photoAspect {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return PreviewGeometry.wellAspect;
+    return 1 / c.value.aspectRatio;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -81,14 +109,18 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         (c) => c.lensDirection == CameraLensDirection.back,
         orElse: () => cams.first,
       );
+      // `max` is the sensor's full 4:3 photo size on both platforms, which
+      // matches the 3:4 preview well: what you see is what you capture.
       final ctrl = CameraController(
         back,
-        ResolutionPreset.veryHigh,
+        ResolutionPreset.max,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
       await ctrl.initialize();
       await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
+      await _trySet(() => ctrl.setFocusMode(FocusMode.auto));
+      await _trySet(() => ctrl.setExposureMode(ExposureMode.auto));
       if (!mounted) {
         await ctrl.dispose();
         return;
@@ -105,6 +137,53 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     } catch (_) {
       setState(() => _initializing = false);
     }
+  }
+
+  Future<void> _trySet(Future<void> Function() f) async {
+    try {
+      await f();
+    } catch (_) {
+      // Not every device supports every control; ignore.
+    }
+  }
+
+  /// Tap-to-focus: focus and exposure jump to the tapped point.
+  Future<void> _onPreviewTap(Offset well) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return;
+    final photo = PreviewGeometry.wellToPhoto(well, photoAspect: _photoAspect);
+    setState(() => _focusPoint = well);
+    _focusedAt = DateTime.now();
+    _focusRingTimer?.cancel();
+    _focusRingTimer = Timer(const Duration(milliseconds: 900), () {
+      if (mounted) setState(() => _focusPoint = null);
+    });
+    await _trySet(() => c.setFocusPoint(photo));
+    await _trySet(() => c.setExposurePoint(photo));
+  }
+
+  /// Lets focus settle on the frame centre before a capture, unless the
+  /// user just tapped a point.
+  Future<void> _settleFocus(CameraController c) async {
+    final recent = _focusedAt != null &&
+        DateTime.now().difference(_focusedAt!) < const Duration(seconds: 3);
+    if (!recent) {
+      await _trySet(() => c.setFocusPoint(const Offset(0.5, 0.5)));
+      await _trySet(() => c.setExposurePoint(const Offset(0.5, 0.5)));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 280));
+  }
+
+  Future<void> _captureFeedback(String path) async {
+    unawaited(HapticFeedback.mediumImpact());
+    if (getIt<PrefsService>().shutterSound) {
+      unawaited(_shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9));
+    }
+    if (!mounted) return;
+    setState(() {
+      _flashTick++;
+      _flyPath = path;
+    });
   }
 
   Future<void> _applyFlash(bool on) async {
@@ -131,6 +210,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _focusRingTimer?.cancel();
+    _shutterPlayer.dispose();
     _controller?.dispose();
     super.dispose();
   }
@@ -143,7 +224,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     }
     setState(() => _capturing = true);
     try {
-      await HapticFeedback.lightImpact();
+      await _settleFocus(c);
       final shot = await c.takePicture();
       final target = getIt<FileStore>().newCapturePath('cap_${newId()}');
       await File(shot.path).rename(target).catchError((_) async {
@@ -155,7 +236,14 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         context.pop(target);
         return;
       }
-      bloc.add(SessionCaptured(target));
+      await _captureFeedback(target);
+      // The guide frame in photo coordinates is the fallback crop if edge
+      // detection finds nothing (ID / passport use it; others inset 5%).
+      final guideAspect = bloc.state.rules.aspectRatio;
+      final guide = guideAspect == null
+          ? null
+          : PreviewGeometry.guideQuad(guideAspect, photoAspect: _photoAspect);
+      bloc.add(SessionCaptured(target, guide: guide));
       // Single / passport / ID-card complete → finish automatically.
       if (bloc.state.isComplete) bloc.add(const SessionFinished());
     } catch (e) {
@@ -181,6 +269,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   void _onReady(BuildContext context, ScanSessionState s) {
     final pages = s.result!;
+    if (widget.args.returnPages) {
+      context.pop(pages);
+      return;
+    }
     final args = EditorArgs(
       pages: pages,
       mode: s.mode,
@@ -223,7 +315,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                 captureCount: s.count,
                 lastCapturePath: s.captures.lastOrNull?.path,
                 canFinish: s.canFinish && !widget.args.retake,
-                showModes: !widget.args.retake && widget.args.addToDocumentId == null,
+                showModes: !widget.args.retake && !widget.args.returnPages && widget.args.addToDocumentId == null,
                 capturing: _capturing || s.status == SessionStatus.preparing,
                 onClose: () => context.pop(),
                 onFlash: () => context.read<ScanSessionBloc>().add(const SessionFlashToggled()),
@@ -234,6 +326,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                 onRemoveLast: s.count == 0
                     ? null
                     : () => context.read<ScanSessionBloc>().add(SessionCaptureRemoved(s.count - 1)),
+                focusPoint: _focusPoint,
+                flashTick: _flashTick,
+                onPreviewTap: _onPreviewTap,
+                stackKey: _stackKey,
+                flyPath: _flyPath,
               ),
               if (s.status == SessionStatus.preparing)
                 ProgressOverlay(label: l.sharePreparing),
@@ -271,7 +368,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         ),
       );
     }
-    // Fill the preview well, cropping rather than letterboxing.
+    // Cover-fit the 4:3 capture into the 3:4 well (an exact fit on most
+    // devices; a hair of cropping on the rest, see PreviewGeometry).
     final portraitAspect = 1 / c.value.aspectRatio;
     return ClipRect(
       child: FittedBox(

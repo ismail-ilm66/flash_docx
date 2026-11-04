@@ -91,6 +91,25 @@ class _EnhanceViewState extends State<_EnhanceView> {
             title: l.enhanceTitle,
             subtitle: multi && page != null ? l.pageOfTotal(s.index + 1, s.pages.length) : null,
             actions: [
+              TextButton(
+                onPressed: page == null || saving
+                    ? null
+                    : () {
+                        setState(() {
+                          _brightness = null;
+                          _contrast = null;
+                        });
+                        bloc.add(const EditorLookReset());
+                        changed();
+                      },
+                style: TextButton.styleFrom(
+                  foregroundColor: c.muted,
+                  minimumSize: const Size(Sizes.tap, Sizes.tap),
+                  padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                  textStyle: context.text.labelLarge?.copyWith(fontSize: 15),
+                ),
+                child: Text(l.enhanceReset),
+              ),
               TopBarTextAction(
                 label: l.enhanceDone,
                 loading: saving,

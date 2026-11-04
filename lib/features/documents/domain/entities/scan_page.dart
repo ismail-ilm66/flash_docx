@@ -20,6 +20,11 @@ abstract class ScanPage with _$ScanPage {
     String? thumbPath,
     /// Cache, cleared when edits change.
     String? ocrText,
+    /// Transient: false when auto edge detection fell back to a default crop
+    /// and the user should be nudged to drag the corners. Not persisted.
+    @JsonKey(includeFromJson: false, includeToJson: false)
+    @Default(true)
+    bool edgesDetected,
   }) = _ScanPage;
   const ScanPage._();
 

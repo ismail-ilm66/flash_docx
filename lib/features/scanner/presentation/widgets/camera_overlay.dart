@@ -4,6 +4,8 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/preview_well.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -29,6 +31,11 @@ class CameraOverlay extends StatelessWidget {
     this.lastCapturePath,
     this.onGallery,
     this.onRemoveLast,
+    this.focusPoint,
+    this.flashTick = 0,
+    this.onPreviewTap,
+    this.stackKey,
+    this.flyPath,
   });
 
   final Widget preview;
@@ -49,13 +56,26 @@ class CameraOverlay extends StatelessWidget {
   final VoidCallback onFinish;
   final VoidCallback? onRemoveLast;
 
+  /// Tap-to-focus point as fractions of the well, shown as a ring.
+  final Offset? focusPoint;
+
+  /// Increment to play the white capture flash.
+  final int flashTick;
+  final ValueChanged<Offset>? onPreviewTap;
+
+  /// Key on the page-stack widget so the captured thumbnail can fly to it.
+  final GlobalKey? stackKey;
+
+  /// Path of the just-captured image to fly into the stack (null = none).
+  final String? flyPath;
+
   /// Frame shape for free-form documents (roughly a portrait page).
-  static const double _docAspect = 310 / 410;
+  static const double docAspect = 310 / 410;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
-    final aspect = rules.aspectRatio ?? _docAspect;
+    final aspect = rules.aspectRatio ?? docAspect;
     return SafeArea(
       child: Column(
         children: [
@@ -82,21 +102,24 @@ class CameraOverlay extends StatelessWidget {
               ],
             ),
           ),
-          // ---- preview well ----
+          // ---- preview well (3:4, what you see is what you capture) ----
           Expanded(
             child: Container(
               margin: const EdgeInsets.only(top: Space.x1),
               color: const Color(0xFF2A2622),
               child: Stack(
-                fit: StackFit.expand,
                 children: [
-                  preview,
                   Center(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, 76),
-                      child: AspectRatio(
-                        aspectRatio: aspect,
-                        child: const CustomPaint(painter: _CornerFramePainter()),
+                    child: AspectRatio(
+                      aspectRatio: PreviewGeometry.wellAspect,
+                      child: PreviewWell(
+                        preview: preview,
+                        guideAspect: aspect,
+                        focusPoint: focusPoint,
+                        flashTick: flashTick,
+                        onTap: onPreviewTap,
+                        stackKey: stackKey,
+                        flyPath: flyPath,
                       ),
                     ),
                   ),
@@ -164,6 +187,7 @@ class CameraOverlay extends StatelessWidget {
                           child: captureCount == 0
                               ? null
                               : _PageStack(
+                                  key: stackKey,
                                   count: captureCount,
                                   path: lastCapturePath,
                                   onTap: canFinish ? onFinish : onRemoveLast,
@@ -276,20 +300,35 @@ class _ModePills extends StatelessWidget {
   }
 }
 
-class _Shutter extends StatelessWidget {
+class _Shutter extends StatefulWidget {
   const _Shutter({required this.onTap, required this.busy});
   final VoidCallback? onTap;
   final bool busy;
 
   @override
+  State<_Shutter> createState() => _ShutterState();
+}
+
+class _ShutterState extends State<_Shutter> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
+    final busy = widget.busy;
     return Semantics(
       button: true,
       label: context.l10n.cameraTakePhoto,
       excludeSemantics: true,
       child: GestureDetector(
-        onTap: onTap,
-        child: Container(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: _pressed ? 0.88 : 1,
+          duration: Motion.fast,
+          curve: Curves.easeOut,
+          child: Container(
           width: 80,
           height: 80,
           decoration: BoxDecoration(
@@ -310,6 +349,7 @@ class _Shutter extends StatelessWidget {
                   )
                 : null,
           ),
+          ),
         ),
       ),
     );
@@ -322,6 +362,7 @@ class _PageStack extends StatelessWidget {
     required this.count,
     required this.onTap,
     required this.label,
+    super.key,
     this.onLongPress,
     this.path,
   });
@@ -378,15 +419,23 @@ class _PageStack extends StatelessWidget {
             Positioned(
               right: -6,
               top: -8,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 24),
-                height: 24,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                alignment: Alignment.center,
-                decoration: BoxDecoration(color: c.accent, borderRadius: Radii.pillR),
-                child: Text(
-                  '$count',
-                  style: context.text.labelMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w800, height: 1, color: c.onAccent),
+              // Bumps when the count changes.
+              child: TweenAnimationBuilder<double>(
+                key: ValueKey(count),
+                tween: Tween(begin: 1.35, end: 1),
+                duration: Motion.slow,
+                curve: Curves.elasticOut,
+                builder: (context, scale, child) => Transform.scale(scale: scale, child: child),
+                child: Container(
+                  constraints: const BoxConstraints(minWidth: 24),
+                  height: 24,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: c.accent, borderRadius: Radii.pillR),
+                  child: Text(
+                    '$count',
+                    style: context.text.labelMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w800, height: 1, color: c.onAccent),
+                  ),
                 ),
               ),
             ),
@@ -398,37 +447,3 @@ class _PageStack extends StatelessWidget {
 }
 
 /// Four white corner brackets with rounded outer corners.
-class _CornerFramePainter extends CustomPainter {
-  const _CornerFramePainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white
-      ..strokeWidth = 3
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    const len = 34.0;
-    const r = 6.0;
-    final w = size.width;
-    final h = size.height;
-    // Each corner: along one edge, round the corner, along the other.
-    final corners = [
-      (const Offset(0, len), const Offset(0, r), const Offset(r, 0), const Offset(len, 0)),
-      (Offset(w - len, 0), Offset(w - r, 0), Offset(w, r), Offset(w, len)),
-      (Offset(w, h - len), Offset(w, h - r), Offset(w - r, h), Offset(w - len, h)),
-      (Offset(len, h), Offset(r, h), Offset(0, h - r), Offset(0, h - len)),
-    ];
-    for (final (a, b, cc, d) in corners) {
-      final path = Path()
-        ..moveTo(a.dx, a.dy)
-        ..lineTo(b.dx, b.dy)
-        ..arcToPoint(cc, radius: const Radius.circular(r))
-        ..lineTo(d.dx, d.dy);
-      canvas.drawPath(path, paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _CornerFramePainter old) => false;
-}

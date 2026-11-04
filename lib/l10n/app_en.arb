@@ -362,5 +362,6 @@
   "unlockBodyMoreCopies": "Watch a short video to fit more copies on one sheet.",
   "unlockFreeNote": "Scanning, editing and standard sharing always stay free.",
   "unlockNeedsInternet": "Needs internet for the video",
-  "settingsChoose": "Choose"
+  "settingsChoose": "Choose",
+  "addFromCamera": "Camera"
 }

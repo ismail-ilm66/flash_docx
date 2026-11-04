@@ -706,4 +706,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsChoose => 'Choose';
+
+  @override
+  String get addFromCamera => 'Camera';
 }

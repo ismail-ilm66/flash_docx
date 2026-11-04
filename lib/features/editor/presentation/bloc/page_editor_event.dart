@@ -56,6 +56,12 @@ class EditorApplyLookToAll extends PageEditorEvent {
   const EditorApplyLookToAll();
 }
 
+/// Draft pages appended to the current session (the strip's "+" tile).
+class EditorPagesAdded extends PageEditorEvent {
+  const EditorPagesAdded(this.pages);
+  final List<ScanPage> pages;
+}
+
 class EditorPageDeleted extends PageEditorEvent {
   const EditorPageDeleted();
 }

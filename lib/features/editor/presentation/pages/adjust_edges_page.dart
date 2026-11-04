@@ -5,7 +5,9 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/quad_editor.dart';
+import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -63,6 +65,11 @@ class _AdjustView extends StatelessWidget {
         final page = s.current;
         final base = s.basePreview;
         final multi = s.pages.length > 1;
+        // New scans only: an existing document gets pages from the viewer.
+        final mode = s.args.mode;
+        final canAdd = (s.args.isNewDocument || s.args.addingPages) &&
+            (mode == ScanMode.single || mode == ScanMode.batch);
+        final showStrip = multi || canAdd;
         return AppScaffold(
           forceDark: true,
           topBar: AppTopBar(
@@ -84,7 +91,7 @@ class _AdjustView extends StatelessWidget {
                     children: [
                       Positioned.fill(
                         child: Padding(
-                          padding: EdgeInsets.fromLTRB(Space.x6, Space.x8, Space.x6, multi ? 56 : Space.x8),
+                          padding: const EdgeInsets.fromLTRB(Space.x6, Space.x6, Space.x6, Space.x6),
                           child: page == null || base == null
                               ? (s.status == EditorStatus.failed
                                   ? ErrorView(failure: s.failure)
@@ -101,27 +108,32 @@ class _AdjustView extends StatelessWidget {
                                 ),
                         ),
                       ),
-                      if (multi)
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: Space.x1,
-                          child: Center(
-                            child: PageDots(
-                              count: s.pages.length,
-                              index: s.index,
-                              onSelect: (i) => bloc.add(EditorPageSelected(i)),
-                            ),
-                          ),
-                        ),
                     ],
                   ),
                 ),
               ),
+              if (showStrip)
+                Padding(
+                  padding: const EdgeInsets.only(top: Space.x3),
+                  child: PageStrip(
+                    pages: s.pages,
+                    index: s.index,
+                    onSelect: (i) => bloc.add(EditorPageSelected(i)),
+                    pathOf: (p) => s.basePreviews[p.id] ?? p.originalPath,
+                    trailing: canAdd
+                        ? AddPageTile(
+                            onTap: () async {
+                              final added = await collectNewPages(context, mode: mode);
+                              if (added != null && added.isNotEmpty) bloc.add(EditorPagesAdded(added));
+                            },
+                          )
+                        : null,
+                  ),
+                ),
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x1, 10, Space.x1, 18),
+                  padding: const EdgeInsets.fromLTRB(Space.x1, Space.x1, Space.x1, 18),
                   child: _Toolbar(
                     onAuto: () => bloc.add(const EditorAutoEdgesRequested()),
                     onRotateLeft: () => bloc.add(const EditorRotated(clockwise: false)),

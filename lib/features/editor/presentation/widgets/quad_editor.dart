@@ -128,7 +128,16 @@ class _QuadEditorState extends State<QuadEditor> {
                 ),
               ),
               if (_active != null && _touch != null)
-                _Magnifier(focal: _touch!, box: box),
+                _Loupe(
+                  image: img,
+                  imageRect: rect,
+                  corner: pts[_active!],
+                  prev: pts[(_active! + 3) % 4],
+                  next: pts[(_active! + 1) % 4],
+                  touch: _touch!,
+                  box: box,
+                  accent: widget.accent,
+                ),
             ],
           ),
         );
@@ -143,37 +152,144 @@ class _QuadEditorState extends State<QuadEditor> {
   }
 }
 
-class _Magnifier extends StatelessWidget {
-  const _Magnifier({required this.focal, required this.box});
-  final Offset focal;
-  final Size box;
+/// Corner loupe: 2.5× of the undimmed image around the dragged corner,
+/// with a crosshair and the two crop edges that meet there. Sits in the
+/// top-left of the image area, or the top-right when the finger is in the
+/// top-left quarter, so it is never under the finger.
+class _Loupe extends StatelessWidget {
+  const _Loupe({
+    required this.image,
+    required this.imageRect,
+    required this.corner,
+    required this.prev,
+    required this.next,
+    required this.touch,
+    required this.box,
+    required this.accent,
+  });
 
-  static const double _size = 96;
-  static const double _lift = 90;
+  final ui.Image image;
+  final Rect imageRect;
+  final Offset corner;
+  final Offset prev;
+  final Offset next;
+  final Offset touch;
+  final Size box;
+  final Color accent;
+
+  static const double size = 110;
+  static const double _margin = 12;
 
   @override
   Widget build(BuildContext context) {
-    // Place the loupe above the finger, flipping below when near the top.
-    var center = focal - const Offset(0, _lift);
-    if (center.dy - _size / 2 < 0) center = focal + const Offset(0, _lift);
-    center = Offset(center.dx.clamp(_size / 2, box.width - _size / 2), center.dy);
+    final fingerTopLeft = touch.dx < box.width / 2 && touch.dy < box.height / 2;
+    final left = fingerTopLeft ? box.width - size - _margin : _margin;
     return Positioned(
-      left: center.dx - _size / 2,
-      top: center.dy - _size / 2,
+      left: left.clamp(0, box.width - size),
+      top: _margin,
+      width: size,
+      height: size,
       child: IgnorePointer(
-        child: RawMagnifier(
-          size: const Size(_size, _size),
-          magnificationScale: 2.2,
-          focalPointOffset: focal - center,
-          decoration: const MagnifierDecoration(
-            shape: CircleBorder(side: BorderSide(color: Colors.white, width: 3)),
-            shadows: [BoxShadow(color: Color(0x80000000), blurRadius: 20, offset: Offset(0, 6))],
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: [BoxShadow(color: Color(0x66000000), blurRadius: 14, offset: Offset(0, 4))],
           ),
-          child: const Center(child: Icon(Icons.add, size: 18, color: Colors.white70)),
+          child: CustomPaint(
+            painter: _LoupePainter(
+              image: image,
+              imageRect: imageRect,
+              corner: corner,
+              prev: prev,
+              next: next,
+              accent: accent,
+            ),
+          ),
         ),
       ),
     );
   }
+}
+
+class _LoupePainter extends CustomPainter {
+  _LoupePainter({
+    required this.image,
+    required this.imageRect,
+    required this.corner,
+    required this.prev,
+    required this.next,
+    required this.accent,
+  });
+
+  final ui.Image image;
+  final Rect imageRect;
+  final Offset corner;
+  final Offset prev;
+  final Offset next;
+  final Color accent;
+
+  static const double zoom = 2.5;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final c = size.center(Offset.zero);
+    final r = size.width / 2;
+    Offset toLoupe(Offset p) => c + (p - corner) * zoom;
+
+    canvas
+      ..save()
+      ..clipPath(Path()..addOval(Rect.fromCircle(center: c, radius: r)))
+      ..drawColor(const Color(0xFF000000), BlendMode.src);
+    // The image itself, at full brightness.
+    canvas
+      ..save()
+      ..translate(c.dx, c.dy)
+      ..scale(zoom)
+      ..translate(-corner.dx, -corner.dy)
+      ..drawImageRect(
+        image,
+        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        imageRect,
+        Paint()..filterQuality = FilterQuality.medium,
+      )
+      ..restore();
+    // The two crop edges meeting at this corner.
+    final edge = Paint()
+      ..color = accent
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+    canvas
+      ..drawLine(c, toLoupe(prev), edge)
+      ..drawLine(c, toLoupe(next), edge);
+    // Crosshair: white with a dark outline so it reads on any background.
+    const arm = 12.0;
+    final outline = Paint()
+      ..color = const Color(0xB3000000)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    final cross = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+    for (final p in [outline, cross]) {
+      canvas
+        ..drawLine(c - const Offset(arm, 0), c + const Offset(arm, 0), p)
+        ..drawLine(c - const Offset(0, arm), c + const Offset(0, arm), p);
+    }
+    canvas.restore();
+    canvas.drawCircle(
+      c,
+      r - 1,
+      Paint()
+        ..color = const Color(0xFFFFFFFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LoupePainter old) =>
+      old.corner != corner || old.prev != prev || old.next != next || old.image != image || old.imageRect != imageRect;
 }
 
 class _QuadPainter extends CustomPainter {
@@ -224,13 +340,21 @@ class _QuadPainter extends CustomPainter {
         ..drawRRect(pill.deflate(1), ring..strokeWidth = 2)
         ..restore();
     }
-    // Corners: white discs with an accent ring.
+    // Corners: white discs with an accent ring. The one being dragged
+    // fades to 30% so it doesn't hide the point under the finger.
     for (var i = 0; i < 4; i++) {
-      final r = handleRadius + (active == i ? 3 : 0);
-      if (active == i) canvas.drawCircle(points[i], r + 8, Paint()..color = accent.withValues(alpha: 0.25));
+      final dragging = active == i;
+      final a = dragging ? 0.3 : 1.0;
       canvas
-        ..drawCircle(points[i], r, white)
-        ..drawCircle(points[i], r - 1.5, ring..strokeWidth = 3);
+        ..drawCircle(points[i], handleRadius, Paint()..color = Colors.white.withValues(alpha: a))
+        ..drawCircle(
+          points[i],
+          handleRadius - 1.5,
+          Paint()
+            ..color = accent.withValues(alpha: a)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 3,
+        );
     }
   }
 

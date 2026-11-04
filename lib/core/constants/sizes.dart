@@ -23,7 +23,8 @@ abstract final class CardMm {
 abstract final class RenderPx {
   static const int thumbLongEdge = 300;
   static const int previewLongEdge = 1600;
-  static const int standardExportLongEdge = 2000;
+  /// A4 at 300 DPI on the long edge.
+  static const int standardExportLongEdge = 2480;
   static const int detectionLongEdge = 1000;
   static const int printDpi = 300;
 }

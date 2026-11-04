@@ -3,11 +3,14 @@ part of 'scan_session_bloc.dart';
 enum SessionStatus { capturing, preparing, ready, failed }
 
 class Capture extends Equatable {
-  const Capture(this.path, {this.side});
+  const Capture(this.path, {this.side, this.guide});
   final String path;
   final CardSide? side;
+
+  /// On-screen guide frame in photo coordinates, used when detection fails.
+  final Quad? guide;
   @override
-  List<Object?> get props => [path, side];
+  List<Object?> get props => [path, side, guide];
 }
 
 class ScanSessionState extends Equatable {

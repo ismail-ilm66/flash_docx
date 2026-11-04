@@ -5,6 +5,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/share_service.dart';
+import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/ocr/presentation/cubit/ocr_cubit.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/rewards/presentation/unlock_dialog.dart';
@@ -127,31 +128,14 @@ class _OcrViewState extends State<_OcrView> {
                 ),
               if (multi && s.scope == OcrScope.page)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
-                  child: Row(
-                    children: [
-                      IconButton(
-                        tooltip: l.ocrPrevPage,
-                        onPressed: pageIndex > 0 ? () => goTo(pageIndex - 1) : null,
-                        icon: AppIcon(AppIcons.back, size: 20, color: pageIndex > 0 ? c.text : c.muted.withValues(alpha: 0.4)),
-                      ),
-                      Expanded(
-                        child: Text(
-                          l.pageOfTotal(pageIndex + 1, pages.length),
-                          textAlign: TextAlign.center,
-                          style: context.text.labelLarge?.copyWith(fontSize: 13, color: c.muted),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: l.ocrNextPage,
-                        onPressed: pageIndex < pages.length - 1 ? () => goTo(pageIndex + 1) : null,
-                        icon: AppIcon(
-                          AppIcons.chevronRight,
-                          size: 20,
-                          color: pageIndex < pages.length - 1 ? c.text : c.muted.withValues(alpha: 0.4),
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.only(top: Space.x3),
+                  child: PageStrip(
+                    pages: pages,
+                    index: pageIndex,
+                    size: 44,
+                    onSelect: goTo,
+                    pathOf: (p) => p.thumbPath ?? p.displayPath,
+                    cacheKeyOf: (p) => p.thumbPath,
                   ),
                 ),
               if (working)

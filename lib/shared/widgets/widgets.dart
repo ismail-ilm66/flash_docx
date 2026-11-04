@@ -1,3 +1,4 @@
+export 'add_page_tile.dart';
 export 'app_bottom_sheet.dart';
 export 'app_dialog.dart';
 export 'app_icon.dart';

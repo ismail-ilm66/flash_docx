@@ -193,6 +193,13 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.GetStorageUsed>(),
       ),
     );
+    gh.factory<_i922.PreparePages>(
+      () => _i922.PreparePages(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i567.PrefsService>(),
+      ),
+    );
     gh.factory<_i713.HomeCubit>(
       () => _i713.HomeCubit(
         gh<_i948.WatchDocuments>(),
@@ -206,10 +213,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i626.FileStore>(),
         gh<_i132.DocumentRepository>(),
       ),
-    );
-    gh.factory<_i922.PreparePages>(
-      () =>
-          _i922.PreparePages(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
     );
     gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
       (args, _) => _i935.PageEditorBloc(

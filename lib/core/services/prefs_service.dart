@@ -15,6 +15,8 @@ class PrefsService {
   static const _defaultPageSize = 'default_page_size';
   static const _flashOn = 'camera_flash_on';
   static const _consentDone = 'ads_consent_done';
+  static const _shutterSound = 'camera_shutter_sound';
+  static const _defaultQuality = 'default_export_quality';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -35,6 +37,12 @@ class PrefsService {
 
   bool get flashOn => _prefs.getBool(_flashOn) ?? false;
   Future<void> setFlashOn(bool v) => _prefs.setBool(_flashOn, v);
+
+  bool get shutterSound => _prefs.getBool(_shutterSound) ?? true;
+  Future<void> setShutterSound(bool v) => _prefs.setBool(_shutterSound, v);
+
+  String? get defaultQuality => _prefs.getString(_defaultQuality);
+  Future<void> setDefaultQuality(String v) => _prefs.setString(_defaultQuality, v);
 
   bool get consentDone => _prefs.getBool(_consentDone) ?? false;
   Future<void> setConsentDone(bool v) => _prefs.setBool(_consentDone, v);
