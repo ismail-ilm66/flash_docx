@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:injectable/injectable.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -61,6 +62,60 @@ class FileStore {
     }
   }
 
+  /// Editor base preview (upright, uncropped, preview size) for a page. Keyed
+  /// by the original's path so a retake or a moved original gets a new one.
+  String basePreviewPath(String pageId, String originalPath) =>
+      p.join(_captureTemp.path, 'base_${pageId}_${_stamp(originalPath)}.jpg');
+
+  /// Cropped + rotated page at preview size, reused while switching filters.
+  String workPath(String pageId, String originalPath, PageEdits edits) => p.join(
+        _captureTemp.path,
+        'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.jpg',
+      );
+
+  /// Enhance preview for one filter (sliders are applied live, not baked).
+  String lookPath(String pageId, String originalPath, PageEdits edits) => p.join(
+        _captureTemp.path,
+        'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.filter)}.jpg',
+      );
+
+  /// Identifies one version of an original: its path plus modification time,
+  /// so a retake saved over the same path still gets fresh previews.
+  int _stamp(String originalPath) {
+    final f = File(originalPath);
+    final mtime = f.existsSync() ? f.lastModifiedSync().microsecondsSinceEpoch : 0;
+    return Object.hash(originalPath, mtime);
+  }
+
+  /// True when [path] already lives inside the document's folder.
+  bool isInDoc(String docId, String path) => p.isWithin(docDir(docId).path, path);
+
+  /// New, never-before-used file names for a page's viewer caches. A fresh
+  /// name means Flutter's image cache can never show a stale render, so
+  /// nothing has to be evicted. Old versions are removed by [pruneCaches].
+  ({String processed, String thumb}) newCachePaths(String docId, String pageId) {
+    final v = DateTime.now().microsecondsSinceEpoch;
+    return (
+      processed: p.join(docDir(docId).path, 'processed', '${pageId}_v$v.jpg'),
+      thumb: p.join(docDir(docId).path, 'thumb', '${pageId}_v$v.jpg'),
+    );
+  }
+
+  /// Deletes a page's cache files except [keep] (legacy fixed names too).
+  Future<void> pruneCaches(String docId, String pageId, {Set<String> keep = const {}}) async {
+    for (final sub in ['processed', 'thumb']) {
+      final dir = Directory(p.join(docDir(docId).path, sub));
+      if (!dir.existsSync()) continue;
+      await for (final f in dir.list()) {
+        if (f is! File || keep.contains(f.path)) continue;
+        final name = p.basename(f.path);
+        if (name == '$pageId.jpg' || name.startsWith('${pageId}_v')) {
+          await f.delete().catchError((_) => f);
+        }
+      }
+    }
+  }
+
   /// A fresh path for a raw capture / import before it belongs to a document.
   String newCapturePath(String id) => p.join(_captureTemp.path, '$id.jpg');
 
@@ -100,14 +155,10 @@ class FileStore {
   }
 
   Future<void> deletePageFiles(String docId, String pageId) async {
-    for (final path in [
-      originalPath(docId, pageId),
-      processedPath(docId, pageId),
-      thumbPath(docId, pageId),
-    ]) {
-      final f = File(path);
-      if (f.existsSync()) await f.delete();
-    }
+    final original = File(originalPath(docId, pageId));
+    if (original.existsSync()) await original.delete();
+    await pruneCaches(docId, pageId);
+    await pruneOcrImages(docId, pageId);
   }
 
   Future<void> deleteFile(String? path) async {

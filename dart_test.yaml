@@ -1,3 +1,6 @@
 tags:
   golden:
     description: Pixel goldens recorded on macOS.
+  bench:
+    description: Host timings, not run in CI.
+    skip: "run with --tags bench"

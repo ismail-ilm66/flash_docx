@@ -41,17 +41,19 @@ class PreparePages {
       for (final (i, src) in sourcePaths.indexed) {
         final id = newId();
         final upright = _files.newCapturePath(id);
-        await _processor.normalizeOrientation(src, outputPath: upright);
-        if (!copySource) {
-          final f = File(src);
-          if (f.existsSync()) await f.delete();
-        }
-        final auto = await _processor.autoEdits(
-          upright,
+        // One decode: upright original + editor preview + edge detection.
+        final auto = await _processor.ingest(
+          src,
+          originalOut: upright,
+          previewOut: _files.basePreviewPath(id, upright),
           snapAspectRatio: rules.aspectRatio,
           fallback: fallbacks != null && i < fallbacks.length ? fallbacks[i] : null,
           filter: filter,
         );
+        if (!copySource) {
+          final f = File(src);
+          if (f.existsSync()) await f.delete();
+        }
         pages.add(
           ScanPage(
             id: id,

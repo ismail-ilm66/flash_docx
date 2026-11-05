@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
+import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -166,6 +167,10 @@ class _ViewerViewState extends State<_ViewerView> {
                                               key: ValueKey(path),
                                               gaplessPlayback: true,
                                               fit: BoxFit.contain,
+                                              // Until the processed cache is
+                                              // ready this is the 12 MP original;
+                                              // never decode it at full size.
+                                              cacheWidth: RenderPx.previewLongEdge,
                                             ),
                                           ),
                                         ),

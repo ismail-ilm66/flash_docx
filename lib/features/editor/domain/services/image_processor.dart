@@ -7,16 +7,36 @@ abstract interface class ImageProcessor {
   /// found. [snapAspectRatio] snaps the result to a known card ratio.
   Future<Quad?> detectEdges(String imagePath, {double? snapAspectRatio});
 
-  /// Auto crop for a freshly captured or imported image.
-  ///
+  /// The one job per new photo (camera, Photos, Files, share-in): decode
+  /// once, write the upright original to [originalOut] and the editor's base
+  /// preview to [previewOut], detect the document, and return the auto edits.
   /// When nothing is found the crop becomes [fallback] (the on-screen guide
   /// frame in ID / passport modes) or a 5% inset, never the exact full frame.
   /// [filter] is the user's default filter from Settings.
-  Future<AutoEditsResult> autoEdits(
-    String imagePath, {
+  Future<AutoEditsResult> ingest(
+    String sourcePath, {
+    required String originalOut,
+    required String previewOut,
     double? snapAspectRatio,
     Quad? fallback,
     FilterType filter = FilterType.auto,
+  });
+
+  /// Enhance preview (filter only; sliders are applied live in the UI).
+  /// [workPath] caches the cropped page at preview size between calls.
+  Future<String> renderLook(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String outputPath,
+  });
+
+  /// Processed preview + thumbnail for the viewer, from one decode.
+  Future<void> renderPageCaches(
+    String originalPath,
+    PageEdits edits, {
+    required String processedOut,
+    required String thumbOut,
   });
 
   /// Renders [edits] onto the original and writes a JPEG/PNG to [outputPath].
@@ -36,10 +56,6 @@ abstract interface class ImageProcessor {
     PageEdits edits, {
     required String outputPath,
   });
-
-  /// Normalises EXIF orientation (or to a new file) so that every later step
-  /// can ignore EXIF. Returns the upright image path.
-  Future<String> normalizeOrientation(String imagePath, {String? outputPath});
 
   /// Pixel size of an image without decoding it fully.
   Future<({int width, int height})> imageSize(String imagePath);

@@ -31,22 +31,52 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
-  Future<AutoEditsResult> autoEdits(
-    String imagePath, {
+  Future<AutoEditsResult> ingest(
+    String sourcePath, {
+    required String originalOut,
+    required String previewOut,
     double? snapAspectRatio,
     Quad? fallback,
     FilterType filter = FilterType.auto,
   }) async {
     final r = await _runner.run(
-      detectInIsolate,
-      DetectMsg(imagePath, snapAspectRatio),
-      debugLabel: 'autoEdits',
+      ingestInIsolate,
+      IngestMsg(sourcePath, originalOut, previewOut, snapAspectRatio),
+      debugLabel: 'ingest',
     );
     debugPrint('[edges] ${r.log}');
     final crop = r.quad ?? fallback ?? Quad.full(inset: 0.05);
     return AutoEditsResult(
       edits: PageEdits(crop: crop, filter: filter),
       detected: r.quad != null,
+    );
+  }
+
+  @override
+  Future<String> renderLook(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String outputPath,
+  }) {
+    return _runner.run(
+      lookInIsolate,
+      LookMsg(originalPath, edits, workPath, outputPath),
+      debugLabel: 'look',
+    );
+  }
+
+  @override
+  Future<void> renderPageCaches(
+    String originalPath,
+    PageEdits edits, {
+    required String processedOut,
+    required String thumbOut,
+  }) {
+    return _runner.run(
+      cachesInIsolate,
+      CachesMsg(originalPath, edits, processedOut, thumbOut),
+      debugLabel: 'caches',
     );
   }
 
@@ -75,15 +105,6 @@ class OpenCvImageProcessor implements ImageProcessor {
       renderOcrInIsolate,
       RenderMsg(originalPath, edits, null, outputPath, 92),
       debugLabel: 'renderOcr',
-    );
-  }
-
-  @override
-  Future<String> normalizeOrientation(String imagePath, {String? outputPath}) {
-    return _runner.run(
-      normalizeInIsolate,
-      NormalizeMsg(imagePath, outputPath ?? imagePath),
-      debugLabel: 'normalize',
     );
   }
 
@@ -119,14 +140,78 @@ class RenderMsg {
   final int quality;
 }
 
-class NormalizeMsg {
-  const NormalizeMsg(this.path, this.out);
+/// Max long edge kept for stored originals (48 MP phones → 4000 px).
+const int kMaxOriginalLongEdge = 4000;
+
+class IngestMsg {
+  const IngestMsg(this.src, this.originalOut, this.previewOut, this.snapAspect);
+  final String src;
+  final String originalOut;
+  final String previewOut;
+  final double? snapAspect;
+}
+
+class LookMsg {
+  const LookMsg(this.path, this.edits, this.workPath, this.out);
   final String path;
+  final PageEdits edits;
+  final String workPath;
   final String out;
 }
 
-/// Max long edge kept for stored originals (48 MP phones → 4000 px).
-const int kMaxOriginalLongEdge = 4000;
+class CachesMsg {
+  const CachesMsg(this.path, this.edits, this.processedOut, this.thumbOut);
+  final String path;
+  final PageEdits edits;
+  final String processedOut;
+  final String thumbOut;
+}
+
+DetectResult ingestInIsolate(IngestMsg m) {
+  final sw = Stopwatch()..start();
+  final report = pipe.ingest(
+    src: m.src,
+    originalOut: m.originalOut,
+    previewOut: m.previewOut,
+    maxOriginal: kMaxOriginalLongEdge,
+    previewLongEdge: RenderPx.previewLongEdge,
+    aspectHint: m.snapAspect,
+  );
+  var quad = report.quad;
+  if (quad != null && m.snapAspect != null) {
+    final size = pipe.jpegSize(m.previewOut);
+    final aspect = size == null ? 0.75 : size.width / size.height;
+    quad = pipe.snapQuadToAspect(quad, m.snapAspect!, imageAspect: aspect).clamp01();
+  }
+  return DetectResult(quad, '$report; ingest total ${sw.elapsedMilliseconds} ms');
+}
+
+String lookInIsolate(LookMsg m) {
+  final out = pipe.renderLook(
+    m.path,
+    m.edits,
+    workPath: m.workPath,
+    previewLongEdge: RenderPx.previewLongEdge,
+  );
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.out, quality: 85);
+    return m.out;
+  } finally {
+    out.dispose();
+  }
+}
+
+void cachesInIsolate(CachesMsg m) {
+  pipe.renderPageCaches(
+    m.path,
+    m.edits,
+    processedOut: m.processedOut,
+    thumbOut: m.thumbOut,
+    previewLongEdge: RenderPx.previewLongEdge,
+    thumbLongEdge: RenderPx.thumbLongEdge,
+  );
+}
 
 DetectResult detectInIsolate(DetectMsg m) {
   final img = pipe.readUpright(m.path);
@@ -163,24 +248,6 @@ String renderOcrInIsolate(RenderMsg m) {
     return m.out;
   } finally {
     out.dispose();
-  }
-}
-
-String normalizeInIsolate(NormalizeMsg m) {
-  // imread applies EXIF orientation; writing back produces an upright JPEG
-  // with no orientation tag, so every later step can ignore EXIF.
-  final img = pipe.readUpright(m.path);
-  // Cap very large captures to keep later steps fast while staying far
-  // above export needs. `fitLongEdge` returns `img` itself when no resize
-  // is needed, so dispose exactly once.
-  final capped = pipe.fitLongEdge(img, kMaxOriginalLongEdge);
-  try {
-    File(m.out).parent.createSync(recursive: true);
-    pipe.writeJpeg(capped, m.out, quality: 95);
-    return m.out;
-  } finally {
-    pipe.disposeUnless(capped, img);
-    img.dispose();
   }
 }
 

@@ -186,10 +186,23 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                                       gaplessPlayback: true,
                                                     ),
                                                   )
-                                                : Image.file(
-                                                    File(preview),
-                                                    key: ValueKey(preview),
-                                                    gaplessPlayback: true,
+                                                : ColorFiltered(
+                                                    // Sliders run on the GPU
+                                                    // with the export's own
+                                                    // a·x + b mapping: no
+                                                    // re-render per move.
+                                                    colorFilter: sliderColorFilter(
+                                                      edits.copyWith(
+                                                        brightness: _brightness ?? edits.brightness,
+                                                        contrast: _contrast ?? edits.contrast,
+                                                      ),
+                                                    ),
+                                                    child: Image.file(
+                                                      File(preview),
+                                                      key: ValueKey(preview),
+                                                      gaplessPlayback: true,
+                                                      filterQuality: FilterQuality.medium,
+                                                    ),
                                                   ),
                                           ),
                                         ),
@@ -506,4 +519,17 @@ class _FilterSwatch extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The brightness / contrast sliders as a colour matrix. Offsets in a
+/// Flutter colour matrix are in 0..255, matching `a·x + b` in the pipeline;
+/// results are clamped just like `convertTo` on export.
+ColorFilter sliderColorFilter(PageEdits edits) {
+  if (!edits.hasSliders) {
+    return const ColorFilter.matrix([1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0]);
+  }
+  final t = edits.sliderTransform;
+  final a = t.alpha;
+  final b = t.beta;
+  return ColorFilter.matrix([a, 0, 0, 0, b, 0, a, 0, 0, b, 0, 0, a, 0, b, 0, 0, 0, 1, 0]);
 }

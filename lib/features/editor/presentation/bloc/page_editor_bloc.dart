@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:equatable/equatable.dart';
@@ -85,20 +86,43 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   Future<void> _onStarted(EditorStarted e, Emitter<PageEditorState> emit) async {
     emit(state.copyWith(status: EditorStatus.loading, clearFailure: true));
     try {
-      // Base previews: upright original, downscaled, no crop/filter.
-      final previews = Map<String, String>.from(state.basePreviews);
-      for (final page in state.pages) {
-        if (previews.containsKey(page.id)) continue;
-        previews[page.id] = await _processor.render(
-          page.originalPath,
-          const PageEdits(filter: FilterType.original),
-          size: RenderSize.preview,
-          outputPath: _files.newCapturePath('base_${page.id}_${page.originalPath.hashCode}'),
-          jpegQuality: 85,
+      // Base previews: upright original, downscaled, no crop/filter. New
+      // scans already have them from ingest; saved documents render them
+      // here, current page first so the screen is usable straight away.
+      final order = [
+        if (state.current != null) state.current!,
+        ...state.pages.where((p) => p.id != state.current?.id),
+      ];
+      var shown = false;
+      for (final page in order) {
+        if (isClosed) return;
+        if (state.basePreviews.containsKey(page.id)) continue;
+        final path = _files.basePreviewPath(page.id, page.originalPath);
+        if (!File(path).existsSync()) {
+          await _processor.render(
+            page.originalPath,
+            const PageEdits(filter: FilterType.original),
+            size: RenderSize.preview,
+            outputPath: path,
+            jpegQuality: 85,
+          );
+        }
+        if (isClosed) return;
+        emit(
+          state.copyWith(
+            basePreviews: {...state.basePreviews, page.id: path},
+            status: shown ? null : EditorStatus.idle,
+          ),
         );
+        if (!shown) {
+          shown = true;
+          add(const EditorPreviewRequested());
+        }
       }
-      emit(state.copyWith(status: EditorStatus.idle, basePreviews: previews));
-      add(const EditorPreviewRequested());
+      if (!shown) {
+        emit(state.copyWith(status: EditorStatus.idle));
+        add(const EditorPreviewRequested());
+      }
     } catch (err) {
       emit(
         state.copyWith(
@@ -154,8 +178,10 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     final cur = state.current;
     if (cur == null) return;
     final rules = ScanModeRules.of(state.args.mode);
+    // Detect on the ~1600 px base preview rather than the 12 MP original;
+    // corners are normalised, so they apply to the original unchanged.
     final quad = await _processor.detectEdges(
-      cur.originalPath,
+      state.basePreview ?? cur.originalPath,
       snapAspectRatio: rules.aspectRatio,
     );
     final pages = [...state.pages];
@@ -169,11 +195,11 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   }
 
   void _onBrightness(EditorBrightnessChanged e, Emitter<PageEditorState> emit) {
-    _updateCurrent(emit, (ed) => ed.copyWith(brightness: e.value));
+    _updateCurrent(emit, (ed) => ed.copyWith(brightness: e.value), preview: false);
   }
 
   void _onContrast(EditorContrastChanged e, Emitter<PageEditorState> emit) {
-    _updateCurrent(emit, (ed) => ed.copyWith(contrast: e.value));
+    _updateCurrent(emit, (ed) => ed.copyWith(contrast: e.value), preview: false);
   }
 
   void _onLookReset(EditorLookReset e, Emitter<PageEditorState> emit) {
@@ -218,13 +244,18 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(status: EditorStatus.loading));
     try {
       final rules = ScanModeRules.of(state.args.mode);
-      final auto = await _processor.autoEdits(
+      // Same single-decode ingest as every other new photo.
+      final original = _files.newCapturePath('${cur.id}_${DateTime.now().microsecondsSinceEpoch}');
+      final auto = await _processor.ingest(
         e.newOriginalPath,
+        originalOut: original,
+        previewOut: _files.basePreviewPath(cur.id, original),
         snapAspectRatio: rules.aspectRatio,
         filter: cur.edits.filter,
       );
+      await File(e.newOriginalPath).delete().catchError((_) => File(e.newOriginalPath));
       final replaced = cur
-          .copyWith(originalPath: e.newOriginalPath, edgesDetected: auto.detected)
+          .copyWith(originalPath: original, edgesDetected: auto.detected)
           .withEdits(auto.edits);
       final pages = [...state.pages];
       pages[state.index] = replaced;
@@ -248,12 +279,12 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (state.enhancePreviews.containsKey(key)) return;
     emit(state.copyWith(rendering: true));
     try {
-      final out = await _processor.render(
+      // Filter only, from the cached cropped page; sliders are live in the UI.
+      final out = await _processor.renderLook(
         cur.originalPath,
         cur.edits,
-        size: RenderSize.preview,
-        outputPath: _files.newCapturePath('prev_${cur.id}_${cur.edits.hashCode}'),
-        jpegQuality: 85,
+        workPath: _files.workPath(cur.id, cur.originalPath, cur.edits),
+        outputPath: _files.lookPath(cur.id, cur.originalPath, cur.edits),
       );
       if (isClosed) return;
       final map = Map<String, String>.from(state.enhancePreviews);
@@ -274,9 +305,30 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (state.pages.isEmpty) return;
     emit(state.copyWith(status: EditorStatus.saving, clearFailure: true));
     final args = state.args;
-    final pages = [
+    var pages = [
       for (final (i, pg) in state.pages.indexed) pg.copyWith(order: i),
     ];
+    // Editing a saved document: a retaken page's new original is still in the
+    // temp folder (wiped on next launch). Move it into the document first.
+    if (!args.isNewDocument && !args.addingPages) {
+      try {
+        pages = [
+          for (final pg in pages)
+            _files.isInDoc(args.documentId!, pg.originalPath)
+                ? pg
+                : pg.copyWith(
+                    originalPath: await _files.adoptOriginal(
+                      sourcePath: pg.originalPath,
+                      docId: args.documentId!,
+                      pageId: pg.id,
+                    ),
+                  ),
+        ];
+      } catch (err) {
+        emit(state.copyWith(status: EditorStatus.failed, failure: StorageFailure(err.toString())));
+        return;
+      }
+    }
     final result = args.isNewDocument
         ? await _createDocument(mode: args.mode, pages: pages)
         : args.addingPages

@@ -36,7 +36,9 @@ class PageEditorState extends Equatable {
   String? get enhancePreview =>
       current == null ? null : enhancePreviews[_previewKey(current!)];
 
-  static String _previewKey(ScanPage p) => '${p.id}:${p.edits.hashCode}';
+  /// Sliders are excluded: they are applied live on the GPU, so moving them
+  /// never needs a new render.
+  static String _previewKey(ScanPage p) => '${p.id}:${Object.hash(p.originalPath, p.edits.crop, p.edits.normalizedTurns, p.edits.filter)}';
 
   PageEditorState copyWith({
     List<ScanPage>? pages,

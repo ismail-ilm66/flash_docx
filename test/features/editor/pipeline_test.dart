@@ -269,19 +269,23 @@ void main() {
       m.dispose();
     });
 
-    test('X-1: normalising a photo larger than 4000 px does not double-free', () {
-      final big = cv.Mat.fromScalar(3024, 4032, cv.MatType.CV_8UC3, cv.Scalar(10, 20, 30));
-      final src = p.join(tmp.path, 'big.jpg');
-      pipe.writeJpeg(big, src, quality: 80);
-      big.dispose();
-      final out = p.join(tmp.path, 'big_norm.jpg');
-      // Run twice: a double free would crash the second call (or the first).
-      normalizeInIsolate(NormalizeMsg(src, out));
-      normalizeInIsolate(NormalizeMsg(src, out));
-      final back = pipe.readUpright(out);
-      expect(back.cols, kMaxOriginalLongEdge);
-      expect(back.rows, 3000);
-      back.dispose();
+    test('X-1: ingesting photos larger than 4000 px (incl. 48 MP) does not double-free', () {
+      for (final (w, h) in [(4032, 3024), (8064, 6048)]) {
+        final big = cv.Mat.fromScalar(h, w, cv.MatType.CV_8UC3, cv.Scalar(10, 20, 30));
+        final src = p.join(tmp.path, 'big_$w.jpg');
+        pipe.writeJpeg(big, src, quality: 80);
+        big.dispose();
+        final orig = p.join(tmp.path, 'orig_$w.jpg');
+        final prev = p.join(tmp.path, 'prev_$w.jpg');
+        // Twice: a double free would crash on the first or second call.
+        for (var i = 0; i < 2; i++) {
+          ingestInIsolate(IngestMsg(src, orig, prev, null));
+        }
+        final o = pipe.jpegSize(orig)!;
+        final v = pipe.jpegSize(prev)!;
+        expect(math.max(o.width, o.height), kMaxOriginalLongEdge);
+        expect(math.max(v.width, v.height), RenderPx.previewLongEdge);
+      }
     });
   });
 

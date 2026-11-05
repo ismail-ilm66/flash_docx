@@ -5,6 +5,7 @@
 // Ownership rule: a function never disposes a Mat it was given. It returns a
 // new Mat the caller owns, or (where documented) the same Mat it received.
 
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flash_dox/core/constants/sizes.dart';
@@ -16,12 +17,72 @@ import 'package:opencv_dart/opencv.dart' as cv;
 // ---------------------------------------------------------------------------
 
 /// Reads an image upright (EXIF orientation applied by OpenCV).
-cv.Mat readUpright(String path) {
-  final m = cv.imread(path, flags: cv.IMREAD_COLOR);
+cv.Mat readUpright(String path, {int flags = cv.IMREAD_COLOR}) {
+  final m = cv.imread(path, flags: flags);
   if (m.isEmpty) {
+    m.dispose();
     throw StateError('Could not decode $path');
   }
   return m;
+}
+
+/// Decodes at 1/2 or 1/4 scale straight from the JPEG when the photo is far
+/// larger than [targetLongEdge] (48–200 MP sensors). Halves or quarters the
+/// decode time and peak memory; the result is still ≥ [targetLongEdge].
+cv.Mat readUprightAtMost(String path, int targetLongEdge) {
+  final size = jpegSize(path);
+  var flags = cv.IMREAD_COLOR;
+  if (size != null) {
+    final long = math.max(size.width, size.height);
+    if (long >= targetLongEdge * 4) {
+      flags = cv.IMREAD_REDUCED_COLOR_4;
+    } else if (long >= targetLongEdge * 2) {
+      flags = cv.IMREAD_REDUCED_COLOR_2;
+    }
+  }
+  return readUpright(path, flags: flags);
+}
+
+/// Pixel size from a JPEG's SOF header without decoding, or null if the file
+/// isn't a JPEG or the header can't be found in the first 1 MB.
+({int width, int height})? jpegSize(String path) {
+  RandomAccessFile? f;
+  try {
+    f = File(path).openSync();
+    final bytes = f.readSync(1 << 20);
+    if (bytes.length < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8) return null;
+    var i = 2;
+    while (i + 9 < bytes.length) {
+      if (bytes[i] != 0xFF) {
+        i++;
+        continue;
+      }
+      final marker = bytes[i + 1];
+      if (marker == 0xFF) {
+        i++;
+        continue;
+      }
+      // Standalone markers have no length.
+      if (marker == 0x01 || (marker >= 0xD0 && marker <= 0xD9)) {
+        i += 2;
+        continue;
+      }
+      final len = (bytes[i + 2] << 8) | bytes[i + 3];
+      final isSof = marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+      if (isSof) {
+        final h = (bytes[i + 5] << 8) | bytes[i + 6];
+        final w = (bytes[i + 7] << 8) | bytes[i + 8];
+        return (width: w, height: h);
+      }
+      if (marker == 0xDA) return null; // start of scan, no SOF seen
+      i += 2 + len;
+    }
+    return null;
+  } catch (_) {
+    return null;
+  } finally {
+    f?.closeSync();
+  }
 }
 
 /// Returns a copy downscaled so the long edge is at most [longEdge], using
@@ -165,18 +226,18 @@ Quad? detectDocumentQuad(cv.Mat bgr, {double minAreaFraction = 0.15, double? sna
 }
 
 double _medianOf(cv.Mat gray) {
-  // Coarse histogram over a strided sample; exact median isn't needed.
+  // Coarse histogram over a strided sample of the raw bytes; exact median
+  // isn't needed. Reading `data` once avoids one native call per pixel.
   final hist = List<int>.filled(256, 0);
-  final step = math.max(1, (gray.rows * gray.cols) ~/ 20000);
+  final cont = gray.isContinuous ? gray : gray.clone();
+  final data = cont.data;
+  final step = math.max(1, data.length ~/ 50000);
   var n = 0;
-  var i = 0;
-  for (var y = 0; y < gray.rows; y++) {
-    for (var x = 0; x < gray.cols; x++) {
-      if (i++ % step != 0) continue;
-      hist[gray.at<int>(y, x)]++;
-      n++;
-    }
+  for (var i = 0; i < data.length; i += step) {
+    hist[data[i]]++;
+    n++;
   }
+  if (!identical(cont, gray)) cont.dispose();
   var acc = 0;
   for (var v = 0; v < 256; v++) {
     acc += hist[v];
@@ -346,23 +407,33 @@ cv.Mat rotateQuarterTurns(cv.Mat src, int quarterTurns) {
 
 /// Crop + rotate, with the source pre-shrunk (area averaging) when the target
 /// is much smaller than the photo, so the warp never does the downsampling.
+///
+/// [src] belongs to the caller and is never disposed here. The result is
+/// either [src] itself (nothing to do) or a new Mat the caller owns; use
+/// `disposeUnless(src, result)` afterwards.
 cv.Mat cropAndRotate(cv.Mat src, PageEdits edits, {int? maxLongEdge}) {
-  var base = src;
-  if (maxLongEdge != null) {
-    // Keep ≥2× the target in the source so the final INTER_AREA shrink does
-    // the quality work; exports (standard/full) pass through at full size.
-    final cap = maxLongEdge * 2;
-    if (math.max(src.cols, src.rows) > cap && edits.crop != null && edits.crop!.area < 0.9) {
-      base = fitLongEdge(src, cap);
-    }
+  var cur = src;
+  // Replaces the working image, freeing the previous one exactly once and
+  // never freeing the caller's src.
+  void step(cv.Mat next) {
+    if (identical(next, cur)) return;
+    if (!identical(cur, src)) cur.dispose();
+    cur = next;
   }
-  final cropped = edits.crop == null ? base : warpToQuad(base, edits.crop!);
-  disposeUnless(base, src);
-  final sized = maxLongEdge == null ? cropped : fitLongEdge(cropped, maxLongEdge);
-  disposeUnless(cropped, sized);
-  final rotated = rotateQuarterTurns(sized, edits.quarterTurns);
-  disposeUnless(sized, rotated);
-  return rotated;
+
+  final crop = edits.crop;
+  // Keep ≥2× the target in the source so the final INTER_AREA shrink does
+  // the quality work; exports (standard/full) pass through at full size.
+  if (maxLongEdge != null &&
+      crop != null &&
+      crop.area < 0.9 &&
+      math.max(src.cols, src.rows) > maxLongEdge * 2) {
+    step(fitLongEdge(cur, maxLongEdge * 2));
+  }
+  if (crop != null) step(warpToQuad(cur, crop));
+  if (maxLongEdge != null) step(fitLongEdge(cur, maxLongEdge));
+  step(rotateQuarterTurns(cur, edits.quarterTurns));
+  return cur;
 }
 
 // ---------------------------------------------------------------------------
@@ -528,13 +599,13 @@ cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
       FilterType.bwPrint => bwPrintFilter(bgr),
     };
 
-/// Maps the -100..100 sliders onto `convertScaleAbs(alpha, beta)`.
-cv.Mat brightnessContrast(cv.Mat bgr, double brightness, double contrast) {
-  if (brightness == 0 && contrast == 0) return bgr.clone();
-  final c = contrast.clamp(-100, 100) / 100;
-  final alpha = c >= 0 ? 1 + c : 1 + c * 0.75;
-  final beta = brightness.clamp(-100, 100) * 1.0 + 128 * (1 - alpha);
-  return cv.convertScaleAbs(bgr, alpha: alpha, beta: beta);
+/// Applies the brightness / contrast sliders as `a·x + b`, clamped to 0..255
+/// (not `convertScaleAbs`, whose absolute value turned dark pixels grey when
+/// brightness was negative). Same mapping as the live preview matrix.
+cv.Mat brightnessContrast(cv.Mat bgr, PageEdits edits) {
+  if (!edits.hasSliders) return bgr.clone();
+  final t = edits.sliderTransform;
+  return bgr.convertTo(cv.MatType.CV_8UC3, alpha: t.alpha, beta: t.beta);
 }
 
 // ---------------------------------------------------------------------------
@@ -549,7 +620,7 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   disposeUnless(img, cropped);
   final filtered = applyFilter(cropped, edits.filter);
   cropped.dispose();
-  final out = brightnessContrast(filtered, edits.brightness, edits.contrast);
+  final out = brightnessContrast(filtered, edits);
   filtered.dispose();
   return out;
 }
@@ -569,6 +640,82 @@ cv.Mat renderForOcr(String path, PageEdits edits) {
   gray.dispose();
   contrasty.dispose();
   return out;
+}
+
+/// Ingest: one decode per captured / imported photo. Writes the upright
+/// original (long edge ≤ [maxOriginal]) and the editor's base preview, and
+/// detects the document on that preview. Returns the detection report.
+DetectionReport ingest({
+  required String src,
+  required String originalOut,
+  required String previewOut,
+  required int maxOriginal,
+  required int previewLongEdge,
+  double? aspectHint,
+}) {
+  final img = readUprightAtMost(src, maxOriginal);
+  final capped = fitLongEdge(img, maxOriginal);
+  final preview = fitLongEdge(capped, previewLongEdge);
+  try {
+    File(originalOut).parent.createSync(recursive: true);
+    writeJpeg(capped, originalOut, quality: 95);
+    File(previewOut).parent.createSync(recursive: true);
+    writeJpeg(preview, previewOut, quality: 85);
+    return detectDocument(preview, aspectHint: aspectHint);
+  } finally {
+    disposeUnless(preview, capped);
+    disposeUnless(capped, img);
+    img.dispose();
+  }
+}
+
+/// Enhance preview without sliders (those are applied live in the UI).
+///
+/// The cropped + rotated page at preview size is cached at [workPath], so
+/// switching filters decodes a ~1600 px image instead of the 12 MP original.
+cv.Mat renderLook(String originalPath, PageEdits edits, {required String workPath, required int previewLongEdge}) {
+  final cached = File(workPath).existsSync();
+  final cv.Mat work;
+  if (cached) {
+    work = readUpright(workPath);
+  } else {
+    final img = readUpright(originalPath);
+    final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
+    if (identical(cropped, img)) {
+      work = img;
+    } else {
+      img.dispose();
+      work = cropped;
+    }
+    File(workPath).parent.createSync(recursive: true);
+    writeJpeg(work, workPath, quality: 92);
+  }
+  final out = applyFilter(work, edits.filter);
+  work.dispose();
+  return out;
+}
+
+/// Viewer caches in one decode: the processed page at [previewLongEdge] and
+/// a thumbnail derived from it.
+void renderPageCaches(
+  String originalPath,
+  PageEdits edits, {
+  required String processedOut,
+  required String thumbOut,
+  required int previewLongEdge,
+  required int thumbLongEdge,
+}) {
+  final out = renderEdits(originalPath, edits, maxLongEdge: previewLongEdge);
+  final thumb = fitLongEdge(out, thumbLongEdge);
+  try {
+    File(processedOut).parent.createSync(recursive: true);
+    writeJpeg(out, processedOut, quality: 90);
+    File(thumbOut).parent.createSync(recursive: true);
+    writeJpeg(thumb, thumbOut, quality: 80);
+  } finally {
+    disposeUnless(thumb, out);
+    out.dispose();
+  }
 }
 
 /// Writes JPEG (quality) or PNG, chosen by the file extension.
