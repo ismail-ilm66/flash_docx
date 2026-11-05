@@ -19,6 +19,7 @@ import 'package:flash_dox/core/services/prefs_service.dart' as _i567;
 import 'package:flash_dox/core/services/save_service.dart' as _i792;
 import 'package:flash_dox/core/services/share_in_service.dart' as _i742;
 import 'package:flash_dox/core/services/share_service.dart' as _i856;
+import 'package:flash_dox/core/services/storage_service.dart' as _i114;
 import 'package:flash_dox/features/documents/data/db/app_database.dart'
     as _i554;
 import 'package:flash_dox/features/documents/data/repositories/document_repository_impl.dart'
@@ -106,6 +107,7 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i448.IsolateRunner>(() => _i448.IsolateRunner());
     gh.lazySingleton<_i792.SaveService>(() => _i792.SaveService());
     gh.lazySingleton<_i742.ShareInService>(() => _i742.ShareInService());
+    gh.lazySingleton<_i114.StorageService>(() => _i114.StorageService());
     gh.lazySingleton<_i554.AppDatabase>(
       () => _i554.AppDatabase(),
       dispose: (i) => i.dispose(),

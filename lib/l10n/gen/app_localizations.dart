@@ -1437,6 +1437,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Flash Scan'**
   String get defaultDocName;
+
+  /// No description provided for @cameraBlurryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo looks blurry'**
+  String get cameraBlurryTitle;
+
+  /// No description provided for @cameraRetake.
+  ///
+  /// In en, this message translates to:
+  /// **'Retake'**
+  String get cameraRetake;
+
+  /// No description provided for @cameraKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep'**
+  String get cameraKeep;
+
+  /// No description provided for @cameraDark.
+  ///
+  /// In en, this message translates to:
+  /// **'It\'s dark — turn on the flash for a sharper scan.'**
+  String get cameraDark;
+
+  /// No description provided for @cameraUnreadable.
+  ///
+  /// In en, this message translates to:
+  /// **'That photo couldn\'t be read. Please take it again.'**
+  String get cameraUnreadable;
+
+  /// No description provided for @cameraStorageLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone storage is almost full — scans may be slow.'**
+  String get cameraStorageLow;
+
+  /// No description provided for @cameraStorageFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough storage to save scans. Free up space and try again.'**
+  String get cameraStorageFull;
+
+  /// No description provided for @cameraPreparingProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing {done} of {total}…'**
+  String cameraPreparingProgress(int done, int total);
 }
 
 class _AppLocalizationsDelegate

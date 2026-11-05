@@ -765,4 +765,33 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get defaultDocName => 'Flash Scan';
+
+  @override
+  String get cameraBlurryTitle => 'Photo looks blurry';
+
+  @override
+  String get cameraRetake => 'Retake';
+
+  @override
+  String get cameraKeep => 'Keep';
+
+  @override
+  String get cameraDark => 'It\'s dark — turn on the flash for a sharper scan.';
+
+  @override
+  String get cameraUnreadable =>
+      'That photo couldn\'t be read. Please take it again.';
+
+  @override
+  String get cameraStorageLow =>
+      'Your phone storage is almost full — scans may be slow.';
+
+  @override
+  String get cameraStorageFull =>
+      'Not enough storage to save scans. Free up space and try again.';
+
+  @override
+  String cameraPreparingProgress(int done, int total) {
+    return 'Preparing $done of $total…';
+  }
 }

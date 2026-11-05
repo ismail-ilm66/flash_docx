@@ -1,15 +1,15 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
+import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
-import 'package:flash_dox/core/utils/id.dart';
+import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
@@ -81,8 +81,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Offset? _focusPoint; // fractions of the preview well
   DateTime? _focusedAt;
   int _flashTick = 0;
-  String? _flyPath;
+  int _flyTick = 0;
   Timer? _focusRingTimer;
+  StorageLevel _storage = StorageLevel.ok;
 
   /// Portrait aspect (width / height) of the capture, or 3:4 until known.
   double get _photoAspect {
@@ -95,7 +96,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // P1-4: the camera screen is portrait only; EXIF uprights the photos.
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     unawaited(_init());
+    unawaited(_checkStorage());
+  }
+
+  Future<void> _checkStorage() async {
+    final level = await getIt<StorageService>().level();
+    debugPrint('[capture] storage level $level');
+    if (mounted) setState(() => _storage = level);
   }
 
   Future<void> _init() async {
@@ -163,31 +173,22 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     await _trySet(() => c.setExposurePoint(photo));
   }
 
-  /// Lets focus settle on the frame centre before a capture, unless the
-  /// user just tapped a point.
-  Future<void> _settleFocus(CameraController c) async {
-    final recent =
-        _focusedAt != null &&
-        DateTime.now().difference(_focusedAt!) < const Duration(seconds: 3);
-    if (!recent) {
-      await _trySet(() => c.setFocusPoint(const Offset(0.5, 0.5)));
-      await _trySet(() => c.setExposurePoint(const Offset(0.5, 0.5)));
-    }
-    await Future<void>.delayed(const Duration(milliseconds: 280));
+  /// Continuous autofocus is always on. Only right after a tap-to-focus
+  /// do we hold the shutter until focus has had ~300 ms to settle (A3).
+  Future<void> _waitForTapFocus() async {
+    final at = _focusedAt;
+    if (at == null) return;
+    final left = const Duration(milliseconds: 300) - DateTime.now().difference(at);
+    if (left > Duration.zero) await Future<void>.delayed(left);
   }
 
-  Future<void> _captureFeedback(String path) async {
+  /// Sound, haptic and the white flash — before `takePicture()` (P0-C).
+  void _captureFeedback() {
     unawaited(HapticFeedback.mediumImpact());
     if (getIt<PrefsService>().shutterSound) {
-      unawaited(
-        _shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9),
-      );
+      unawaited(_shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9));
     }
-    if (!mounted) return;
-    setState(() {
-      _flashTick++;
-      _flyPath = path;
-    });
+    setState(() => _flashTick++);
   }
 
   Future<void> _applyFlash(bool on) async {
@@ -214,50 +215,92 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _focusRingTimer?.cancel();
     _shutterPlayer.dispose();
     _controller?.dispose();
     super.dispose();
   }
 
+  /// The shutter path does only: feedback → takePicture() → queue → ready
+  /// (P0-C). Moving, uprighting, detection and previews run in the session's
+  /// background queue.
   Future<void> _capture() async {
     final c = _controller;
     final bloc = context.read<ScanSessionBloc>();
     if (c == null ||
         !c.value.isInitialized ||
         _capturing ||
+        _storage == StorageLevel.critical ||
         !bloc.state.canCapture) {
       return;
     }
     setState(() => _capturing = true);
+    final total = Stopwatch()..start();
     try {
-      await _settleFocus(c);
+      await _waitForTapFocus();
+      _captureFeedback();
+      final take = Stopwatch()..start();
       final shot = await c.takePicture();
-      final target = getIt<FileStore>().newCapturePath('cap_${newId()}');
-      await File(shot.path).rename(target).catchError((_) async {
-        await File(shot.path).copy(target);
-        return File(target);
-      });
+      take.stop();
       if (!mounted) return;
       if (widget.args.retake) {
-        context.pop(target);
+        context.pop(shot.path);
         return;
       }
-      await _captureFeedback(target);
-      // The guide frame in photo coordinates is the fallback crop if edge
-      // detection finds nothing (ID / passport use it; others inset 5%).
+      // The guide frame in photo coordinates: searched first, and the
+      // fallback crop if detection finds nothing (ID / passport only).
       final guideAspect = bloc.state.rules.aspectRatio;
       final guide = guideAspect == null
           ? null
           : PreviewGeometry.guideQuad(guideAspect, photoAspect: _photoAspect);
-      bloc.add(SessionCaptured(target, guide: guide));
-      // Single / passport / ID-card complete → finish automatically.
+      bloc.add(SessionCaptured(shot.path, guide: guide));
+      setState(() => _flyTick++);
+      debugPrint(
+        '[capture] takePicture ${take.elapsedMilliseconds} ms; '
+        'shutter ready again after ${total.elapsedMilliseconds} ms',
+      );
+      // ID card (2 sides) / passport (1 page) finish by themselves.
       if (bloc.state.isComplete) bloc.add(const SessionFinished());
     } catch (e) {
+      debugPrint('[capture] failed: $e');
       if (mounted) context.showSnack(context.l10n.errorImage, error: true);
     } finally {
       if (mounted) setState(() => _capturing = false);
     }
+  }
+
+  Widget? _banner(BuildContext context, ScanSessionState s) {
+    final l = context.l10n;
+    final bloc = context.read<ScanSessionBloc>();
+    final n = s.notice;
+    if (n != null) {
+      return switch (n.kind) {
+        NoticeKind.blurry => _NoticeBanner(
+            text: l.cameraBlurryTitle,
+            icon: AppIcons.warning,
+            actions: [
+              (l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId))),
+              (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
+            ],
+          ),
+        NoticeKind.unreadable => _NoticeBanner(
+            text: l.cameraUnreadable,
+            icon: AppIcons.warning,
+            actions: [(l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId)))],
+          ),
+        NoticeKind.dark => _NoticeBanner(
+            text: l.cameraDark,
+            icon: AppIcons.flashOn,
+            actions: [(l.commonOk, () => bloc.add(const SessionNoticeDismissed()))],
+          ),
+      };
+    }
+    return switch (_storage) {
+      StorageLevel.critical => _NoticeBanner(text: l.cameraStorageFull, icon: AppIcons.storage),
+      StorageLevel.low => _NoticeBanner(text: l.cameraStorageLow, icon: AppIcons.storage),
+      StorageLevel.ok => null,
+    };
   }
 
   Future<void> _import({required bool gallery}) async {
@@ -331,13 +374,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   guide: _guideText(l, s),
                   flashOn: s.flashOn,
                   captureCount: s.count,
-                  lastCapturePath: s.captures.lastOrNull?.path,
+                  // The 1200 px preview once processed; a placeholder before.
+                  lastCapturePath: s.captures.lastOrNull?.thumbPath(getIt<FileStore>()),
                   canFinish: s.canFinish && !widget.args.retake,
                   showModes:
                       !widget.args.retake &&
                       !widget.args.returnPages &&
                       widget.args.addToDocumentId == null,
-                  capturing: _capturing || s.status == SessionStatus.preparing,
+                  capturing: _capturing ||
+                      s.status == SessionStatus.preparing ||
+                      _storage == StorageLevel.critical,
                   onClose: () => Navigator.of(context).maybePop(),
                   onFlash: () => context.read<ScanSessionBloc>().add(
                     const SessionFlashToggled(),
@@ -361,10 +407,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   flashTick: _flashTick,
                   onPreviewTap: _onPreviewTap,
                   stackKey: _stackKey,
-                  flyPath: _flyPath,
+                  flyTick: _flyTick,
+                  banner: _banner(context, s),
                 ),
                 if (s.status == SessionStatus.preparing)
-                  ProgressOverlay(label: l.sharePreparing),
+                  ProgressOverlay(
+                    label: s.waitingForQueue && s.count > 0
+                        ? l.cameraPreparingProgress(s.processed, s.count)
+                        : l.sharePreparing,
+                    progress: s.waitingForQueue && s.count > 0 ? s.processed / s.count : null,
+                  ),
               ],
             ),
           ),
@@ -410,6 +462,42 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
           width: 1000,
           height: 1000 / portraitAspect,
           child: CameraPreview(c),
+        ),
+      ),
+    );
+  }
+}
+
+/// Storage, blur and low-light notices above the camera controls.
+class _NoticeBanner extends StatelessWidget {
+  const _NoticeBanner({required this.text, required this.icon, this.actions = const []});
+
+  final String text;
+  final AppIcons icon;
+  final List<(String, VoidCallback)> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: const Color(0xE6202226),
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.x3, Space.x2, Space.x1, Space.x2),
+        child: Row(
+          children: [
+            AppIcon(icon, size: 20, color: c.accent),
+            const SizedBox(width: Space.x2),
+            Expanded(
+              child: Text(text, style: context.text.bodySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+            for (final (label, onTap) in actions)
+              TextButton(
+                onPressed: onTap,
+                style: TextButton.styleFrom(foregroundColor: c.accent, minimumSize: const Size(Sizes.tap, Sizes.tap)),
+                child: Text(label),
+              ),
+          ],
         ),
       ),
     );

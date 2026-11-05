@@ -3,6 +3,7 @@ package com.flashdox.app
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.StatFs
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -29,6 +30,18 @@ class MainActivity : FlutterActivity() {
                     "getInitialShare" -> {
                         result.success(pendingPaths ?: emptyList<String>())
                         pendingPaths = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        // Free storage for the camera's low-space warning (round 3, P0-C).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flashdox.app/storage")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "freeBytes" -> try {
+                        result.success(StatFs(filesDir.path).availableBytes)
+                    } catch (e: Exception) {
+                        result.success(null)
                     }
                     else -> result.notImplemented()
                 }

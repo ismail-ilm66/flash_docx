@@ -36,6 +36,18 @@ import UIKit
             result(FlutterMethodNotImplemented)
           }
         }
+      // Free storage for the camera's low-space warning (round 3, P0-C).
+      FlutterMethodChannel(name: "com.flashdox.app/storage", binaryMessenger: messenger)
+        .setMethodCallHandler { call, result in
+          guard call.method == "freeBytes" else { return result(FlutterMethodNotImplemented) }
+          let url = URL(fileURLWithPath: NSHomeDirectory())
+          let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+          if let bytes = values?.volumeAvailableCapacityForImportantUsage {
+            result(NSNumber(value: bytes))
+          } else {
+            result(nil)
+          }
+        }
       FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
         .setStreamHandler(ShareStreamHandler(onListen: { [weak self] sink in
           self?.eventSink = sink

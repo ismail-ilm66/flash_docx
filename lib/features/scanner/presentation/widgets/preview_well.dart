@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flutter/material.dart';
@@ -9,22 +7,26 @@ import 'package:flutter/material.dart';
 class PreviewWell extends StatefulWidget {
   const PreviewWell({
     required this.preview,
-    required this.guideAspect,
     super.key,
+    this.guideAspect,
     this.focusPoint,
     this.flashTick = 0,
     this.onTap,
     this.stackKey,
-    this.flyPath,
+    this.flyTick = 0,
   });
 
   final Widget preview;
-  final double guideAspect;
+
+  /// Frame shape (width / height), or null for no frame (Document mode).
+  final double? guideAspect;
   final Offset? focusPoint;
   final int flashTick;
   final ValueChanged<Offset>? onTap;
   final GlobalKey? stackKey;
-  final String? flyPath;
+
+  /// Increment to fly a page into the stack.
+  final int flyTick;
 
   @override
   State<PreviewWell> createState() => _PreviewWellState();
@@ -40,7 +42,7 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
     duration: const Duration(milliseconds: 420),
   );
   Offset? _flyTarget; // in well-local coordinates
-  String? _flying;
+  bool _flying = false;
 
   @override
   void didUpdateWidget(PreviewWell old) {
@@ -50,12 +52,10 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
         ..value = 1
         ..reverse();
     }
-    if (widget.flyPath != null && widget.flyPath != old.flyPath) {
-      _startFly(widget.flyPath!);
-    }
+    if (widget.flyTick != old.flyTick) _startFly();
   }
 
-  void _startFly(String path) {
+  void _startFly() {
     final stackCtx = widget.stackKey?.currentContext;
     final box = context.findRenderObject();
     if (stackCtx == null || box is! RenderBox) return;
@@ -63,13 +63,13 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
     if (stackBox is! RenderBox) return;
     final target = box.globalToLocal(stackBox.localToGlobal(stackBox.size.center(Offset.zero)));
     setState(() {
-      _flying = path;
+      _flying = true;
       _flyTarget = target;
     });
     _fly
       ..reset()
       ..forward().whenComplete(() {
-        if (mounted) setState(() => _flying = null);
+        if (mounted) setState(() => _flying = false);
       });
   }
 
@@ -82,16 +82,19 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
 
   @override
   Widget build(BuildContext context) {
-    final rect = PreviewGeometry.guideRect(widget.guideAspect);
+    final aspect = widget.guideAspect;
+    final rect = aspect == null ? null : PreviewGeometry.guideRect(aspect);
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
-        final frame = Rect.fromLTWH(
-          rect.left * size.width,
-          rect.top * size.height,
-          rect.width * size.width,
-          rect.height * size.height,
-        );
+        final frame = rect == null
+            ? null
+            : Rect.fromLTWH(
+                rect.left * size.width,
+                rect.top * size.height,
+                rect.width * size.width,
+                rect.height * size.height,
+              );
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTapUp: widget.onTap == null
@@ -104,7 +107,7 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
               fit: StackFit.expand,
               children: [
                 widget.preview,
-                CustomPaint(painter: _CornerFramePainter(frame)),
+                if (frame != null) CustomPaint(painter: _CornerFramePainter(frame)),
                 if (widget.focusPoint != null)
                   Positioned(
                     left: widget.focusPoint!.dx * size.width - 32,
@@ -115,7 +118,7 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
                   opacity: _flash,
                   child: const ColoredBox(color: Colors.white),
                 ),
-                if (_flying != null && _flyTarget != null)
+                if (_flying && _flyTarget != null)
                   AnimatedBuilder(
                     animation: _fly,
                     builder: (context, child) {
@@ -131,9 +134,14 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
                         child: Opacity(opacity: 1 - 0.3 * t, child: child),
                       );
                     },
-                    child: ClipRRect(
-                      borderRadius: Radii.smR,
-                      child: Image.file(File(_flying!), fit: BoxFit.cover, cacheWidth: 300),
+                    // A plain page card: decoding the 12–16 MP shot here
+                    // would cost the UI on low-end phones (P0-C).
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: Radii.smR,
+                        boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12)],
+                      ),
                     ),
                   ),
               ],

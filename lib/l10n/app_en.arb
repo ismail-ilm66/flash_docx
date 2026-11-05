@@ -381,5 +381,14 @@
   "shareLayout": "Layout",
   "shareLayoutOneImage": "One image (front + back)",
   "shareLayoutSeparate": "Separate images",
-  "defaultDocName": "Flash Scan"
+  "defaultDocName": "Flash Scan",
+  "cameraBlurryTitle": "Photo looks blurry",
+  "cameraRetake": "Retake",
+  "cameraKeep": "Keep",
+  "cameraDark": "It's dark \u2014 turn on the flash for a sharper scan.",
+  "cameraUnreadable": "That photo couldn't be read. Please take it again.",
+  "cameraStorageLow": "Your phone storage is almost full \u2014 scans may be slow.",
+  "cameraStorageFull": "Not enough storage to save scans. Free up space and try again.",
+  "cameraPreparingProgress": "Preparing {done} of {total}\u2026",
+  "@cameraPreparingProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}}
 }
