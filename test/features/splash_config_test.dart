@@ -10,7 +10,7 @@ void main() {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final section = pubspec.substring(pubspec.indexOf('flutter_native_splash:\n  color'));
     final images = RegExp(r'image: (\S+)').allMatches(section).map((m) => m.group(1)).take(2).toList();
-    expect(images, [SplashPage.markAsset, SplashPage.markSize == 288 ? SplashPage.markAsset : 'size mismatch']);
+    expect(images, [SplashPage.markAsset, SplashPage.markAsset], reason: 'image and android_12 image');
     expect(File(SplashPage.markAsset).existsSync(), isTrue);
     expect(SplashPage.markSize, 1152 / 4);
   });
