@@ -22,7 +22,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     @factoryParam ScanMode? initialMode,
   ) : super(
           ScanSessionState(
-            mode: initialMode ?? _modeFromPrefs(_prefs),
+            mode: initialMode ?? ScanMode.document,
             flashOn: _prefs.flashOn,
           ),
         ) {
@@ -38,9 +38,6 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   final PreparePages _prepare;
   final PrefsService _prefs;
 
-  static ScanMode _modeFromPrefs(PrefsService p) =>
-      ScanMode.values.where((m) => m.name == p.defaultScanMode).firstOrNull ??
-      ScanMode.single;
 
   void _onMode(SessionModeChanged e, Emitter<ScanSessionState> emit) {
     if (state.captures.isNotEmpty) {
@@ -74,9 +71,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   Future<void> _onImported(SessionImported e, Emitter<ScanSessionState> emit) async {
     // Imports skip the camera: prepare straight away.
     emit(state.copyWith(status: SessionStatus.preparing));
-    final mode = e.paths.length > 1 && state.mode == ScanMode.single
-        ? ScanMode.batch
-        : state.mode;
+    final mode = state.mode;
     final r = await _prepare(e.paths, mode: mode);
     emit(
       r.fold(

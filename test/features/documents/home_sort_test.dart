@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 ScanDocument _doc(String id, String title, int day) => ScanDocument(
       id: id,
       title: title,
-      mode: ScanMode.single,
+      mode: ScanMode.document,
       pages: const [],
       createdAt: DateTime(2026, 1, day),
       updatedAt: DateTime(2026, 1, day),

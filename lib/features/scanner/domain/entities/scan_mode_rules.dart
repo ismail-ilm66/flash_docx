@@ -24,37 +24,20 @@ abstract interface class ScanModeRules {
   bool get canFinishEarly;
 
   static ScanModeRules of(ScanMode mode) => switch (mode) {
-        ScanMode.single => const SingleRules(),
-        ScanMode.batch => const BatchRules(),
+        ScanMode.document => const DocumentRules(),
         ScanMode.idCard => const IdCardRules(),
         ScanMode.passport => const PassportRules(),
       };
 }
 
-enum GuideLabel { single, batchPage, front, back, passport }
+enum GuideLabel { documentPage, front, back, passport }
 
-class SingleRules implements ScanModeRules {
-  const SingleRules();
+/// Document: one page or many, finished with Done (round 3 P1-6; replaces
+/// the old Single and Batch modes). No frame guide.
+class DocumentRules implements ScanModeRules {
+  const DocumentRules();
   @override
-  ScanMode get mode => ScanMode.single;
-  @override
-  int? get maxPages => 1;
-  @override
-  List<CardSide>? get sides => null;
-  @override
-  double? get aspectRatio => null;
-  @override
-  GuideLabel guideLabel(int captured) => GuideLabel.single;
-  @override
-  bool isComplete(int captured) => captured >= 1;
-  @override
-  bool get canFinishEarly => false;
-}
-
-class BatchRules implements ScanModeRules {
-  const BatchRules();
-  @override
-  ScanMode get mode => ScanMode.batch;
+  ScanMode get mode => ScanMode.document;
   @override
   int? get maxPages => Limits.maxBatchPages;
   @override
@@ -62,7 +45,7 @@ class BatchRules implements ScanModeRules {
   @override
   double? get aspectRatio => null;
   @override
-  GuideLabel guideLabel(int captured) => GuideLabel.batchPage;
+  GuideLabel guideLabel(int captured) => GuideLabel.documentPage;
   @override
   bool isComplete(int captured) => captured >= Limits.maxBatchPages;
   @override

@@ -49,10 +49,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeImportFiles => 'From files';
 
   @override
-  String get modeSingle => 'Single';
-
-  @override
-  String get modeBatch => 'Batch';
+  String get modeDocument => 'Document';
 
   @override
   String get modeIdCard => 'ID card';
@@ -111,11 +108,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraGuidePassport => 'Passport data page';
 
   @override
-  String get cameraGuideSingle => 'Fit the document in the frame';
-
-  @override
-  String cameraGuideBatch(int n) {
-    return 'Page $n';
+  String cameraGuideDocument(int n) {
+    return 'Page $n · hold the phone flat over the page';
   }
 
   @override
@@ -193,6 +187,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get filterGrayscale => 'Grayscale';
+
+  @override
+  String get filterIdColor => 'ID colour';
 
   @override
   String get filterBwPrint => 'B&W print';
@@ -424,9 +421,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsDefaultFilter => 'Default filter';
-
-  @override
-  String get settingsDefaultMode => 'Default scan mode';
 
   @override
   String get settingsShare => 'Sharing';

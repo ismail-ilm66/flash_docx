@@ -8,7 +8,6 @@
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
@@ -105,8 +104,12 @@ void disposeUnless(cv.Mat m, cv.Mat keep) {
 }
 
 // ---------------------------------------------------------------------------
-// Edge detection
+// Edge detection — port of `detect_document()` in tool/reference/
+// flashdox_reference.py (owner's reference). Keep the two in step.
 // ---------------------------------------------------------------------------
+
+const int kDetectLongEdge = 800;
+const double kMinAreaFrac = 0.05;
 
 class DetectionReport {
   const DetectionReport({
@@ -115,16 +118,20 @@ class DetectionReport {
     required this.elapsed,
     required this.strategy,
     required this.candidates,
+    this.ranked = const [],
   });
 
-  /// Normalised corners, or null when nothing document-like was found.
+  /// Normalised corners TL, TR, BR, BL, or null when nothing convincing.
   final Quad? quad;
   final double score;
   final Duration elapsed;
 
-  /// Which pass produced the winner: `edges`, `otsu-gray`, `otsu-sat`, or `none`.
+  /// Map that produced the winner: `edges`, `bright`, `lowsat`, or `none`.
   final String strategy;
   final int candidates;
+
+  /// Up to five best candidates, best first (used for magnetic corners).
+  final List<Quad> ranked;
 
   bool get found => quad != null;
 
@@ -134,259 +141,373 @@ class DetectionReport {
       'candidates=$candidates in ${elapsed.inMilliseconds} ms';
 }
 
-class _Candidate {
-  _Candidate(this.quad, this.score, this.strategy);
-  final Quad quad;
-  final double score;
-  final String strategy;
-}
+/// A point in pixels.
+typedef XY = ({double x, double y});
 
-/// Finds the document in [bgr]. Two passes (edges + regions), every contour
-/// considered, candidates scored by area × rectangularity (× aspect match when
-/// [aspectHint] is given). Works on a ~1000 px copy.
+/// Finds the document in [bgr] (upright BGR, any size).
+///
+/// [aspectHint] favours the ID-1 (1.585) or ID-3 (1.42) shape. When
+/// [searchArea] is given (normalised; the guide frame in ID / passport
+/// modes) that area plus a 20 % margin is searched first, then the photo.
 DetectionReport detectDocument(
   cv.Mat bgr, {
-  double minAreaFraction = 0.15,
   double? aspectHint,
+  ({double left, double top, double right, double bottom})? searchArea,
 }) {
   final sw = Stopwatch()..start();
-  final small = fitLongEdge(bgr, RenderPx.detectionLongEdge);
-  final w = small.cols.toDouble();
-  final h = small.rows.toDouble();
-  final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
-  final blurred = cv.gaussianBlur(gray, (5, 5), 0);
-  final kernel = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
-
-  final candidates = <_Candidate>[];
-
-  // ---- Pass 1: edges, thresholds from the median brightness.
-  final median = _medianOf(blurred);
-  final lo = math.max(0.0, 0.66 * median);
-  final hi = math.min(255.0, 1.33 * median);
-  final edges = cv.canny(blurred, lo, hi);
-  final closed = cv.morphologyEx(edges, cv.MORPH_CLOSE, kernel);
-  final dilated = cv.dilate(closed, kernel);
-  candidates.addAll(_collect(dilated, w, h, minAreaFraction, aspectHint, 'edges'));
-  edges.dispose();
-  closed.dispose();
-  dilated.dispose();
-
-  // ---- Pass 2: regions. Otsu on gray and on saturation (pale card on a dark
-  // table, or a coloured card on a white desk).
-  final (_, otsuGray) = cv.threshold(blurred, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-  final closedGray = cv.morphologyEx(otsuGray, cv.MORPH_CLOSE, kernel);
-  candidates.addAll(_collect(closedGray, w, h, minAreaFraction, aspectHint, 'otsu-gray'));
-  otsuGray.dispose();
-  closedGray.dispose();
-
-  final hsv = cv.cvtColor(small, cv.COLOR_BGR2HSV);
-  final hsvCh = cv.split(hsv);
-  final satBlur = cv.gaussianBlur(hsvCh[1], (5, 5), 0);
-  final (_, otsuSat) = cv.threshold(satBlur, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU);
-  final closedSat = cv.morphologyEx(otsuSat, cv.MORPH_CLOSE, kernel);
-  candidates.addAll(_collect(closedSat, w, h, minAreaFraction, aspectHint, 'otsu-sat'));
-  otsuSat.dispose();
-  closedSat.dispose();
-  satBlur.dispose();
-  hsvCh.dispose();
-  hsv.dispose();
-
-  kernel.dispose();
-  blurred.dispose();
-  gray.dispose();
-  disposeUnless(small, bgr);
-
+  if (searchArea != null) {
+    final mx = (searchArea.right - searchArea.left) * 0.2;
+    final my = (searchArea.bottom - searchArea.top) * 0.2;
+    final l = (searchArea.left - mx).clamp(0.0, 1.0);
+    final t = (searchArea.top - my).clamp(0.0, 1.0);
+    final r = (searchArea.right + mx).clamp(0.0, 1.0);
+    final b = (searchArea.bottom + my).clamp(0.0, 1.0);
+    final rx = (l * bgr.cols).floor();
+    final ry = (t * bgr.rows).floor();
+    final rw = ((r - l) * bgr.cols).floor();
+    final rh = ((b - t) * bgr.rows).floor();
+    if (rw > 16 && rh > 16) {
+      final roi = bgr.region(cv.Rect(rx, ry, rw, rh));
+      final local = roi.clone();
+      roi.dispose();
+      final inner = _detect(local, aspectHint);
+      local.dispose();
+      if (inner.found) {
+        Quad toFull(Quad q) => Quad(
+              tl: Pt((rx + q.tl.x * rw) / bgr.cols, (ry + q.tl.y * rh) / bgr.rows),
+              tr: Pt((rx + q.tr.x * rw) / bgr.cols, (ry + q.tr.y * rh) / bgr.rows),
+              br: Pt((rx + q.br.x * rw) / bgr.cols, (ry + q.br.y * rh) / bgr.rows),
+              bl: Pt((rx + q.bl.x * rw) / bgr.cols, (ry + q.bl.y * rh) / bgr.rows),
+            );
+        sw.stop();
+        return DetectionReport(
+          quad: toFull(inner.quad!),
+          score: inner.score,
+          elapsed: sw.elapsed,
+          strategy: '${inner.strategy} (guide area)',
+          candidates: inner.candidates,
+          ranked: inner.ranked.map(toFull).toList(),
+        );
+      }
+    }
+  }
+  final r = _detect(bgr, aspectHint);
   sw.stop();
-  if (candidates.isEmpty) {
-    return DetectionReport(
-      quad: null,
-      score: 0,
-      elapsed: sw.elapsed,
-      strategy: 'none',
-      candidates: 0,
-    );
-  }
-  candidates.sort((a, b) => b.score.compareTo(a.score));
-  final best = candidates.first;
   return DetectionReport(
-    quad: best.quad.clamp01(),
-    score: best.score,
+    quad: r.quad,
+    score: r.score,
     elapsed: sw.elapsed,
-    strategy: best.strategy,
-    candidates: candidates.length,
+    strategy: r.strategy,
+    candidates: r.candidates,
+    ranked: r.ranked,
   );
 }
 
-/// Convenience wrapper: just the quad (or null).
-Quad? detectDocumentQuad(cv.Mat bgr, {double minAreaFraction = 0.15, double? snapAspectRatio}) {
-  final r = detectDocument(bgr, minAreaFraction: minAreaFraction, aspectHint: snapAspectRatio);
-  if (r.quad == null) return null;
-  if (snapAspectRatio == null) return r.quad;
-  return snapQuadToAspect(r.quad!, snapAspectRatio, imageAspect: bgr.cols / bgr.rows).clamp01();
-}
-
-double _medianOf(cv.Mat gray) {
-  // Coarse histogram over a strided sample of the raw bytes; exact median
-  // isn't needed. Reading `data` once avoids one native call per pixel.
-  final hist = List<int>.filled(256, 0);
-  final cont = gray.isContinuous ? gray : gray.clone();
-  final data = cont.data;
-  final step = math.max(1, data.length ~/ 50000);
-  var n = 0;
-  for (var i = 0; i < data.length; i += step) {
-    hist[data[i]]++;
-    n++;
+DetectionReport _detect(cv.Mat bgr, double? target) {
+  final hFull = bgr.rows;
+  final wFull = bgr.cols;
+  var scale = kDetectLongEdge / math.max(hFull, wFull);
+  final cv.Mat small;
+  if (scale < 1) {
+    // Truncation like the reference's int(W * scale).
+    small = cv.resize(bgr, ((wFull * scale).toInt(), (hFull * scale).toInt()), interpolation: cv.INTER_AREA);
+  } else {
+    small = bgr.clone();
+    scale = 1;
   }
-  if (!identical(cont, gray)) cont.dispose();
-  var acc = 0;
-  for (var v = 0; v < 256; v++) {
-    acc += hist[v];
-    if (acc * 2 >= n) return v.toDouble();
-  }
-  return 128;
-}
+  final h = small.rows.toDouble();
+  final w = small.cols.toDouble();
+  final imgArea = h * w;
 
-List<_Candidate> _collect(
-  cv.Mat mask,
-  double w,
-  double h,
-  double minAreaFraction,
-  double? aspectHint,
-  String strategy,
-) {
-  final out = <_Candidate>[];
-  final (contours, hierarchy) = cv.findContours(mask, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
-  final imageArea = w * h;
-  for (var i = 0; i < contours.length; i++) {
-    final c = contours[i];
-    final area = cv.contourArea(c);
-    final areaFrac = area / imageArea;
-    if (areaFrac < minAreaFraction || areaFrac > 0.985) continue;
-
-    final peri = cv.arcLength(c, true);
-    final approx = cv.approxPolyDP(c, 0.02 * peri, true);
-    Quad? quad;
-    var shapePenalty = 1.0;
-    if (approx.length == 4) {
-      quad = _quadFrom(approx, w, h);
-    } else if (approx.length >= 5 && approx.length <= 10) {
-      // Rounded card corners / curled page: take the minimum-area rectangle.
-      final box = cv.boxPoints(cv.minAreaRect(c));
-      quad = Quad.fromUnordered([for (var j = 0; j < 4; j++) Pt(box[j].x / w, box[j].y / h)]);
-      box.dispose();
-      shapePenalty = 0.85;
+  final scored = <({List<XY> q, double score, String src})>[];
+  for (final (name, map) in _candidateMaps(small)) {
+    final retr = name == 'edges' ? cv.RETR_LIST : cv.RETR_EXTERNAL;
+    final (contours, hierarchy) = cv.findContours(map, retr, cv.CHAIN_APPROX_SIMPLE);
+    for (var i = 0; i < contours.length; i++) {
+      final c = contours[i];
+      final area = cv.contourArea(c);
+      if (area < kMinAreaFrac * imgArea) continue;
+      final raw = _quadFromContour(c);
+      if (raw == null) continue;
+      var q = orderCorners(raw);
+      if (name != 'edges') {
+        // Region maps sit slightly inside the real edge: push 2 % outward.
+        final cx = q.map((p) => p.x).reduce((a, b) => a + b) / 4;
+        final cy = q.map((p) => p.y).reduce((a, b) => a + b) / 4;
+        q = [
+          for (final p in q)
+            (
+              x: (cx + (p.x - cx) * 1.02).clamp(0.0, w - 1),
+              y: (cy + (p.y - cy) * 1.02).clamp(0.0, h - 1),
+            ),
+        ];
+      }
+      final qa = _polyArea(q);
+      final frac = qa / imgArea;
+      if (frac > 0.98) continue;
+      final m = 0.02 * math.max(w, h);
+      final onBorder = q.where((p) => p.x < m || p.y < m || p.x > w - 1 - m || p.y > h - 1 - m).length;
+      if (onBorder >= 3) continue;
+      final rect = cornerAnglesScore(q);
+      if (rect < 0.55) continue;
+      final solidity = math.min(1.0, area / math.max(1.0, qa));
+      var score = math.sqrt(frac) * rect * (0.5 + 0.5 * solidity);
+      if (target != null) {
+        final a = quadAspect(q);
+        score *= math.max(0.05, 1.0 - (a - target).abs() / target * 2.5);
+      }
+      scored.add((q: q, score: score, src: name));
     }
-    approx.dispose();
-    if (quad == null || !quad.isConvex || !_isReasonable(quad) || _isFrame(quad)) continue;
+    contours.dispose();
+    hierarchy.dispose();
+    map.dispose();
+  }
+  small.dispose();
 
-    // Rectangularity: contour area over its minimum-area rectangle.
-    final box = cv.boxPoints(cv.minAreaRect(c));
-    final bw = _dist(box[0], box[1]);
-    final bh = _dist(box[1], box[2]);
+  if (scored.isEmpty) {
+    return const DetectionReport(quad: null, score: 0, elapsed: Duration.zero, strategy: 'none', candidates: 0);
+  }
+  // Stable: the first candidate with the top score wins, as in the reference.
+  final ranked = [...scored]..sort((a, b) => b.score.compareTo(a.score));
+  var best = scored.first;
+  for (final s in scored) {
+    if (s.score > best.score) best = s;
+  }
+  Quad norm(List<XY> q) => Quad(
+        tl: Pt(q[0].x / scale / wFull, q[0].y / scale / hFull),
+        tr: Pt(q[1].x / scale / wFull, q[1].y / scale / hFull),
+        br: Pt(q[2].x / scale / wFull, q[2].y / scale / hFull),
+        bl: Pt(q[3].x / scale / wFull, q[3].y / scale / hFull),
+      );
+  return DetectionReport(
+    quad: norm(best.q),
+    score: best.score,
+    elapsed: Duration.zero,
+    strategy: best.src,
+    candidates: scored.length,
+    ranked: ranked.take(5).map((s) => norm(s.q)).toList(),
+  );
+}
+
+/// The three binary maps from the reference: edges, bright regions (Otsu on
+/// LAB-L) and low-saturation regions (inverse Otsu on HSV-S).
+List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
+  final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
+  final lab = cv.cvtColor(small, cv.COLOR_BGR2Lab);
+  final hsv = cv.cvtColor(small, cv.COLOR_BGR2HSV);
+  final maps = <(String, cv.Mat)>[];
+
+  // A) Edges with thresholds from the median brightness.
+  final blur = cv.gaussianBlur(gray, (5, 5), 0);
+  final m = medianOf(blur);
+  final lo = math.max(10.0, 0.66 * m).toInt();
+  final hi = math.min(255.0, math.max(40.0, 1.33 * m)).toInt();
+  final edges = cv.canny(blur, lo.toDouble(), hi.toDouble());
+  final k = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
+  final closed = cv.morphologyEx(edges, cv.MORPH_CLOSE, k, iterations: 2);
+  final dil = cv.dilate(closed, k);
+  // Close shapes that run off the photo (page partly outside the frame).
+  cv.rectangle(dil, cv.Rect(0, 0, dil.cols, dil.rows), cv.Scalar.all(255), thickness: 2);
+  maps.add(('edges', dil));
+  for (final x in [blur, edges, closed]) {
+    x.dispose();
+  }
+
+  final k2 = cv.getStructuringElement(cv.MORPH_RECT, (9, 9));
+  cv.Mat regions(cv.Mat channel, int type) {
+    final b = cv.gaussianBlur(channel, (7, 7), 0);
+    final (_, th) = cv.threshold(b, 0, 255, type | cv.THRESH_OTSU);
+    final opened = cv.morphologyEx(th, cv.MORPH_OPEN, k2);
+    final out = cv.morphologyEx(opened, cv.MORPH_CLOSE, k2, iterations: 2);
+    for (final x in [b, th, opened]) {
+      x.dispose();
+    }
+    return out;
+  }
+
+  // B) Pale paper / card on a darker surface.
+  final labCh = cv.split(lab);
+  maps.add(('bright', regions(labCh[0], cv.THRESH_BINARY)));
+  labCh.dispose();
+  // C) White / grey paper on a colourful surface.
+  final hsvCh = cv.split(hsv);
+  maps.add(('lowsat', regions(hsvCh[1], cv.THRESH_BINARY_INV)));
+  hsvCh.dispose();
+
+  for (final x in [gray, lab, hsv, k, k2]) {
+    x.dispose();
+  }
+  return maps;
+}
+
+/// Convex hull → approxPolyDP at growing ε → else the min-area rectangle when
+/// the hull fills it (rounded card corners, slightly bent page).
+List<XY>? _quadFromContour(cv.VecPoint c) {
+  final hullMat = cv.convexHull(c);
+  final hull = cv.VecPoint.fromMat(hullMat);
+  hullMat.dispose();
+  try {
+    final peri = cv.arcLength(hull, true);
+    for (final eps in const [0.02, 0.03, 0.04, 0.06, 0.08]) {
+      final approx = cv.approxPolyDP(hull, eps * peri, true);
+      if (approx.length == 4) {
+        final pts = [for (var j = 0; j < 4; j++) (x: approx[j].x.toDouble(), y: approx[j].y.toDouble())];
+        approx.dispose();
+        return pts;
+      }
+      approx.dispose();
+    }
+    final box = cv.boxPoints(cv.minAreaRect(hull));
+    final pts = [for (var j = 0; j < 4; j++) (x: box[j].x, y: box[j].y)];
     box.dispose();
-    final rectArea = bw * bh;
-    final rectangularity = rectArea <= 0 ? 0.0 : (area / rectArea).clamp(0.0, 1.0);
-
-    var score = areaFrac * rectangularity * shapePenalty;
-    if (aspectHint != null) {
-      final long = math.max(bw, bh);
-      final short = math.max(1e-6, math.min(bw, bh));
-      final ratio = long / short;
-      final target = aspectHint >= 1 ? aspectHint : 1 / aspectHint;
-      final mismatch = math.log(ratio / target).abs();
-      score *= 0.5 + 0.5 * (1 - mismatch.clamp(0.0, 1.0));
-    }
-    out.add(_Candidate(quad, score, strategy));
+    if (cv.contourArea(hull) / math.max(1.0, _polyArea(pts)) > 0.90) return pts;
+    return null;
+  } finally {
+    hull.dispose();
   }
-  contours.dispose();
-  hierarchy.dispose();
-  return out;
 }
 
-double _dist(cv.Point2f a, cv.Point2f b) =>
-    math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
-
-Quad _quadFrom(cv.VecPoint approx, double w, double h) => Quad.fromUnordered([
-      for (var j = 0; j < 4; j++) Pt(approx[j].x / w, approx[j].y / h),
-    ]);
-
-/// Rejects quads that are too thin or whose opposite edges differ wildly
-/// (usually a shadow or a table edge, not a document).
-bool _isReasonable(Quad q) {
-  final top = q.tl.distanceTo(q.tr);
-  final bottom = q.bl.distanceTo(q.br);
-  final left = q.tl.distanceTo(q.bl);
-  final right = q.tr.distanceTo(q.br);
-  if (top < 0.1 || bottom < 0.1 || left < 0.1 || right < 0.1) return false;
-  double ratio(double a, double b) => math.max(a, b) / math.max(1e-6, math.min(a, b));
-  return ratio(top, bottom) < 2.5 && ratio(left, right) < 2.5;
+/// TL, TR, BR, BL exactly as the reference: argmin(x+y), argmin(y−x),
+/// argmax(x+y), argmax(y−x).
+List<XY> orderCorners(List<XY> pts) {
+  XY by(double Function(XY) f, {required bool min}) =>
+      pts.reduce((a, b) => (min ? f(b) < f(a) : f(b) > f(a)) ? b : a);
+  return [
+    by((p) => p.x + p.y, min: true),
+    by((p) => p.y - p.x, min: true),
+    by((p) => p.x + p.y, min: false),
+    by((p) => p.y - p.x, min: false),
+  ];
 }
 
-/// The photo border itself (3+ corners on the image edge) is not a document.
-bool _isFrame(Quad q) {
-  bool onEdge(Pt p) => p.x < 0.01 || p.x > 0.99 || p.y < 0.01 || p.y > 0.99;
-  return q.points.where(onEdge).length >= 3;
+/// 1.0 = perfect rectangle, lower = more skewed.
+double cornerAnglesScore(List<XY> q) {
+  var sum = 0.0;
+  for (var i = 0; i < 4; i++) {
+    final a = q[(i + 3) % 4];
+    final b = q[i];
+    final c = q[(i + 1) % 4];
+    final v1x = a.x - b.x;
+    final v1y = a.y - b.y;
+    final v2x = c.x - b.x;
+    final v2y = c.y - b.y;
+    final n = math.sqrt(v1x * v1x + v1y * v1y) * math.sqrt(v2x * v2x + v2y * v2y) + 1e-6;
+    sum += ((v1x * v2x + v1y * v2y) / n).abs();
+  }
+  return math.max(0.0, 1.0 - 2.0 * sum / 4);
 }
 
-/// Adjusts the quad so its warped output has [aspect] (width / height),
-/// keeping the centre and the dominant orientation. Used for ID card and
-/// passport modes where the physical size is known.
-Quad snapQuadToAspect(Quad q, double aspect, {required double imageAspect}) {
-  Pt toPx(Pt p) => Pt(p.x * imageAspect, p.y);
-  Pt fromPx(Pt p) => Pt(p.x / imageAspect, p.y);
-  final pts = q.points.map(toPx).toList();
-  final cx = pts.map((p) => p.x).reduce((a, b) => a + b) / 4;
-  final cy = pts.map((p) => p.y).reduce((a, b) => a + b) / 4;
-  final avgW = (pts[0].distanceTo(pts[1]) + pts[3].distanceTo(pts[2])) / 2;
-  final avgH = (pts[0].distanceTo(pts[3]) + pts[1].distanceTo(pts[2])) / 2;
-  final landscape = avgW >= avgH;
-  final targetAspect = landscape ? aspect : 1 / aspect;
-  final area = avgW * avgH;
-  final newW = math.sqrt(area * targetAspect);
-  final newH = newW / targetAspect;
-  final angle = math.atan2(pts[1].y - pts[0].y, pts[1].x - pts[0].x);
-  final cosA = math.cos(angle);
-  final sinA = math.sin(angle);
-  Pt corner(double dx, double dy) =>
-      Pt(cx + dx * cosA - dy * sinA, cy + dx * sinA + dy * cosA);
-  final hw = newW / 2;
-  final hh = newH / 2;
-  return Quad(
-    tl: fromPx(corner(-hw, -hh)),
-    tr: fromPx(corner(hw, -hh)),
-    br: fromPx(corner(hw, hh)),
-    bl: fromPx(corner(-hw, hh)),
-  );
+double quadAspect(List<XY> q) {
+  double d(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  final w = (d(q[1], q[0]) + d(q[2], q[3])) / 2;
+  final h = (d(q[3], q[0]) + d(q[2], q[1])) / 2;
+  return math.max(w, h) / math.max(1e-6, math.min(w, h));
 }
+
+double _polyArea(List<XY> q) {
+  var s = 0.0;
+  for (var i = 0; i < q.length; i++) {
+    final a = q[i];
+    final b = q[(i + 1) % q.length];
+    s += a.x * b.y - b.x * a.y;
+  }
+  return s.abs() / 2;
+}
+
+/// Exact median of an 8-bit single-channel image (numpy's definition: the
+/// mean of the two middle values when the count is even).
+double medianOf(cv.Mat gray) {
+  final hist = histogram8(gray);
+  var n = 0;
+  for (final c in hist) {
+    n += c;
+  }
+  if (n == 0) return 0;
+  int valueAt(int k) {
+    var acc = 0;
+    for (var v = 0; v < 256; v++) {
+      acc += hist[v];
+      if (acc > k) return v;
+    }
+    return 255;
+  }
+
+  if (n.isOdd) return valueAt(n ~/ 2).toDouble();
+  return (valueAt(n ~/ 2 - 1) + valueAt(n ~/ 2)) / 2;
+}
+
+/// numpy.percentile (linear interpolation) of an 8-bit single channel.
+double percentile8(cv.Mat ch, double pct) {
+  final hist = histogram8(ch);
+  var n = 0;
+  for (final c in hist) {
+    n += c;
+  }
+  if (n == 0) return 0;
+  final idx = pct / 100 * (n - 1);
+  final lo = idx.floor();
+  final hi = idx.ceil();
+  int valueAt(int k) {
+    var acc = 0;
+    for (var v = 0; v < 256; v++) {
+      acc += hist[v];
+      if (acc > k) return v;
+    }
+    return 255;
+  }
+
+  final a = valueAt(lo);
+  final b = valueAt(hi);
+  return a + (b - a) * (idx - lo);
+}
+
+List<int> histogram8(cv.Mat ch) {
+  final hist = List<int>.filled(256, 0);
+  final cont = ch.isContinuous ? ch : ch.clone();
+  final data = cont.data;
+  for (var i = 0; i < data.length; i++) {
+    hist[data[i]]++;
+  }
+  if (!identical(cont, ch)) cont.dispose();
+  return hist;
+}
+
+/// Fallback when nothing is found: the guide frame (ID / passport), else a
+/// 5 % inset — never the exact full frame.
+Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
 
 // ---------------------------------------------------------------------------
 // Warp / rotate
 // ---------------------------------------------------------------------------
 
-/// Perspective-warps [src] to [quad] at the quad's own resolution (average
-/// edge length in source pixels). Never enlarges beyond that.
-cv.Mat warpToQuad(cv.Mat src, Quad quad) {
+/// Perspective-warps [src] to [quad] at the quad's own resolution — port of
+/// the reference `warp()`. [aspect] (ID / passport) forces the output to the
+/// real card shape. Cubic sampling, replicated border.
+cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
   final w = src.cols.toDouble();
   final h = src.rows.toDouble();
-  cv.Point2f px(Pt p) => cv.Point2f(p.x * w, p.y * h);
-  final tl = px(quad.tl);
-  final tr = px(quad.tr);
-  final br = px(quad.br);
-  final bl = px(quad.bl);
-  final outW = math.max(_dist(tl, tr), _dist(bl, br));
-  final outH = math.max(_dist(tl, bl), _dist(tr, br));
-  final ow = math.max(1, outW.round());
-  final oh = math.max(1, outH.round());
-
-  final srcPts = cv.VecPoint2f.fromList([tl, tr, br, bl]);
+  final q = orderCorners([for (final p in quad.points) (x: p.x * w, y: p.y * h)]);
+  double d(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  var wt = math.max(d(q[2], q[3]), d(q[1], q[0])).toInt();
+  var ht = math.max(d(q[1], q[2]), d(q[0], q[3])).toInt();
+  if (aspect != null) {
+    if (wt >= ht) {
+      ht = (wt / aspect).round();
+    } else {
+      wt = (ht / aspect).round();
+    }
+  }
+  wt = math.max(1, wt);
+  ht = math.max(1, ht);
+  final srcPts = cv.VecPoint2f.fromList([for (final p in q) cv.Point2f(p.x, p.y)]);
   final dstPts = cv.VecPoint2f.fromList([
     cv.Point2f(0, 0),
-    cv.Point2f(ow - 1.0, 0),
-    cv.Point2f(ow - 1.0, oh - 1.0),
-    cv.Point2f(0, oh - 1.0),
+    cv.Point2f(wt - 1.0, 0),
+    cv.Point2f(wt - 1.0, ht - 1.0),
+    cv.Point2f(0, ht - 1.0),
   ]);
   final m = cv.getPerspectiveTransform2f(srcPts, dstPts);
-  final out = cv.warpPerspective(src, m, (ow, oh), flags: cv.INTER_LINEAR);
+  final out = cv.warpPerspective(src, m, (wt, ht), flags: cv.INTER_CUBIC, borderMode: cv.BORDER_REPLICATE);
   m.dispose();
   srcPts.dispose();
   dstPts.dispose();
@@ -430,33 +551,32 @@ cv.Mat cropAndRotate(cv.Mat src, PageEdits edits, {int? maxLongEdge}) {
       math.max(src.cols, src.rows) > maxLongEdge * 2) {
     step(fitLongEdge(cur, maxLongEdge * 2));
   }
-  if (crop != null) step(warpToQuad(cur, crop));
+  if (crop != null) step(warpToQuad(cur, crop, aspect: edits.outputAspect));
   if (maxLongEdge != null) step(fitLongEdge(cur, maxLongEdge));
   step(rotateQuarterTurns(cur, edits.quarterTurns));
   return cur;
 }
 
 // ---------------------------------------------------------------------------
-// Filters (all take a cropped BGR image, return a new Mat)
+// Filters — port of the reference filters (always applied AFTER the warp).
+// Every function returns a new Mat and frees all of its intermediates.
 // ---------------------------------------------------------------------------
 
-/// Light speckle removal.
-cv.Mat denoise(cv.Mat bgr) => cv.medianBlur(bgr, 3);
+/// numpy's `astype(np.uint8)` truncates; OpenCV's convertTo rounds. Shifting
+/// by just under half a level makes OpenCV truncate too, so the Dart output
+/// matches the reference instead of drifting half a level per step.
+const double _trunc = -0.4999;
 
-/// Gray-world white balance blended at [strength], with gains clamped to
-/// ±15% so a coloured document (a green card, a blue form) keeps its colour.
-cv.Mat whiteBalance(cv.Mat bgr, {double strength = 0.5}) {
+/// Gray-world white balance, blended at [strength].
+cv.Mat grayWorldWb(cv.Mat bgr, double strength) {
   final m = cv.mean(bgr);
-  final avg = (m.val1 + m.val2 + m.val3) / 3;
-  if (avg <= 0) return bgr.clone();
-  final gains = [m.val1, m.val2, m.val3]
-      .map((v) => v <= 0 ? 1.0 : (1 + strength * (avg / v - 1)).clamp(0.85, 1.15))
-      .toList();
+  final means = [m.val1, m.val2, m.val3];
+  final avg = (means[0] + means[1] + means[2]) / 3;
   final ch = cv.split(bgr);
-  final scaled = <cv.Mat>[];
-  for (var i = 0; i < 3; i++) {
-    scaled.add(cv.convertScaleAbs(ch[i], alpha: gains[i]));
-  }
+  final scaled = <cv.Mat>[
+    for (var i = 0; i < 3; i++)
+      ch[i].convertTo(cv.MatType.CV_8UC1, alpha: 1 + (avg / math.max(means[i], 1.0) - 1) * strength, beta: _trunc),
+  ];
   final out = cv.merge(cv.VecMat.fromList(scaled));
   for (final s in scaled) {
     s.dispose();
@@ -465,57 +585,17 @@ cv.Mat whiteBalance(cv.Mat bgr, {double strength = 0.5}) {
   return out;
 }
 
-/// Shadow correction: divide every channel by ONE blurred estimate of the
-/// illumination (from luminance), so chroma is untouched. The divisor is
-/// clamped at [floor] so dark regions aren't amplified into speckle, and the
-/// result is blended with the input at [blend] (≤ 0.7).
-cv.Mat removeShadows(cv.Mat bgr, {int floor = 40, double blend = 0.7}) {
-  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
-  final kernel = cv.getStructuringElement(cv.MORPH_RECT, (7, 7));
-  final blurK = _oddKernel(math.max(bgr.cols, bgr.rows) ~/ 40);
-  final dilated = cv.dilate(gray, kernel);
-  final bg = cv.medianBlur(dilated, blurK);
-  final floorMat = cv.Mat.fromScalar(bgr.rows, bgr.cols, cv.MatType.CV_8UC1, cv.Scalar.all(floor.toDouble()));
-  final bgClamped = cv.max(bg, floorMat);
-
-  final channels = cv.split(bgr);
-  final outChannels = <cv.Mat>[];
-  for (var i = 0; i < channels.length; i++) {
-    outChannels.add(cv.divide(channels[i], bgClamped, scale: 255));
-  }
-  final corrected = cv.merge(cv.VecMat.fromList(outChannels));
-  final out = cv.addWeighted(corrected, blend, bgr, 1 - blend, 0);
-  for (final m in outChannels) {
-    m.dispose();
-  }
-  corrected.dispose();
-  channels.dispose();
-  bgClamped.dispose();
-  floorMat.dispose();
-  bg.dispose();
-  dilated.dispose();
-  kernel.dispose();
-  gray.dispose();
-  return out;
-}
-
-int _oddKernel(int k) {
-  final v = k.clamp(3, 51);
-  return v.isOdd ? v : v + 1;
-}
-
-/// Mild CLAHE on the L channel of Lab.
-cv.Mat claheOnLuminance(cv.Mat bgr, {double clipLimit = 1.8}) {
+cv.Mat claheL(cv.Mat bgr, double clip) {
   final lab = cv.cvtColor(bgr, cv.COLOR_BGR2Lab);
   final ch = cv.split(lab);
-  final clahe = cv.createCLAHE(clipLimit: clipLimit, tileGridSize: (8, 8));
+  final clahe = cv.createCLAHE(clipLimit: clip, tileGridSize: (8, 8));
   final l2 = clahe.apply(ch[0]);
   final merged = cv.merge(cv.VecMat.fromList([l2, ch[1], ch[2]]));
   final out = cv.cvtColor(merged, cv.COLOR_Lab2BGR);
-  l2.dispose();
-  merged.dispose();
+  for (final x in [l2, merged, lab]) {
+    x.dispose();
+  }
   ch.dispose();
-  lab.dispose();
   clahe.dispose();
   return out;
 }
@@ -523,39 +603,156 @@ cv.Mat claheOnLuminance(cv.Mat bgr, {double clipLimit = 1.8}) {
 cv.Mat saturate(cv.Mat bgr, double factor) {
   final hsv = cv.cvtColor(bgr, cv.COLOR_BGR2HSV);
   final ch = cv.split(hsv);
-  final s2 = cv.convertScaleAbs(ch[1], alpha: factor);
+  final s2 = ch[1].convertTo(cv.MatType.CV_8UC1, alpha: factor, beta: _trunc);
   final merged = cv.merge(cv.VecMat.fromList([ch[0], s2, ch[2]]));
   final out = cv.cvtColor(merged, cv.COLOR_HSV2BGR);
-  s2.dispose();
-  merged.dispose();
+  for (final x in [s2, merged, hsv]) {
+    x.dispose();
+  }
   ch.dispose();
-  hsv.dispose();
   return out;
 }
 
-/// Auto (colour, default): denoise → white balance → clamped shadow
-/// correction → mild CLAHE → +10% saturation. Keeps stamps, logos and photos
-/// in colour.
-cv.Mat autoFilter(cv.Mat bgr) {
-  final clean = denoise(bgr);
-  final balanced = whiteBalance(clean);
-  final noShadow = removeShadows(balanced);
-  final contrasty = claheOnLuminance(noShadow);
-  final out = saturate(contrasty, 1.10);
+cv.Mat unsharp(cv.Mat bgr, double amount, double sigma) {
+  final blur = cv.gaussianBlur(bgr, (0, 0), sigma);
+  final out = cv.addWeighted(bgr, 1 + amount, blur, -amount, 0);
+  blur.dispose();
+  return out;
+}
+
+/// Non-local-means denoise on a ≤ 2000 px copy; for larger inputs the fine
+/// detail of the original (minus its noise-scale blur) is added back.
+cv.Mat denoise(cv.Mat bgr) {
+  final h = bgr.rows;
+  final w = bgr.cols;
+  final s = math.min(1.0, 2000.0 / math.max(h, w));
+  final small = s < 1
+      ? cv.resize(bgr, ((w * s).toInt(), (h * s).toInt()), interpolation: cv.INTER_AREA)
+      : bgr;
+  cv.Mat clean;
+  try {
+    clean = cv.fastNlMeansDenoisingColored(small, h: 5, hColor: 5, templateWindowSize: 7, searchWindowSize: 21);
+  } catch (_) {
+    clean = cv.bilateralFilter(small, 7, 40, 40);
+  }
+  if (s >= 1) return clean;
+  small.dispose();
+  final up = cv.resize(clean, (w, h), interpolation: cv.INTER_CUBIC);
   clean.dispose();
-  balanced.dispose();
-  noShadow.dispose();
-  contrasty.dispose();
+  final blur = cv.gaussianBlur(bgr, (0, 0), 1.5);
+  final detail = cv.subtract(bgr, blur, dtype: cv.MatType.CV_16S);
+  final half = detail.convertTo(cv.MatType.CV_16SC3, alpha: 0.5);
+  final up16 = up.convertTo(cv.MatType.CV_16SC3);
+  final sum = cv.add(up16, half);
+  final out = sum.convertTo(cv.MatType.CV_8UC3);
+  for (final x in [up, blur, detail, half, up16, sum]) {
+    x.dispose();
+  }
   return out;
 }
 
-/// Auto + 25% saturation and a little contrast.
-cv.Mat colorBoostFilter(cv.Mat bgr) {
-  final auto = autoFilter(bgr);
-  final sat = saturate(auto, 1.25);
-  final out = cv.convertScaleAbs(sat, alpha: 1.1, beta: -12);
-  auto.dispose();
+/// Paper brightness (illumination) without the text, as float32, same size.
+cv.Mat background(cv.Mat ch8) {
+  final h = ch8.rows;
+  final w = ch8.cols;
+  final s = 400.0 / math.max(h, w);
+  final small = cv.resize(ch8, (math.max(1, (w * s).toInt()), math.max(1, (h * s).toInt())), interpolation: cv.INTER_AREA);
+  final k = cv.getStructuringElement(cv.MORPH_RECT, (9, 9));
+  final dil = cv.dilate(small, k);
+  final med = cv.medianBlur(dil, 21);
+  final f = med.convertTo(cv.MatType.CV_32FC1);
+  final g = cv.gaussianBlur(f, (0, 0), 6);
+  final out = cv.resize(g, (w, h), interpolation: cv.INTER_CUBIC);
+  for (final x in [small, k, dil, med, f, g]) {
+    x.dispose();
+  }
+  return out;
+}
+
+/// `f / max(bg, floor) * scale` blended with `f`, per channel, as uint8.
+cv.Mat _normalizeIllumination(cv.Mat ch8, {required double scale, double blend = 1.0}) {
+  final bg = background(ch8);
+  final floor = cv.Mat.fromScalar(bg.rows, bg.cols, cv.MatType.CV_32FC1, cv.Scalar.all(40));
+  final bgc = cv.max(bg, floor);
+  final f = ch8.convertTo(cv.MatType.CV_32FC1);
+  final norm = cv.divide(f, bgc, scale: scale);
+  final mixed = blend >= 1 ? norm : cv.addWeighted(norm, blend, f, 1 - blend, 0);
+  final out = mixed.convertTo(cv.MatType.CV_8UC1, beta: _trunc);
+  for (final x in [bg, floor, bgc, f, norm]) {
+    x.dispose();
+  }
+  if (!identical(mixed, norm)) mixed.dispose();
+  return out;
+}
+
+/// Stretch the L channel so [loPct]..[hiPct] spans 0..[span].
+cv.Mat levelsL(cv.Mat bgr, double loPct, double hiPct, {double span = 252}) {
+  final lab = cv.cvtColor(bgr, cv.COLOR_BGR2Lab);
+  final ch = cv.split(lab);
+  final lo = percentile8(ch[0], loPct);
+  final hi = percentile8(ch[0], hiPct);
+  final k = span / math.max(1.0, hi - lo);
+  final l2 = ch[0].convertTo(cv.MatType.CV_8UC1, alpha: k, beta: -lo * k + _trunc);
+  final merged = cv.merge(cv.VecMat.fromList([l2, ch[1], ch[2]]));
+  final out = cv.cvtColor(merged, cv.COLOR_Lab2BGR);
+  for (final x in [l2, merged, lab]) {
+    x.dispose();
+  }
+  ch.dispose();
+  return out;
+}
+
+/// "Auto (colour)": clean, bright page, colours kept. For paper documents.
+cv.Mat autoFilter(cv.Mat bgr) {
+  final dn = denoise(bgr);
+  final wb = grayWorldWb(dn, 0.6);
+  dn.dispose();
+  final ch = cv.split(wb);
+  final norm = [for (var i = 0; i < 3; i++) _normalizeIllumination(ch[i], scale: 245, blend: 0.75)];
+  ch.dispose();
+  wb.dispose();
+  final merged = cv.merge(cv.VecMat.fromList(norm));
+  for (final n in norm) {
+    n.dispose();
+  }
+  final lv = levelsL(merged, 1, 99.5); // global contrast; CLAHE here caused banding
+  merged.dispose();
+  final sat = saturate(lv, 1.10);
+  lv.dispose();
+  final out = unsharp(sat, 0.35, 1.2);
   sat.dispose();
+  return out;
+}
+
+/// "ID colour" (default in ID / passport): no background whitening — a card
+/// is not white paper. Clean, sharp, true colours.
+cv.Mat idColorFilter(cv.Mat bgr) {
+  final dn = denoise(bgr);
+  final wb = grayWorldWb(dn, 0.5);
+  dn.dispose();
+  final cl = claheL(wb, 1.6);
+  wb.dispose();
+  final sat = saturate(cl, 1.15);
+  cl.dispose();
+  final lv = levelsL(sat, 1, 99, span: 250);
+  sat.dispose();
+  final out = unsharp(lv, 0.6, 1.0);
+  lv.dispose();
+  return out;
+}
+
+/// "B&W print": pure black text on white, for photocopies.
+cv.Mat bwPrintFilter(cv.Mat bgr) {
+  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
+  final smooth = cv.bilateralFilter(gray, 5, 30, 30);
+  final norm = _normalizeIllumination(smooth, scale: 255);
+  final block = math.max(15, (math.min(gray.rows, gray.cols) ~/ 40) | 1);
+  final bw = cv.adaptiveThreshold(norm, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 12);
+  final med = cv.medianBlur(bw, 3);
+  final out = cv.cvtColor(med, cv.COLOR_GRAY2BGR);
+  for (final x in [gray, smooth, norm, bw, med]) {
+    x.dispose();
+  }
   return out;
 }
 
@@ -577,35 +774,66 @@ cv.Mat grayscaleFilter(cv.Mat bgr) {
   return out;
 }
 
-/// gray → normalise → adaptive threshold (block ≈ width / 40, odd; C 12) →
-/// median 3. The only pure black-and-white filter.
-cv.Mat bwPrintFilter(cv.Mat bgr) {
-  final gray = _normalizedGray(bgr);
-  final block = _oddKernel(gray.cols ~/ 40);
-  final bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 12);
-  final denoised = cv.medianBlur(bw, 3);
-  final out = cv.cvtColor(denoised, cv.COLOR_GRAY2BGR);
-  gray.dispose();
-  bw.dispose();
-  denoised.dispose();
+/// Auto + 25 % saturation and a little contrast.
+cv.Mat colorBoostFilter(cv.Mat bgr) {
+  final auto = autoFilter(bgr);
+  final sat = saturate(auto, 1.25);
+  final out = sat.convertTo(cv.MatType.CV_8UC3, alpha: 1.1, beta: -12);
+  auto.dispose();
+  sat.dispose();
   return out;
 }
 
 cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
       FilterType.original => bgr.clone(),
       FilterType.auto => autoFilter(bgr),
+      FilterType.idColor => idColorFilter(bgr),
       FilterType.colorBoost => colorBoostFilter(bgr),
       FilterType.grayscale => grayscaleFilter(bgr),
       FilterType.bwPrint => bwPrintFilter(bgr),
     };
 
-/// Applies the brightness / contrast sliders as `a·x + b`, clamped to 0..255
-/// (not `convertScaleAbs`, whose absolute value turned dark pixels grey when
-/// brightness was negative). Same mapping as the live preview matrix.
+/// Applies the brightness / contrast sliders as `a·x + b`, clamped to 0..255.
+/// Same mapping as the live preview matrix.
 cv.Mat brightnessContrast(cv.Mat bgr, PageEdits edits) {
   if (!edits.hasSliders) return bgr.clone();
   final t = edits.sliderTransform;
   return bgr.convertTo(cv.MatType.CV_8UC3, alpha: t.alpha, beta: t.beta);
+}
+
+/// Dedicated image for text recognition (never the user's filter).
+cv.Mat ocrImage(cv.Mat warpedBgr) {
+  final gray = cv.cvtColor(warpedBgr, cv.COLOR_BGR2GRAY);
+  final smooth = cv.bilateralFilter(gray, 5, 30, 30);
+  final clahe = cv.createCLAHE(clipLimit: 1.8, tileGridSize: (8, 8));
+  final out = clahe.apply(smooth);
+  gray.dispose();
+  smooth.dispose();
+  clahe.dispose();
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// Capture checks
+// ---------------------------------------------------------------------------
+
+/// Variance of the Laplacian on a 1000 px copy (reference `sharpness()`), and
+/// the mean brightness of that copy. Low sharpness = blurry; low brightness =
+/// dark. Thresholds live in `CaptureChecks`.
+({double sharpness, double brightness}) captureStats(cv.Mat bgr) {
+  final s = 1000.0 / math.max(bgr.rows, bgr.cols);
+  final small = cv.resize(bgr, ((bgr.cols * s).toInt(), (bgr.rows * s).toInt()));
+  final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
+  final lap = cv.laplacian(gray, cv.MatType.CV_64F);
+  final (mean, std) = cv.meanStdDev(lap);
+  final variance = std.val1 * std.val1;
+  final brightness = cv.mean(gray).val1;
+  for (final x in [small, gray, lap]) {
+    x.dispose();
+  }
+  mean.dispose();
+  std.dispose();
+  return (sharpness: variance, brightness: brightness);
 }
 
 // ---------------------------------------------------------------------------
@@ -625,48 +853,102 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   return out;
 }
 
-/// Dedicated OCR image: crop + rotate at full resolution → gray → mild
-/// contrast → light denoise. Never the user's chosen filter.
+/// Dedicated OCR image: crop + rotate at full resolution, then the
+/// reference `ocr_image()`. Never the user's chosen filter.
 cv.Mat renderForOcr(String path, PageEdits edits) {
   final img = readUpright(path);
   final cropped = cropAndRotate(img, edits);
   disposeUnless(img, cropped);
-  final gray = _normalizedGray(cropped);
+  final out = ocrImage(cropped);
   cropped.dispose();
-  final clahe = cv.createCLAHE(clipLimit: 1.5, tileGridSize: (8, 8));
-  final contrasty = clahe.apply(gray);
-  final out = cv.medianBlur(contrasty, 3);
-  clahe.dispose();
-  gray.dispose();
-  contrasty.dispose();
   return out;
 }
 
-/// Ingest: one decode per captured / imported photo. Writes the upright
-/// original (long edge ≤ [maxOriginal]) and the editor's base preview, and
-/// detects the document on that preview. Returns the detection report.
-DetectionReport ingest({
+class IngestReport {
+  const IngestReport({
+    required this.detection,
+    required this.sharpness,
+    required this.brightness,
+    required this.width,
+    required this.height,
+    required this.decodeScale,
+  });
+
+  final DetectionReport detection;
+
+  /// Laplacian variance on a 1000 px copy; low = blurry.
+  final double sharpness;
+
+  /// Mean gray level 0..255; low = dark.
+  final double brightness;
+
+  /// Original pixel size (upright), from the JPEG header when available.
+  final int width;
+  final int height;
+
+  /// 1 = full decode, 2 / 4 / 8 = reduced decode (big photo or low memory).
+  final int decodeScale;
+}
+
+/// Ingest: one decode per captured / imported photo. The original file is
+/// NOT touched (no re-encode, no downscale); this writes the editor's
+/// preview, detects the document on it and measures sharpness / brightness.
+///
+/// Decodes at 1/2 – 1/8 scale when the photo is much larger than the preview,
+/// and retries at a smaller scale if decoding fails (low memory) instead of
+/// failing the scan.
+IngestReport ingest({
   required String src,
-  required String originalOut,
   required String previewOut,
-  required int maxOriginal,
   required int previewLongEdge,
   double? aspectHint,
+  ({double left, double top, double right, double bottom})? searchArea,
 }) {
-  final img = readUprightAtMost(src, maxOriginal);
-  final capped = fitLongEdge(img, maxOriginal);
-  final preview = fitLongEdge(capped, previewLongEdge);
+  final header = jpegSize(src);
+  final (img, scale) = _decodeForPreview(src, previewLongEdge, header);
+  final preview = fitLongEdge(img, previewLongEdge);
   try {
-    File(originalOut).parent.createSync(recursive: true);
-    writeJpeg(capped, originalOut, quality: 95);
     File(previewOut).parent.createSync(recursive: true);
     writeJpeg(preview, previewOut, quality: 85);
-    return detectDocument(preview, aspectHint: aspectHint);
+    final detection = detectDocument(preview, aspectHint: aspectHint, searchArea: searchArea);
+    final stats = captureStats(preview);
+    // EXIF may swap the header's width and height; the decoded image is
+    // upright, so take the orientation from it.
+    final long = header == null ? math.max(img.cols, img.rows) * scale : math.max(header.width, header.height);
+    final short = header == null ? math.min(img.cols, img.rows) * scale : math.min(header.width, header.height);
+    final landscape = img.cols >= img.rows;
+    return IngestReport(
+      detection: detection,
+      sharpness: stats.sharpness,
+      brightness: stats.brightness,
+      width: landscape ? long : short,
+      height: landscape ? short : long,
+      decodeScale: scale,
+    );
   } finally {
-    disposeUnless(preview, capped);
-    disposeUnless(capped, img);
+    disposeUnless(preview, img);
     img.dispose();
   }
+}
+
+(cv.Mat, int) _decodeForPreview(String src, int target, ({int width, int height})? header) {
+  const flagsByScale = {1: cv.IMREAD_COLOR, 2: cv.IMREAD_REDUCED_COLOR_2, 4: cv.IMREAD_REDUCED_COLOR_4, 8: cv.IMREAD_REDUCED_COLOR_8};
+  var scale = 1;
+  if (header != null) {
+    final long = math.max(header.width, header.height);
+    while (scale < 8 && long / (scale * 2) >= target) {
+      scale *= 2;
+    }
+  }
+  Object? lastError;
+  for (var s = scale; s <= 8; s *= 2) {
+    try {
+      return (readUpright(src, flags: flagsByScale[s]!), s);
+    } catch (e) {
+      lastError = e; // out of memory or a partial file: try smaller
+    }
+  }
+  throw StateError('Could not decode $src: $lastError');
 }
 
 /// Enhance preview without sliders (those are applied live in the UI).
@@ -679,7 +961,7 @@ cv.Mat renderLook(String originalPath, PageEdits edits, {required String workPat
   if (cached) {
     work = readUpright(workPath);
   } else {
-    final img = readUpright(originalPath);
+    final img = readUprightAtMost(originalPath, previewLongEdge * 2);
     final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
     if (identical(cropped, img)) {
       work = img;

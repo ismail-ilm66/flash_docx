@@ -50,7 +50,7 @@ Future<PageSource?> pickPageSource(BuildContext context, {bool camera = true}) {
 Future<List<ScanPage>?> collectNewPages(BuildContext context, {required ScanMode mode}) async {
   final source = await pickPageSource(context);
   if (source == null || !context.mounted) return null;
-  final captureMode = mode == ScanMode.single ? ScanMode.batch : mode;
+  final captureMode = mode;
   if (source == PageSource.camera) {
     return context.push<List<ScanPage>>(
       Routes.camera,

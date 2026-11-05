@@ -444,6 +444,7 @@ class _FilterSwatch extends StatelessWidget {
   static (Color paper, Color ink) _tone(FilterType f) => switch (f) {
     FilterType.original => (const Color(0xFFE9E3D8), const Color(0xFF8E9196)),
     FilterType.auto => (const Color(0xFFFFFFFF), const Color(0xFF4A4D55)),
+    FilterType.idColor => (const Color(0xFFE3EEE6), const Color(0xFF2E5B45)),
     FilterType.colorBoost => (const Color(0xFFFFFDF6), const Color(0xFF24406E)),
     FilterType.grayscale => (const Color(0xFFF2F2F2), const Color(0xFF6B6B6B)),
     FilterType.bwPrint => (const Color(0xFFFFFFFF), const Color(0xFF000000)),

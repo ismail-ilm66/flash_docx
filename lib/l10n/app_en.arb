@@ -13,8 +13,7 @@
   "homeImport": "Import",
   "homeImportGallery": "From gallery",
   "homeImportFiles": "From files",
-  "modeSingle": "Single",
-  "modeBatch": "Batch",
+  "modeDocument": "Document",
   "modeIdCard": "ID card",
   "modePassport": "Passport",
   "activityCreated": "Scanned",
@@ -38,9 +37,8 @@
   "cameraGuideFront": "Front side",
   "cameraGuideBack": "Back side",
   "cameraGuidePassport": "Passport data page",
-  "cameraGuideSingle": "Fit the document in the frame",
-  "cameraGuideBatch": "Page {n}",
-  "@cameraGuideBatch": {
+  "cameraGuideDocument": "Page {n} · hold the phone flat over the page",
+  "@cameraGuideDocument": {
     "placeholders": {
       "n": {
         "type": "int"
@@ -72,6 +70,7 @@
   "filterAuto": "Auto",
   "filterColorBoost": "Color boost",
   "filterGrayscale": "Grayscale",
+  "filterIdColor": "ID colour",
   "filterBwPrint": "B&W print",
   "viewerEdit": "Edit",
   "viewerText": "Text",
@@ -170,7 +169,6 @@
   "settingsThemeDark": "Dark",
   "settingsScan": "Scanning",
   "settingsDefaultFilter": "Default filter",
-  "settingsDefaultMode": "Default scan mode",
   "settingsShare": "Sharing",
   "settingsDefaultFormat": "Default format",
   "settingsDefaultPageSize": "PDF page size",

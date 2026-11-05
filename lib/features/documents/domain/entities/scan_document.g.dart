@@ -33,8 +33,7 @@ Map<String, dynamic> _$ScanDocumentToJson(_ScanDocument instance) =>
     };
 
 const _$ScanModeEnumMap = {
-  ScanMode.single: 'single',
-  ScanMode.batch: 'batch',
+  ScanMode.document: 'document',
   ScanMode.idCard: 'idCard',
   ScanMode.passport: 'passport',
 };

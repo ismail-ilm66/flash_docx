@@ -108,8 +108,7 @@ class DocumentTile extends StatelessWidget {
 String modeLabel(BuildContext context, ScanMode m) {
   final l = context.l10n;
   return switch (m) {
-    ScanMode.single => l.modeSingle,
-    ScanMode.batch => l.modeBatch,
+    ScanMode.document => l.modeDocument,
     ScanMode.idCard => l.modeIdCard,
     ScanMode.passport => l.modePassport,
   };
@@ -135,6 +134,7 @@ String filterLabel(BuildContext context, FilterType f) {
     FilterType.auto => l.filterAuto,
     FilterType.colorBoost => l.filterColorBoost,
     FilterType.grayscale => l.filterGrayscale,
+    FilterType.idColor => l.filterIdColor,
     FilterType.bwPrint => l.filterBwPrint,
   };
 }

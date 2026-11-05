@@ -59,6 +59,7 @@ dev_dependencies:
   very_good_analysis: ^10.1.0
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
+  sqlite3: ^3.5.2
 
 flutter:
   uses-material-design: true
@@ -98,3 +99,14 @@ dependency_overrides:
   # pdf 3.12 pins archive <4.1 while image >=4.11 secretly needs 4.1+.
   # Pin image to the last release that truly works with archive 4.0.x.
   image: 4.5.4
+
+# Native OpenCV build: only the modules the app uses. `photo` is required for
+# the non-local-means denoiser in the Auto / ID colour filters (excluded by
+# default upstream); everything else stays out to keep the download small.
+hooks:
+  user_defines:
+    dartcv4:
+      include_modules:
+        - imgproc
+        - imgcodecs
+        - photo

@@ -172,17 +172,11 @@ abstract class AppLocalizations {
   /// **'From files'**
   String get homeImportFiles;
 
-  /// No description provided for @modeSingle.
+  /// No description provided for @modeDocument.
   ///
   /// In en, this message translates to:
-  /// **'Single'**
-  String get modeSingle;
-
-  /// No description provided for @modeBatch.
-  ///
-  /// In en, this message translates to:
-  /// **'Batch'**
-  String get modeBatch;
+  /// **'Document'**
+  String get modeDocument;
 
   /// No description provided for @modeIdCard.
   ///
@@ -280,17 +274,11 @@ abstract class AppLocalizations {
   /// **'Passport data page'**
   String get cameraGuidePassport;
 
-  /// No description provided for @cameraGuideSingle.
+  /// No description provided for @cameraGuideDocument.
   ///
   /// In en, this message translates to:
-  /// **'Fit the document in the frame'**
-  String get cameraGuideSingle;
-
-  /// No description provided for @cameraGuideBatch.
-  ///
-  /// In en, this message translates to:
-  /// **'Page {n}'**
-  String cameraGuideBatch(int n);
+  /// **'Page {n} · hold the phone flat over the page'**
+  String cameraGuideDocument(int n);
 
   /// No description provided for @cameraDone.
   ///
@@ -441,6 +429,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Grayscale'**
   String get filterGrayscale;
+
+  /// No description provided for @filterIdColor.
+  ///
+  /// In en, this message translates to:
+  /// **'ID colour'**
+  String get filterIdColor;
 
   /// No description provided for @filterBwPrint.
   ///
@@ -885,12 +879,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Default filter'**
   String get settingsDefaultFilter;
-
-  /// No description provided for @settingsDefaultMode.
-  ///
-  /// In en, this message translates to:
-  /// **'Default scan mode'**
-  String get settingsDefaultMode;
 
   /// No description provided for @settingsShare.
   ///

@@ -22,7 +22,7 @@ void main() {
     prefs = PrefsService(await SharedPreferences.getInstance());
     prepare = _MockPrepare();
     tmp = await Directory.systemTemp.createTemp('session');
-    registerFallbackValue(ScanMode.single);
+    registerFallbackValue(ScanMode.document);
   });
 
   tearDown(() => tmp.delete(recursive: true));
@@ -34,14 +34,14 @@ void main() {
 
   ScanPage page(String id) => ScanPage(id: id, documentId: '', originalPath: '/x', edits: const PageEdits(), order: 0);
 
-  test('single mode finishes after one capture and hands over draft pages', () async {
+  test('document mode: one capture, then Done hands over the draft pages', () async {
     when(() => prepare(any(), mode: any(named: 'mode'), sides: any(named: 'sides'), fallbacks: any(named: 'fallbacks'), copySource: any(named: 'copySource')))
         .thenAnswer((_) async => Right([page('a')]));
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.single);
+    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
     bloc.add(SessionCaptured(shot('1')));
     await Future<void>.delayed(Duration.zero);
-    expect(bloc.state.isComplete, isTrue);
-    expect(bloc.state.canCapture, isFalse);
+    expect(bloc.state.isComplete, isFalse, reason: 'Document never auto-finishes');
+    expect(bloc.state.canFinish, isTrue);
     bloc.add(const SessionFinished());
     await expectLater(
       bloc.stream,
@@ -64,7 +64,7 @@ void main() {
   });
 
   test('removing a capture deletes the file; changing mode clears captures', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.batch);
+    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
     final p1 = shot('1');
     final p2 = shot('2');
     bloc
@@ -74,17 +74,17 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(bloc.state.count, 1);
     expect(File(p2).existsSync(), isFalse);
-    bloc.add(const SessionModeChanged(ScanMode.single));
+    bloc.add(const SessionModeChanged(ScanMode.document));
     await Future<void>.delayed(const Duration(milliseconds: 20));
     expect(bloc.state.count, 0);
-    expect(bloc.state.mode, ScanMode.single);
+    expect(bloc.state.mode, ScanMode.document);
     await bloc.close();
   });
 
-  test('import of several images switches single to batch; failure surfaces', () async {
-    when(() => prepare(any(), mode: ScanMode.batch, sides: any(named: 'sides'), fallbacks: any(named: 'fallbacks'), copySource: any(named: 'copySource')))
+  test('import of several images stays a document; failure surfaces', () async {
+    when(() => prepare(any(), mode: ScanMode.document, sides: any(named: 'sides'), fallbacks: any(named: 'fallbacks'), copySource: any(named: 'copySource')))
         .thenAnswer((_) async => const Left(ImageProcessingFailure('x')));
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.single);
+    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
     bloc.add(const SessionImported(['/a', '/b']));
     await expectLater(
       bloc.stream,

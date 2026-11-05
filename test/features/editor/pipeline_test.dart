@@ -165,19 +165,33 @@ void main() {
       });
     }
 
-    test('ID mode prefers the card ratio and snaps to it', () {
+    test('ID mode finds the card; warp forces the ID-1 shape', () {
       final (path, expected) = makeSample(tmp, name: 'id', scale: 0.5, rounded: true, page: cv.Scalar(200, 220, 200));
       final img = pipe.readUpright(path);
-      final quad = pipe.detectDocumentQuad(img, snapAspectRatio: CardMm.id1Aspect);
+      final r = pipe.detectDocument(img, aspectHint: CardMm.id1Aspect);
+      expect(r.found, isTrue, reason: '$r');
+      expectQuadClose(r.quad!, expected, tol: 0.04, reason: 'id');
+      final warped = pipe.warpToQuad(img, r.quad!, aspect: CardMm.id1Aspect);
+      final ratio = warped.cols > warped.rows ? warped.cols / warped.rows : warped.rows / warped.cols;
+      expect(ratio, closeTo(CardMm.id1Aspect, 0.01));
+      warped.dispose();
       img.dispose();
-      expect(quad, isNotNull);
-      // Snapped to the ID-1 ratio around the same centre.
-      final ratio = (quad!.avgWidth * 1200 / 1600) / quad.avgHeight;
-      final r = ratio > 1 ? ratio : 1 / ratio;
-      expect(r, closeTo(CardMm.id1Aspect, 0.05));
-      final cx = quad.points.map((p) => p.x).reduce((a, b) => a + b) / 4;
-      final ecx = expected.points.map((p) => p.x).reduce((a, b) => a + b) / 4;
-      expect(cx, closeTo(ecx, 0.02));
+    });
+
+    test('ID mode searches the guide area first', () {
+      final (path, expected) = makeSample(tmp, name: 'guide', scale: 0.45, page: cv.Scalar(210, 215, 220));
+      final img = pipe.readUpright(path);
+      final cx = expected.points.map((p) => p.x).reduce((a, b) => a + b) / 4;
+      final cy = expected.points.map((p) => p.y).reduce((a, b) => a + b) / 4;
+      final r = pipe.detectDocument(
+        img,
+        aspectHint: CardMm.id1Aspect,
+        searchArea: (left: cx - 0.3, top: cy - 0.25, right: cx + 0.3, bottom: cy + 0.25),
+      );
+      img.dispose();
+      expect(r.found, isTrue);
+      expect(r.strategy, contains('guide area'));
+      expectQuadClose(r.quad!, expected, tol: 0.04, reason: 'guide');
     });
 
     test('returns none on a flat image and on the bare frame', () {
@@ -211,26 +225,30 @@ void main() {
       out.dispose();
     });
 
-    test('Auto keeps colour and whitens the page', () {
-      final (path, quad) = makeSample(tmp, name: 'auto', page: cv.Scalar(120, 200, 120), shadow: true);
-      final out = pipe.renderEdits(path, PageEdits(crop: quad), maxLongEdge: 800);
-      final m = cv.mean(out);
-      // Green page stays green (G channel clearly above B and R).
-      expect(m.val2, greaterThan(m.val1 + 20));
-      expect(m.val2, greaterThan(m.val3 + 20));
-      out.dispose();
+    test('Auto whitens a coloured page; ID colour keeps the card colour', () {
+      // Reference behaviour: Auto normalises each channel's background to
+      // paper white ("a clean, bright page"); ID colour does no whitening.
+      final (path, quad) = makeSample(tmp, name: 'green', page: cv.Scalar(120, 200, 120), shadow: false);
+      final auto = pipe.renderEdits(path, PageEdits(crop: quad), maxLongEdge: 800);
+      final id = pipe.renderEdits(path, PageEdits(crop: quad, filter: FilterType.idColor), maxLongEdge: 800);
+      final ma = cv.mean(auto);
+      final mi = cv.mean(id);
+      expect([ma.val1, ma.val2, ma.val3].every((v) => v > 200), isTrue, reason: 'auto $ma');
+      expect(mi.val2, greaterThan(mi.val1 + 30), reason: 'id $mi');
+      expect(mi.val2, greaterThan(mi.val3 + 30), reason: 'id $mi');
+      auto.dispose();
+      id.dispose();
+    });
 
-      final (path2, quad2) = makeSample(tmp, name: 'auto2', shadow: true);
-      final out2 = pipe.renderEdits(path2, PageEdits(crop: quad2), maxLongEdge: 800);
-      final gray = cv.cvtColor(out2, cv.COLOR_BGR2GRAY);
-      // Page background (ignoring text) is near white: 85th percentile > 225.
-      final (_, bright) = cv.threshold(gray, 225, 255, cv.THRESH_BINARY);
-      final frac = cv.countNonZero(bright) / (gray.rows * gray.cols);
-      expect(frac, greaterThan(0.6));
-      // No speckle: the dark fraction is only the text lines.
+    test('Auto removes a shadow without speckle', () {
+      final (path, quad) = makeSample(tmp, name: 'shadow', shadow: true);
+      final out = pipe.renderEdits(path, PageEdits(crop: quad), maxLongEdge: 800);
+      final gray = cv.cvtColor(out, cv.COLOR_BGR2GRAY);
+      final (_, bright) = cv.threshold(gray, 215, 255, cv.THRESH_BINARY);
+      expect(cv.countNonZero(bright) / (gray.rows * gray.cols), greaterThan(0.6));
       final (_, dark) = cv.threshold(gray, 60, 255, cv.THRESH_BINARY_INV);
       expect(cv.countNonZero(dark) / (gray.rows * gray.cols), lessThan(0.12));
-      for (final x in [out2, gray, bright, dark]) {
+      for (final x in [out, gray, bright, dark]) {
         x.dispose();
       }
     });
@@ -269,34 +287,24 @@ void main() {
       m.dispose();
     });
 
-    test('X-1: ingesting photos larger than 4000 px (incl. 48 MP) does not double-free', () {
+    test('X-1 / A2: ingest never touches the original, even at 48 MP', () {
       for (final (w, h) in [(4032, 3024), (8064, 6048)]) {
         final big = cv.Mat.fromScalar(h, w, cv.MatType.CV_8UC3, cv.Scalar(10, 20, 30));
         final src = p.join(tmp.path, 'big_$w.jpg');
         pipe.writeJpeg(big, src, quality: 80);
         big.dispose();
-        final orig = p.join(tmp.path, 'orig_$w.jpg');
+        final before = File(src).readAsBytesSync();
         final prev = p.join(tmp.path, 'prev_$w.jpg');
         // Twice: a double free would crash on the first or second call.
         for (var i = 0; i < 2; i++) {
-          ingestInIsolate(IngestMsg(src, orig, prev, null));
+          final r = ingestInIsolate(IngestMsg(src, prev, null, null));
+          expect((r.width, r.height), (w, h));
         }
-        final o = pipe.jpegSize(orig)!;
+        expect(File(src).readAsBytesSync(), before, reason: 'original must be byte-identical');
         final v = pipe.jpegSize(prev)!;
-        expect(math.max(o.width, o.height), kMaxOriginalLongEdge);
         expect(math.max(v.width, v.height), RenderPx.previewLongEdge);
       }
     });
-  });
-
-  test('snapQuadToAspect keeps the centre and fixes the ratio', () {
-    final q = Quad.fromUnordered(const [Pt(0.2, 0.3), Pt(0.8, 0.3), Pt(0.8, 0.6), Pt(0.2, 0.6)]);
-    final snapped = pipe.snapQuadToAspect(q, 85.6 / 54, imageAspect: 1);
-    expect(snapped.avgWidth / snapped.avgHeight, closeTo(85.6 / 54, 0.01));
-    final cx = snapped.points.map((p) => p.x).reduce((a, b) => a + b) / 4;
-    final cy = snapped.points.map((p) => p.y).reduce((a, b) => a + b) / 4;
-    expect(cx, closeTo(0.5, 1e-6));
-    expect(cy, closeTo(0.45, 1e-6));
   });
 
   test('writeJpeg/readUpright round-trip and png by extension', () {

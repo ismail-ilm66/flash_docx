@@ -1,0 +1,21 @@
+{
+ "tl": [
+  0.07922,
+  0.10181
+ ],
+ "tr": [
+  0.99634,
+  0.11073
+ ],
+ "br": [
+  0.99634,
+  0.68066
+ ],
+ "bl": [
+  0.08153,
+  0.67556
+ ],
+ "source": "reference corners, checked by eye on the overlay (owner photo)",
+ "map": "bright",
+ "score": 0.696
+}

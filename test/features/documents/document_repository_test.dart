@@ -52,7 +52,7 @@ void main() {
   });
 
   test('create moves originals into the document folder and logs activity', () async {
-    final r = await repo.create(mode: ScanMode.single, pages: [draft('a')]);
+    final r = await repo.create(mode: ScanMode.document, pages: [draft('a')]);
     final doc = r.getOrElse((f) => fail('$f'));
     expect(doc.pages.single.originalPath, files.originalPath(doc.id, 'a'));
     expect(File(doc.pages.single.originalPath).existsSync(), isTrue);
@@ -66,7 +66,7 @@ void main() {
   test('default names are "Flash Scan - DD Mon YYYY", then (2), (3)', () async {
     final titles = <String>[];
     for (var i = 0; i < 3; i++) {
-      final d = (await repo.create(mode: ScanMode.single, pages: [draft('p$i')])).getOrElse((f) => fail('$f'));
+      final d = (await repo.create(mode: ScanMode.document, pages: [draft('p$i')])).getOrElse((f) => fail('$f'));
       titles.add(d.title);
     }
     final base = DocumentRepositoryImpl.defaultTitleFor(DateTime.now());
@@ -75,7 +75,7 @@ void main() {
   });
 
   test('rename, addPages, reorder, deletePage, delete', () async {
-    final doc = (await repo.create(mode: ScanMode.batch, pages: [draft('a'), draft('b')]))
+    final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a'), draft('b')]))
         .getOrElse((f) => fail('$f'));
 
     expect((await repo.rename(doc.id, 'Receipts')).isRight(), isTrue);
@@ -100,7 +100,7 @@ void main() {
   });
 
   test('updatePage persists edits and clears caches; watch emits', () async {
-    final doc = (await repo.create(mode: ScanMode.single, pages: [draft('a')]))
+    final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a')]))
         .getOrElse((f) => fail('$f'));
     final page = doc.pages.single.copyWith(processedPath: '/x', ocrText: 'hi');
     await repo.updatePage(page);
@@ -117,9 +117,9 @@ void main() {
   });
 
   test('search filters by title and ordering is newest first', () async {
-    final a = (await repo.create(mode: ScanMode.single, pages: [draft('a')], title: 'Alpha')).getOrElse((f) => fail('$f'));
+    final a = (await repo.create(mode: ScanMode.document, pages: [draft('a')], title: 'Alpha')).getOrElse((f) => fail('$f'));
     await Future<void>.delayed(const Duration(milliseconds: 5));
-    final b = (await repo.create(mode: ScanMode.single, pages: [draft('b')], title: 'Beta')).getOrElse((f) => fail('$f'));
+    final b = (await repo.create(mode: ScanMode.document, pages: [draft('b')], title: 'Beta')).getOrElse((f) => fail('$f'));
     final all = await repo.watchAll().first;
     expect(all.map((d) => d.id), [b.id, a.id]);
     final filtered = await repo.watchAll(search: 'alp').first;

@@ -66,12 +66,9 @@ class _AdjustView extends StatelessWidget {
         final page = s.current;
         final base = s.basePreview;
         final multi = s.pages.length > 1;
-        // New scans only: an existing document gets pages from the viewer.
-        final mode = s.args.mode;
-        final canAdd =
-            (s.args.isNewDocument || s.args.addingPages) &&
-            (mode == ScanMode.single || mode == ScanMode.batch);
-        final showStrip = multi || canAdd;
+        // P1-8: "+ Add page" on every scan and every edit, in every mode, so
+        // the strip is always shown.
+        const showStrip = true;
         final notFound = page != null && !page.edgesDetected;
         return DiscardScanGuard(
           guard: bloc.guardBack,
@@ -146,19 +143,17 @@ class _AdjustView extends StatelessWidget {
                       index: s.index,
                       onSelect: (i) => bloc.add(EditorPageSelected(i)),
                       pathOf: (p) => s.basePreviews[p.id] ?? p.originalPath,
-                      trailing: canAdd
-                          ? AddPageTile(
-                              onTap: () async {
-                                final added = await collectNewPages(
-                                  context,
-                                  mode: mode,
-                                );
-                                if (added != null && added.isNotEmpty) {
-                                  bloc.add(EditorPagesAdded(added));
-                                }
-                              },
-                            )
-                          : null,
+                      trailing: AddPageTile(
+                        onTap: () async {
+                          final added = await collectNewPages(
+                            context,
+                            mode: s.args.mode,
+                          );
+                          if (added != null && added.isNotEmpty) {
+                            bloc.add(EditorPagesAdded(added));
+                          }
+                        },
+                      ),
                     ),
                   ),
                 SafeArea(

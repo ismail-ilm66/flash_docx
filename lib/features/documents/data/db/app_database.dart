@@ -57,10 +57,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // v1 ScanMode: single=0, batch=1, idCard=2, passport=3.
+            // v2 ScanMode: document=0, idCard=1, passport=2.
+            await customStatement(
+              'UPDATE documents SET mode = CASE mode '
+              'WHEN 0 THEN 0 WHEN 1 THEN 0 WHEN 2 THEN 1 WHEN 3 THEN 2 ELSE 0 END',
+            );
+          }
+        },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');
         },

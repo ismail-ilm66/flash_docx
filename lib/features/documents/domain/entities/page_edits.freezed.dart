@@ -18,7 +18,9 @@ mixin _$PageEdits {
 /// null = full image.
  Quad? get crop; int get quarterTurns; FilterType get filter;/// -100..100
  double get brightness;/// -100..100
- double get contrast;
+ double get contrast;/// ID card / passport: the warp is forced to this width / height (real
+/// card shape, landscape), as in the reference `warp()`. null = free.
+ double? get outputAspect;
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -31,16 +33,16 @@ $PageEditsCopyWith<PageEdits> get copyWith => _$PageEditsCopyWithImpl<PageEdits>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect);
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect)';
 }
 
 
@@ -51,7 +53,7 @@ abstract mixin class $PageEditsCopyWith<$Res>  {
   factory $PageEditsCopyWith(PageEdits value, $Res Function(PageEdits) _then) = _$PageEditsCopyWithImpl;
 @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect
 });
 
 
@@ -68,14 +70,15 @@ class _$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,}) {
   return _then(_self.copyWith(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
 as int,filter: null == filter ? _self.filter : filter // ignore: cast_nullable_to_non_nullable
 as FilterType,brightness: null == brightness ? _self.brightness : brightness // ignore: cast_nullable_to_non_nullable
 as double,contrast: null == contrast ? _self.contrast : contrast // ignore: cast_nullable_to_non_nullable
-as double,
+as double,outputAspect: freezed == outputAspect ? _self.outputAspect : outputAspect // ignore: cast_nullable_to_non_nullable
+as double?,
   ));
 }
 /// Create a copy of PageEdits
@@ -99,7 +102,7 @@ $QuadCopyWith<$Res>? get crop {
 @JsonSerializable()
 
 class _PageEdits extends PageEdits {
-  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0}): super._();
+  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect}): super._();
   factory _PageEdits.fromJson(Map<String, dynamic> json) => _$PageEditsFromJson(json);
 
 /// null = full image.
@@ -110,6 +113,9 @@ class _PageEdits extends PageEdits {
 @override@JsonKey() final  double brightness;
 /// -100..100
 @override@JsonKey() final  double contrast;
+/// ID card / passport: the warp is forced to this width / height (real
+/// card shape, landscape), as in the reference `warp()`. null = free.
+@override final  double? outputAspect;
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
@@ -124,16 +130,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect);
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect)';
 }
 
 
@@ -144,7 +150,7 @@ abstract mixin class _$PageEditsCopyWith<$Res> implements $PageEditsCopyWith<$Re
   factory _$PageEditsCopyWith(_PageEdits value, $Res Function(_PageEdits) _then) = __$PageEditsCopyWithImpl;
 @override @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect
 });
 
 
@@ -161,14 +167,15 @@ class __$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,}) {
   return _then(_PageEdits(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
 as int,filter: null == filter ? _self.filter : filter // ignore: cast_nullable_to_non_nullable
 as FilterType,brightness: null == brightness ? _self.brightness : brightness // ignore: cast_nullable_to_non_nullable
 as double,contrast: null == contrast ? _self.contrast : contrast // ignore: cast_nullable_to_non_nullable
-as double,
+as double,outputAspect: freezed == outputAspect ? _self.outputAspect : outputAspect // ignore: cast_nullable_to_non_nullable
+as double?,
   ));
 }
 

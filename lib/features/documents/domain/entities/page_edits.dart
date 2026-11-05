@@ -18,6 +18,9 @@ abstract class PageEdits with _$PageEdits {
     @Default(0) double brightness,
     /// -100..100
     @Default(0) double contrast,
+    /// ID card / passport: the warp is forced to this width / height (real
+    /// card shape, landscape), as in the reference `warp()`. null = free.
+    double? outputAspect,
   }) = _PageEdits;
   const PageEdits._();
 

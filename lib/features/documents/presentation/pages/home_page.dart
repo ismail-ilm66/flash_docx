@@ -79,7 +79,7 @@ class _HomeViewState extends State<_HomeView> {
   Future<void> _startImport(List<String> paths, {bool copySource = true}) async {
     if (_importing) return;
     setState(() => _importing = true);
-    final mode = paths.length > 1 ? ScanMode.batch : ScanMode.single;
+    const mode = ScanMode.document;
     final r = await getIt<PreparePages>()(paths, mode: mode, copySource: copySource);
     if (!mounted) return;
     setState(() => _importing = false);
@@ -204,7 +204,7 @@ class _HomeViewState extends State<_HomeView> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     for (final (i, tile) in [
-                                      QuickActionTile(icon: AppIcons.document, label: l.homeDocument, onTap: () => _scan(context, null)),
+                                      QuickActionTile(icon: AppIcons.document, label: l.homeDocument, onTap: () => _scan(context, ScanMode.document)),
                                       QuickActionTile(icon: AppIcons.idCard, label: l.modeIdCard, onTap: () => _scan(context, ScanMode.idCard)),
                                       QuickActionTile(icon: AppIcons.passport, label: l.modePassport, onTap: () => _scan(context, ScanMode.passport)),
                                       QuickActionTile(icon: AppIcons.gallery, label: l.homeImport, onTap: _pickImportSource),

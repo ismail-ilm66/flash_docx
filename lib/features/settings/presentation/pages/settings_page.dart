@@ -111,20 +111,6 @@ class _SettingsView extends StatelessWidget {
                         },
                       ),
                       _Row(
-                        label: l.settingsDefaultMode,
-                        value: modeLabel(context, s.defaultMode),
-                        onTap: () async {
-                          final v = await showChoiceSheet<ScanMode>(
-                            context,
-                            title: l.settingsDefaultMode,
-                            values: ScanMode.values,
-                            selected: s.defaultMode,
-                            labelOf: (m) => modeLabel(context, m),
-                          );
-                          if (v != null) await cubit.setDefaultMode(v);
-                        },
-                      ),
-                      _Row(
                         label: l.settingsShutterSound,
                         trailing: Switch.adaptive(value: s.shutterSound, onChanged: cubit.setShutterSound),
                         onTap: () => cubit.setShutterSound(!s.shutterSound),

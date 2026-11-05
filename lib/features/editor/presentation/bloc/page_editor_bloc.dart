@@ -245,15 +245,16 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     try {
       final rules = ScanModeRules.of(state.args.mode);
       // Same single-decode ingest as every other new photo.
+      // The retaken shot becomes the page's original as-is (never re-encoded).
       final original = _files.newCapturePath('${cur.id}_${DateTime.now().microsecondsSinceEpoch}');
+      await File(e.newOriginalPath).rename(original);
       final auto = await _processor.ingest(
-        e.newOriginalPath,
-        originalOut: original,
+        original,
         previewOut: _files.basePreviewPath(cur.id, original),
         snapAspectRatio: rules.aspectRatio,
+        outputAspect: rules.aspectRatio,
         filter: cur.edits.filter,
       );
-      await File(e.newOriginalPath).delete().catchError((_) => File(e.newOriginalPath));
       final replaced = cur
           .copyWith(originalPath: original, edgesDetected: auto.detected)
           .withEdits(auto.edits);
@@ -317,6 +318,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
             _files.isInDoc(args.documentId!, pg.originalPath)
                 ? pg
                 : pg.copyWith(
+                    documentId: args.documentId!,
                     originalPath: await _files.adoptOriginal(
                       sourcePath: pg.originalPath,
                       docId: args.documentId!,

@@ -36,7 +36,7 @@ void main() {
     final work = p.join(tmp.path, 'work.jpg');
     final results = <String, int>{
       'decode 12 MP': ms(() => pipe.readUpright(src).dispose()),
-      'ingest (per capture/import)': ms(() => ingestInIsolate(IngestMsg(src, p.join(tmp.path, 'o.jpg'), p.join(tmp.path, 'b.jpg'), null))),
+      'ingest (per capture/import)': ms(() => ingestInIsolate(IngestMsg(src, p.join(tmp.path, 'b.jpg'), null, null))),
       'enhance first preview (auto)': ms(() {
         File(work).deleteSync();
         lookInIsolate(LookMsg(src, PageEdits(crop: crop), work, p.join(tmp.path, 'l.jpg')));

@@ -33,22 +33,26 @@ class OpenCvImageProcessor implements ImageProcessor {
   @override
   Future<AutoEditsResult> ingest(
     String sourcePath, {
-    required String originalOut,
     required String previewOut,
     double? snapAspectRatio,
-    Quad? fallback,
+    Quad? guide,
+    double? outputAspect,
     FilterType filter = FilterType.auto,
   }) async {
     final r = await _runner.run(
       ingestInIsolate,
-      IngestMsg(sourcePath, originalOut, previewOut, snapAspectRatio),
+      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide),
       debugLabel: 'ingest',
     );
-    debugPrint('[edges] ${r.log}');
-    final crop = r.quad ?? fallback ?? Quad.full(inset: 0.05);
+    debugPrint('[ingest] ${r.log}');
     return AutoEditsResult(
-      edits: PageEdits(crop: crop, filter: filter),
+      edits: PageEdits(crop: r.quad ?? pipe.fallbackQuad(guide: guide), filter: filter, outputAspect: outputAspect),
       detected: r.quad != null,
+      sharpness: r.sharpness,
+      brightness: r.brightness,
+      width: r.width,
+      height: r.height,
+      candidates: r.ranked,
     );
   }
 
@@ -140,15 +144,31 @@ class RenderMsg {
   final int quality;
 }
 
-/// Max long edge kept for stored originals (48 MP phones → 4000 px).
-const int kMaxOriginalLongEdge = 4000;
-
 class IngestMsg {
-  const IngestMsg(this.src, this.originalOut, this.previewOut, this.snapAspect);
+  const IngestMsg(this.src, this.previewOut, this.snapAspect, this.guide);
   final String src;
-  final String originalOut;
   final String previewOut;
   final double? snapAspect;
+  final Quad? guide;
+}
+
+class IngestResult {
+  const IngestResult({
+    required this.quad,
+    required this.ranked,
+    required this.sharpness,
+    required this.brightness,
+    required this.width,
+    required this.height,
+    required this.log,
+  });
+  final Quad? quad;
+  final List<Quad> ranked;
+  final double sharpness;
+  final double brightness;
+  final int width;
+  final int height;
+  final String log;
 }
 
 class LookMsg {
@@ -167,23 +187,36 @@ class CachesMsg {
   final String thumbOut;
 }
 
-DetectResult ingestInIsolate(IngestMsg m) {
+IngestResult ingestInIsolate(IngestMsg m) {
   final sw = Stopwatch()..start();
-  final report = pipe.ingest(
+  final g = m.guide;
+  final r = pipe.ingest(
     src: m.src,
-    originalOut: m.originalOut,
     previewOut: m.previewOut,
-    maxOriginal: kMaxOriginalLongEdge,
     previewLongEdge: RenderPx.previewLongEdge,
     aspectHint: m.snapAspect,
+    searchArea: g == null
+        ? null
+        : (
+            left: [g.tl.x, g.bl.x].reduce(math.min),
+            top: [g.tl.y, g.tr.y].reduce(math.min),
+            right: [g.tr.x, g.br.x].reduce(math.max),
+            bottom: [g.bl.y, g.br.y].reduce(math.max),
+          ),
   );
-  var quad = report.quad;
-  if (quad != null && m.snapAspect != null) {
-    final size = pipe.jpegSize(m.previewOut);
-    final aspect = size == null ? 0.75 : size.width / size.height;
-    quad = pipe.snapQuadToAspect(quad, m.snapAspect!, imageAspect: aspect).clamp01();
-  }
-  return DetectResult(quad, '$report; ingest total ${sw.elapsedMilliseconds} ms');
+  final mb = File(m.src).lengthSync() / (1024 * 1024);
+  return IngestResult(
+    quad: r.detection.quad,
+    ranked: r.detection.ranked,
+    sharpness: r.sharpness,
+    brightness: r.brightness,
+    width: r.width,
+    height: r.height,
+    log: '${r.width}×${r.height} (${(r.width * r.height / 1e6).toStringAsFixed(1)} MP, '
+        '${mb.toStringAsFixed(1)} MB) decode 1/${r.decodeScale}; ${r.detection}; '
+        'sharpness ${r.sharpness.toStringAsFixed(0)} brightness ${r.brightness.toStringAsFixed(0)}; '
+        'total ${sw.elapsedMilliseconds} ms',
+  );
 }
 
 String lookInIsolate(LookMsg m) {
@@ -214,16 +247,10 @@ void cachesInIsolate(CachesMsg m) {
 }
 
 DetectResult detectInIsolate(DetectMsg m) {
-  final img = pipe.readUpright(m.path);
+  final img = pipe.readUprightAtMost(m.path, RenderPx.previewLongEdge * 2);
   try {
     final report = pipe.detectDocument(img, aspectHint: m.snapAspect);
-    var quad = report.quad;
-    if (quad != null && m.snapAspect != null) {
-      quad = pipe
-          .snapQuadToAspect(quad, m.snapAspect!, imageAspect: img.cols / img.rows)
-          .clamp01();
-    }
-    return DetectResult(quad, report.toString());
+    return DetectResult(report.quad, report.toString());
   } finally {
     img.dispose();
   }

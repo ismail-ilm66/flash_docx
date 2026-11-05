@@ -18,7 +18,7 @@ void main() {
   final doc = ScanDocument(
     id: 'd',
     title: 'Doc',
-    mode: ScanMode.single,
+    mode: ScanMode.document,
     pages: const [ScanPage(id: 'p', documentId: 'd', originalPath: '/x', edits: PageEdits(), order: 0)],
     createdAt: DateTime(2025),
     updatedAt: DateTime(2025),

@@ -16,7 +16,7 @@ class _Gallery extends StatelessWidget {
     final doc = ScanDocument(
       id: 'd',
       title: 'Electricity bill March',
-      mode: ScanMode.single,
+      mode: ScanMode.document,
       pages: const [
         ScanPage(id: 'p', documentId: 'd', originalPath: '/none.jpg', edits: PageEdits(), order: 0),
       ],

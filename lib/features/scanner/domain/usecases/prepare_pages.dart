@@ -33,6 +33,7 @@ class PreparePages {
     List<CardSide?>? sides,
     List<Quad?>? fallbacks,
     bool copySource = true,
+    void Function(int index, AutoEditsResult result)? onPrepared,
   }) async {
     final rules = ScanModeRules.of(mode);
     final filter = _defaultFilter;
@@ -40,31 +41,41 @@ class PreparePages {
     try {
       for (final (i, src) in sourcePaths.indexed) {
         final id = newId();
-        final upright = _files.newCapturePath(id);
-        // One decode: upright original + editor preview + edge detection.
-        final auto = await _processor.ingest(
-          src,
-          originalOut: upright,
-          previewOut: _files.basePreviewPath(id, upright),
-          snapAspectRatio: rules.aspectRatio,
-          fallback: fallbacks != null && i < fallbacks.length ? fallbacks[i] : null,
-          filter: filter,
-        );
-        if (!copySource) {
-          final f = File(src);
-          if (f.existsSync()) await f.delete();
+        // The original is kept byte-for-byte (round 3, A2): moved for camera
+        // shots, copied for imports. EXIF is applied whenever it is read.
+        final original = _files.newCapturePath(id);
+        if (copySource) {
+          await File(src).copy(original);
+        } else {
+          try {
+            await File(src).rename(original);
+          } on FileSystemException {
+            await File(src).copy(original);
+            await File(src).delete().catchError((_) => File(src));
+          }
         }
+        final isCard = rules.aspectRatio != null;
+        final auto = await _processor.ingest(
+          original,
+          previewOut: _files.basePreviewPath(id, original),
+          snapAspectRatio: rules.aspectRatio,
+          guide: fallbacks != null && i < fallbacks.length ? fallbacks[i] : null,
+          outputAspect: rules.aspectRatio,
+          // ID colour is the default for cards; documents use the Settings default.
+          filter: isCard ? FilterType.idColor : filter,
+        );
         pages.add(
           ScanPage(
             id: id,
             documentId: '',
-            originalPath: upright,
+            originalPath: original,
             edits: auto.edits,
             order: i,
             side: sides != null && i < sides.length ? sides[i] : null,
             edgesDetected: auto.detected,
           ),
         );
+        onPrepared?.call(i, auto);
       }
       return Right(pages);
     } catch (e) {

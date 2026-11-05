@@ -16,6 +16,7 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
       FilterType.auto,
   brightness: (json['brightness'] as num?)?.toDouble() ?? 0,
   contrast: (json['contrast'] as num?)?.toDouble() ?? 0,
+  outputAspect: (json['outputAspect'] as num?)?.toDouble(),
 );
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
@@ -25,11 +26,13 @@ Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
       'filter': _$FilterTypeEnumMap[instance.filter]!,
       'brightness': instance.brightness,
       'contrast': instance.contrast,
+      'outputAspect': instance.outputAspect,
     };
 
 const _$FilterTypeEnumMap = {
   FilterType.original: 'original',
   FilterType.auto: 'auto',
+  FilterType.idColor: 'idColor',
   FilterType.colorBoost: 'colorBoost',
   FilterType.grayscale: 'grayscale',
   FilterType.bwPrint: 'bwPrint',

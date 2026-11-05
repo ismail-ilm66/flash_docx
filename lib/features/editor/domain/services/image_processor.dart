@@ -7,18 +7,20 @@ abstract interface class ImageProcessor {
   /// found. [snapAspectRatio] snaps the result to a known card ratio.
   Future<Quad?> detectEdges(String imagePath, {double? snapAspectRatio});
 
-  /// The one job per new photo (camera, Photos, Files, share-in): decode
-  /// once, write the upright original to [originalOut] and the editor's base
-  /// preview to [previewOut], detect the document, and return the auto edits.
-  /// When nothing is found the crop becomes [fallback] (the on-screen guide
-  /// frame in ID / passport modes) or a 5% inset, never the exact full frame.
-  /// [filter] is the user's default filter from Settings.
+  /// The one job per new photo (camera, Photos, Files, share-in). The
+  /// original at [sourcePath] is never modified. Writes the editor's base
+  /// preview to [previewOut], detects the document, measures sharpness and
+  /// brightness, and returns the auto edits.
+  ///
+  /// When nothing is found the crop becomes [guide] (the on-screen frame in
+  /// ID / passport modes, which is also searched first) or a 5 % inset.
+  /// [outputAspect] forces the warp to the real card shape.
   Future<AutoEditsResult> ingest(
     String sourcePath, {
-    required String originalOut,
     required String previewOut,
     double? snapAspectRatio,
-    Quad? fallback,
+    Quad? guide,
+    double? outputAspect,
     FilterType filter = FilterType.auto,
   });
 
@@ -62,11 +64,30 @@ abstract interface class ImageProcessor {
 }
 
 class AutoEditsResult {
-  const AutoEditsResult({required this.edits, required this.detected});
+  const AutoEditsResult({
+    required this.edits,
+    required this.detected,
+    this.sharpness,
+    this.brightness,
+    this.width,
+    this.height,
+    this.candidates = const [],
+  });
 
   final PageEdits edits;
 
   /// False when the crop is a fallback and the user should be told to drag
   /// the corners.
   final bool detected;
+
+  /// Capture checks (see `CaptureChecks`). null when not measured.
+  final double? sharpness;
+  final double? brightness;
+
+  /// Original photo size in pixels (upright).
+  final int? width;
+  final int? height;
+
+  /// Top detection candidates, best first (magnetic corners).
+  final List<Quad> candidates;
 }

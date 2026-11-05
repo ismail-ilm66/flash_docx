@@ -53,7 +53,7 @@ class CameraPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = args ?? const CameraArgs();
-    final mode = a.retake ? ScanMode.single : a.mode;
+    final mode = a.retake ? ScanMode.document : a.mode;
     return BlocProvider(
       create: (_) => getIt<ScanSessionBloc>(param1: mode),
       child: _CameraView(args: a),
@@ -375,8 +375,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   String _guideText(AppLocalizations l, ScanSessionState s) =>
       switch (s.guide) {
-        GuideLabel.single => l.cameraGuideSingle,
-        GuideLabel.batchPage => l.cameraGuideBatch(s.count + 1),
+        GuideLabel.documentPage => l.cameraGuideDocument(s.count + 1),
         GuideLabel.front => l.cameraGuideFront,
         GuideLabel.back => l.cameraGuideBack,
         GuideLabel.passport => l.cameraGuidePassport,

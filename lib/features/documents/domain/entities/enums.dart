@@ -1,6 +1,8 @@
-enum ScanMode { single, batch, idCard, passport }
+/// Stored in the database by index; v2 schema migrates the old
+/// `single, batch, idCard, passport` values (see AppDatabase.migration).
+enum ScanMode { document, idCard, passport }
 
-enum FilterType { original, auto, colorBoost, grayscale, bwPrint }
+enum FilterType { original, auto, idColor, colorBoost, grayscale, bwPrint }
 
 enum CardSide { front, back }
 

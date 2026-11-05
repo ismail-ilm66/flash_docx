@@ -10,7 +10,6 @@ class PrefsService {
 
   static const _themeMode = 'theme_mode';
   static const _defaultFilter = 'default_filter';
-  static const _defaultMode = 'default_scan_mode';
   static const _defaultFormat = 'default_export_format';
   static const _defaultPageSize = 'default_page_size';
   static const _flashOn = 'camera_flash_on';
@@ -23,9 +22,6 @@ class PrefsService {
 
   String? get defaultFilter => _prefs.getString(_defaultFilter);
   Future<void> setDefaultFilter(String v) => _prefs.setString(_defaultFilter, v);
-
-  String? get defaultScanMode => _prefs.getString(_defaultMode);
-  Future<void> setDefaultScanMode(String v) => _prefs.setString(_defaultMode, v);
 
   String? get defaultExportFormat => _prefs.getString(_defaultFormat);
   Future<void> setDefaultExportFormat(String v) =>

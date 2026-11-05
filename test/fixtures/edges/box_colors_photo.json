@@ -1,0 +1,39 @@
+{
+ "tl": [
+  0.0933,
+  0.2107
+ ],
+ "tr": [
+  0.9493,
+  0.2185
+ ],
+ "br": [
+  0.9493,
+  0.7559
+ ],
+ "bl": [
+  0.0609,
+  0.7458
+ ],
+ "source": "hand-marked true box corners (owner photo); reference_found = where the reference put them",
+ "map": "edges",
+ "score": 0.6118,
+ "reference_found": {
+  "tl": [
+   0.09325,
+   0.26875
+  ],
+  "tr": [
+   0.93248,
+   0.28
+  ],
+  "br": [
+   0.93248,
+   0.7525
+  ],
+  "bl": [
+   0.06141,
+   0.73875
+  ]
+ }
+}

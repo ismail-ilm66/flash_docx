@@ -70,7 +70,7 @@ void main() {
   tearDown(() => tmp.delete(recursive: true));
 
   PageEditorBloc build() {
-    final args = EditorArgs(pages: [page], mode: ScanMode.single);
+    final args = EditorArgs(pages: [page], mode: ScanMode.document);
     return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), args)..add(EditorStarted(args));
   }
 
