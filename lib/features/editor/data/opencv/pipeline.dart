@@ -477,6 +477,170 @@ List<int> histogram8(cv.Mat ch) {
 Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
 
 // ---------------------------------------------------------------------------
+// Magnetic edges (round 3, P1-3): candidate lines and corners
+// ---------------------------------------------------------------------------
+
+/// Long straight lines and likely corners in [bgr], normalised to 0..1.
+///
+/// On an 800 px copy: Canny (median thresholds) → HoughLinesP (min length 8 %
+/// of the short side, max gap 10 px) → segments on the same line merged.
+/// Corners are intersections of near-perpendicular lines that lie near both
+/// segments, plus the corners of the top five detected quads.
+({List<(Pt, Pt)> lines, List<Pt> corners}) snapCandidates(cv.Mat bgr, {double? aspectHint}) {
+  final s = math.min(1.0, kDetectLongEdge / math.max(bgr.rows, bgr.cols));
+  final small = s < 1
+      ? cv.resize(bgr, ((bgr.cols * s).toInt(), (bgr.rows * s).toInt()), interpolation: cv.INTER_AREA)
+      : bgr.clone();
+  final w = small.cols.toDouble();
+  final h = small.rows.toDouble();
+  final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
+  final blur = cv.gaussianBlur(gray, (5, 5), 0);
+  final m = medianOf(blur);
+  final edges = cv.canny(blur, math.max(10.0, 0.66 * m), math.min(255.0, math.max(40.0, 1.33 * m)));
+  final minLen = 0.08 * math.min(w, h);
+  final raw = cv.HoughLinesP(edges, 1, math.pi / 180, 40, minLineLength: minLen, maxLineGap: 10);
+  final segs = <(XY, XY)>[];
+  if (!raw.isEmpty) {
+    final data = raw.isContinuous ? raw.data : raw.clone().data;
+    final ints = data.buffer.asInt32List(data.offsetInBytes, raw.rows * 4);
+    for (var i = 0; i < raw.rows; i++) {
+      segs.add((
+        (x: ints[i * 4].toDouble(), y: ints[i * 4 + 1].toDouble()),
+        (x: ints[i * 4 + 2].toDouble(), y: ints[i * 4 + 3].toDouble()),
+      ));
+    }
+  }
+  for (final x in [gray, blur, edges, raw]) {
+    x.dispose();
+  }
+
+  final merged = mergeSegments(segs).where((l) => _len(l.$1, l.$2) >= minLen).toList()
+    ..sort((a, b) => _len(b.$1, b.$2).compareTo(_len(a.$1, a.$2)));
+  final lines = merged.take(40).toList();
+
+  final corners = <XY>[];
+  final near = 0.10 * math.min(w, h);
+  for (var i = 0; i < lines.length; i++) {
+    for (var j = i + 1; j < lines.length; j++) {
+      final (a1, a2) = lines[i];
+      final (b1, b2) = lines[j];
+      final ang = _angleDeg(a1, a2, b1, b2);
+      if (ang < 60) continue; // near-perpendicular only (60°–90°)
+      final p = _intersect(a1, a2, b1, b2);
+      if (p == null) continue;
+      if (p.x < -0.02 * w || p.y < -0.02 * h || p.x > 1.02 * w || p.y > 1.02 * h) continue;
+      if (_distToSegment(p, a1, a2) > near || _distToSegment(p, b1, b2) > near) continue;
+      corners.add(p);
+    }
+  }
+  small.dispose();
+
+  // Corners of the best detection candidates (already normalised).
+  final det = detectDocument(bgr, aspectHint: aspectHint);
+  final out = <Pt>[for (final q in det.ranked) ...q.points];
+  for (final c in corners) {
+    final n = Pt(c.x / w, c.y / h).clamp01();
+    if (out.every((o) => (o.x - n.x).abs() * w > 6 || (o.y - n.y).abs() * h > 6)) out.add(n);
+  }
+  return (
+    lines: [for (final (a, b) in lines) (Pt(a.x / w, a.y / h), Pt(b.x / w, b.y / h))],
+    corners: out,
+  );
+}
+
+/// Merges segments that lie on the same line (within 3° and 6 px), keeping
+/// the full extent of the group.
+List<(XY, XY)> mergeSegments(List<(XY, XY)> segs) {
+  final groups = <List<(XY, XY)>>[];
+  final norms = <(double, double)>[]; // (theta in [0, π), rho)
+  (double, double) normal((XY, XY) s) {
+    final (a, b) = s;
+    var theta = math.atan2(b.y - a.y, b.x - a.x) + math.pi / 2;
+    theta %= math.pi;
+    if (theta < 0) theta += math.pi;
+    final rho = a.x * math.cos(theta) + a.y * math.sin(theta);
+    return (theta, rho);
+  }
+
+  for (final seg in segs) {
+    final (t, r) = normal(seg);
+    var placed = false;
+    for (var g = 0; g < groups.length; g++) {
+      final (gt, gr) = norms[g];
+      var dt = (t - gt).abs();
+      var dr = (r - gr).abs();
+      if (dt > math.pi / 2) {
+        // Wrap-around: the same line seen with theta near 0 and near π.
+        dt = math.pi - dt;
+        dr = (r + gr).abs();
+      }
+      if (dt < 3 * math.pi / 180 && dr < 6) {
+        groups[g].add(seg);
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      groups.add([seg]);
+      norms.add((t, r));
+    }
+  }
+
+  return [
+    for (final g in groups)
+      () {
+        // Direction of the longest segment; extent = all endpoints projected.
+        final longest = g.reduce((a, b) => _len(a.$1, a.$2) >= _len(b.$1, b.$2) ? a : b);
+        final (a, b) = longest;
+        final len = _len(a, b);
+        final dx = (b.x - a.x) / len;
+        final dy = (b.y - a.y) / len;
+        var tMin = double.infinity;
+        var tMax = -double.infinity;
+        for (final (p, q) in g) {
+          for (final e in [p, q]) {
+            final t = (e.x - a.x) * dx + (e.y - a.y) * dy;
+            if (t < tMin) tMin = t;
+            if (t > tMax) tMax = t;
+          }
+        }
+        return ((x: a.x + dx * tMin, y: a.y + dy * tMin), (x: a.x + dx * tMax, y: a.y + dy * tMax));
+      }(),
+  ];
+}
+
+double _len(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+
+double _angleDeg(XY a1, XY a2, XY b1, XY b2) {
+  final rx = a2.x - a1.x;
+  final ry = a2.y - a1.y;
+  final sx = b2.x - b1.x;
+  final sy = b2.y - b1.y;
+  final cos = (rx * sx + ry * sy).abs() / math.max(1e-9, _len(a1, a2) * _len(b1, b2));
+  return math.acos(cos.clamp(0.0, 1.0)) * 180 / math.pi;
+}
+
+XY? _intersect(XY a1, XY a2, XY b1, XY b2) {
+  final rx = a2.x - a1.x;
+  final ry = a2.y - a1.y;
+  final sx = b2.x - b1.x;
+  final sy = b2.y - b1.y;
+  final d = rx * sy - ry * sx;
+  if (d.abs() < 1e-9) return null;
+  final t = ((b1.x - a1.x) * sy - (b1.y - a1.y) * sx) / d;
+  return (x: a1.x + rx * t, y: a1.y + ry * t);
+}
+
+double _distToSegment(XY p, XY a, XY b) {
+  final dx = b.x - a.x;
+  final dy = b.y - a.y;
+  final l2 = dx * dx + dy * dy;
+  if (l2 < 1e-12) return _len(p, a);
+  final t = (((p.x - a.x) * dx + (p.y - a.y) * dy) / l2).clamp(0.0, 1.0);
+  return _len(p, (x: a.x + dx * t, y: a.y + dy * t));
+}
+
+// ---------------------------------------------------------------------------
 // Warp / rotate
 // ---------------------------------------------------------------------------
 

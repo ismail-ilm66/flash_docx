@@ -79,3 +79,14 @@ class EditorPreviewRequested extends PageEditorEvent {
 class EditorSaveRequested extends PageEditorEvent {
   const EditorSaveRequested();
 }
+
+/// A whole new crop from a mid-edge drag (P1-2); rejected if not convex.
+class EditorCropChanged extends PageEditorEvent {
+  const EditorCropChanged(this.quad);
+  final Quad quad;
+}
+
+/// Compute magnetic-edge candidates for the current page (P1-3).
+class EditorSnapsRequested extends PageEditorEvent {
+  const EditorSnapsRequested();
+}

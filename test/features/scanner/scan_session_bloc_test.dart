@@ -199,7 +199,7 @@ void main() {
     ).thenAnswer((inv) async {
       final path = (inv.positionalArguments.first as List<String>).single;
       final cb = inv.namedArguments[#onPrepared] as void Function(int, AutoEditsResult)?;
-      cb?.call(0, AutoEditsResult(edits: const PageEdits(), detected: true, sharpness: 500, brightness: CaptureChecks.darkThreshold - 1));
+      cb?.call(0, const AutoEditsResult(edits: PageEdits(), detected: true, sharpness: 500, brightness: CaptureChecks.darkThreshold - 1));
       return Right([ScanPage(id: path, documentId: '', originalPath: path, edits: const PageEdits(), order: 0)]);
     });
     final bloc = ScanSessionBloc(prepare, prefs, null);

@@ -17,6 +17,7 @@ class SettingsState extends Equatable {
     this.defaultPageSize = PdfPageSize.a4,
     this.defaultQuality = ExportQuality.standard,
     this.shutterSound = true,
+    this.magneticEdges = true,
     this.storageBytes,
     this.version = '',
     this.clearing = false,
@@ -27,6 +28,7 @@ class SettingsState extends Equatable {
   final PdfPageSize defaultPageSize;
   final ExportQuality defaultQuality;
   final bool shutterSound;
+  final bool magneticEdges;
   final int? storageBytes;
   final String version;
   final bool clearing;
@@ -37,6 +39,7 @@ class SettingsState extends Equatable {
     PdfPageSize? defaultPageSize,
     ExportQuality? defaultQuality,
     bool? shutterSound,
+    bool? magneticEdges,
     int? storageBytes,
     String? version,
     bool? clearing,
@@ -47,6 +50,7 @@ class SettingsState extends Equatable {
         defaultPageSize: defaultPageSize ?? this.defaultPageSize,
         defaultQuality: defaultQuality ?? this.defaultQuality,
         shutterSound: shutterSound ?? this.shutterSound,
+        magneticEdges: magneticEdges ?? this.magneticEdges,
         storageBytes: storageBytes ?? this.storageBytes,
         version: version ?? this.version,
         clearing: clearing ?? this.clearing,
@@ -54,7 +58,7 @@ class SettingsState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [defaultFilter, defaultFormat, defaultPageSize, defaultQuality, shutterSound, storageBytes, version, clearing];
+      [defaultFilter, defaultFormat, defaultPageSize, defaultQuality, shutterSound, magneticEdges, storageBytes, version, clearing];
 }
 
 @injectable
@@ -77,6 +81,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         defaultPageSize: _enum(PdfPageSize.values, p.defaultPageSize, PdfPageSize.a4),
         defaultQuality: _enum(ExportQuality.values, p.defaultQuality, ExportQuality.standard),
         shutterSound: p.shutterSound,
+        magneticEdges: p.magneticEdges,
       );
 
   Future<void> _loadVersion() async {
@@ -114,6 +119,11 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> setShutterSound(bool on) async {
     emit(state.copyWith(shutterSound: on));
     await _prefs.setShutterSound(on);
+  }
+
+  Future<void> setMagneticEdges(bool on) async {
+    emit(state.copyWith(magneticEdges: on));
+    await _prefs.setMagneticEdges(on);
   }
 
   Future<void> clearTemp() async {

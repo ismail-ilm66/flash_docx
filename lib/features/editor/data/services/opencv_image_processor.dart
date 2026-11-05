@@ -7,6 +7,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
@@ -110,6 +111,12 @@ class OpenCvImageProcessor implements ImageProcessor {
       RenderMsg(originalPath, edits, null, outputPath, 92),
       debugLabel: 'renderOcr',
     );
+  }
+
+  @override
+  Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint}) async {
+    final r = await _runner.run(snapInIsolate, DetectMsg(previewPath, aspectHint), debugLabel: 'snap');
+    return SnapCandidates(lines: r.lines, corners: r.corners);
   }
 
   @override
@@ -251,6 +258,15 @@ DetectResult detectInIsolate(DetectMsg m) {
   try {
     final report = pipe.detectDocument(img, aspectHint: m.snapAspect);
     return DetectResult(report.quad, report.toString());
+  } finally {
+    img.dispose();
+  }
+}
+
+({List<(Pt, Pt)> lines, List<Pt> corners}) snapInIsolate(DetectMsg m) {
+  final img = pipe.readUpright(m.path);
+  try {
+    return pipe.snapCandidates(img, aspectHint: m.snapAspect);
   } finally {
     img.dispose();
   }

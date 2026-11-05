@@ -794,4 +794,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String cameraPreparingProgress(int done, int total) {
     return 'Preparing $done of $total…';
   }
+
+  @override
+  String get settingsMagneticEdges => 'Magnetic edges';
 }

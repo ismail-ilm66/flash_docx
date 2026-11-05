@@ -2,6 +2,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
@@ -69,6 +70,11 @@ class _AdjustView extends StatelessWidget {
         // P1-8: "+ Add page" on every scan and every edit, in every mode, so
         // the strip is always shown.
         const showStrip = true;
+        // P1-3: candidates are computed once per page, on demand.
+        final magnetic = getIt<PrefsService>().magneticEdges;
+        if (magnetic && page != null && base != null && !s.snaps.containsKey(page.id)) {
+          bloc.add(const EditorSnapsRequested());
+        }
         final notFound = page != null && !page.edgesDetected;
         return DiscardScanGuard(
           guard: bloc.guardBack,
@@ -124,9 +130,13 @@ class _AdjustView extends StatelessWidget {
                                       quad: page.edits.crop ?? Quad.full(),
                                       onCornerMoved: (i, p) =>
                                           bloc.add(EditorCornerMoved(i, p)),
+                                      onCropChanged: (q) =>
+                                          bloc.add(EditorCropChanged(q)),
                                       onDragEnd: () => bloc.add(
                                         const EditorCornerDragEnded(),
                                       ),
+                                      magnetic: magnetic,
+                                      snaps: s.snaps[page.id],
                                     ),
                                   ),
                           ),

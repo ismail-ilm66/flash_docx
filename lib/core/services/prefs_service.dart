@@ -15,6 +15,7 @@ class PrefsService {
   static const _flashOn = 'camera_flash_on';
   static const _consentDone = 'ads_consent_done';
   static const _shutterSound = 'camera_shutter_sound';
+  static const _magneticEdges = 'crop_magnetic_edges';
   static const _defaultQuality = 'default_export_quality';
 
   String? get themeMode => _prefs.getString(_themeMode);
@@ -33,6 +34,9 @@ class PrefsService {
 
   bool get flashOn => _prefs.getBool(_flashOn) ?? false;
   Future<void> setFlashOn(bool v) => _prefs.setBool(_flashOn, v);
+
+  bool get magneticEdges => _prefs.getBool(_magneticEdges) ?? true;
+  Future<void> setMagneticEdges(bool v) => _prefs.setBool(_magneticEdges, v);
 
   bool get shutterSound => _prefs.getBool(_shutterSound) ?? true;
   Future<void> setShutterSound(bool v) => _prefs.setBool(_shutterSound, v);

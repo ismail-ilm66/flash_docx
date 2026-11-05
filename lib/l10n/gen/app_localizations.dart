@@ -1485,6 +1485,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preparing {done} of {total}…'**
   String cameraPreparingProgress(int done, int total);
+
+  /// No description provided for @settingsMagneticEdges.
+  ///
+  /// In en, this message translates to:
+  /// **'Magnetic edges'**
+  String get settingsMagneticEdges;
 }
 
 class _AppLocalizationsDelegate

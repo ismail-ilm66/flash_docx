@@ -111,6 +111,11 @@ class _SettingsView extends StatelessWidget {
                         },
                       ),
                       _Row(
+                        label: l.settingsMagneticEdges,
+                        trailing: Switch.adaptive(value: s.magneticEdges, onChanged: cubit.setMagneticEdges),
+                        onTap: () => cubit.setMagneticEdges(!s.magneticEdges),
+                      ),
+                      _Row(
                         label: l.settingsShutterSound,
                         trailing: Switch.adaptive(value: s.shutterSound, onChanged: cubit.setShutterSound),
                         onTap: () => cubit.setShutterSound(!s.shutterSound),

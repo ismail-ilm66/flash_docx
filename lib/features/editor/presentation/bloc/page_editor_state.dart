@@ -17,6 +17,7 @@ class PageEditorState extends Equatable {
     this.rendering = false,
     this.savedDocumentId,
     this.appliedToAllTick = 0,
+    this.snaps = const {},
   });
 
   final EditorArgs args;
@@ -29,6 +30,9 @@ class PageEditorState extends Equatable {
   final bool rendering;
   final String? savedDocumentId;
   final int appliedToAllTick;
+
+  /// Magnetic-edge candidates per page id.
+  final Map<String, SnapCandidates> snaps;
 
   ScanPage? get current => pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
   PageEdits get edits => current?.edits ?? const PageEdits();
@@ -51,6 +55,7 @@ class PageEditorState extends Equatable {
     bool? rendering,
     String? savedDocumentId,
     int? appliedToAllTick,
+    Map<String, SnapCandidates>? snaps,
   }) {
     return PageEditorState(
       args: args,
@@ -63,6 +68,7 @@ class PageEditorState extends Equatable {
       rendering: rendering ?? this.rendering,
       savedDocumentId: savedDocumentId ?? this.savedDocumentId,
       appliedToAllTick: appliedToAllTick ?? this.appliedToAllTick,
+      snaps: snaps ?? this.snaps,
     );
   }
 
@@ -77,5 +83,6 @@ class PageEditorState extends Equatable {
         rendering,
         savedDocumentId,
         appliedToAllTick,
+        snaps,
       ];
 }

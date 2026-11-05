@@ -390,5 +390,6 @@
   "cameraStorageLow": "Your phone storage is almost full \u2014 scans may be slow.",
   "cameraStorageFull": "Not enough storage to save scans. Free up space and try again.",
   "cameraPreparingProgress": "Preparing {done} of {total}\u2026",
-  "@cameraPreparingProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}}
+  "@cameraPreparingProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "settingsMagneticEdges": "Magnetic edges"
 }

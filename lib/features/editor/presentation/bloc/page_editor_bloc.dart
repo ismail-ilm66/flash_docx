@@ -11,6 +11,7 @@ import 'package:flash_dox/features/documents/domain/usecases/document_usecases.d
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flutter/foundation.dart';
@@ -57,6 +58,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       ),
     );
     on<EditorSaveRequested>(_onSave);
+    on<EditorCropChanged>(_onCropChanged);
+    on<EditorSnapsRequested>(_onSnapsRequested);
   }
 
   final ImageProcessor _processor;
@@ -165,6 +168,29 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       },
       preview: false,
     );
+  }
+
+  void _onCropChanged(EditorCropChanged e, Emitter<PageEditorState> emit) {
+    final q = e.quad.clamp01();
+    // A bent, crossed or mirrored shape is rejected: the crop stays put.
+    if (!q.isConvex || q.area < 0.01) return;
+    _updateCurrent(emit, (ed) => ed.copyWith(crop: q), preview: false);
+  }
+
+  final Set<String> _snapsInFlight = {};
+
+  Future<void> _onSnapsRequested(EditorSnapsRequested e, Emitter<PageEditorState> emit) async {
+    final cur = state.current;
+    final base = state.basePreview;
+    if (cur == null || base == null || state.snaps.containsKey(cur.id) || !_snapsInFlight.add(cur.id)) return;
+    try {
+      final c = await _processor.snapCandidates(base, aspectHint: ScanModeRules.of(state.args.mode).aspectRatio);
+      if (!isClosed) emit(state.copyWith(snaps: {...state.snaps, cur.id: c}));
+    } catch (err) {
+      debugPrint('snap candidates failed: $err');
+    } finally {
+      _snapsInFlight.remove(cur.id);
+    }
   }
 
   void _onRotated(EditorRotated e, Emitter<PageEditorState> emit) {

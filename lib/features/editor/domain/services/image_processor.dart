@@ -1,5 +1,6 @@
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
+import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 
 /// Implemented with OpenCV in `data/`. All methods run off the UI isolate.
 abstract interface class ImageProcessor {
@@ -58,6 +59,10 @@ abstract interface class ImageProcessor {
     PageEdits edits, {
     required String outputPath,
   });
+
+  /// Candidate lines and corners for magnetic crop handles (P1-3), from the
+  /// editor's base preview.
+  Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint});
 
   /// Pixel size of an image without decoding it fully.
   Future<({int width, int height})> imageSize(String imagePath);

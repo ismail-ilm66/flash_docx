@@ -82,22 +82,16 @@ abstract class Quad with _$Quad {
     return s.abs() / 2;
   }
 
-  /// True when the polygon is convex and non-self-intersecting.
+  /// True when the polygon is strictly convex and in TL, TR, BR, BL order
+  /// (clockwise on screen, y down). Rejects bent, crossed and mirrored crops.
   bool get isConvex {
     final p = points;
-    double? sign;
     for (var i = 0; i < 4; i++) {
       final a = p[i];
       final b = p[(i + 1) % 4];
       final c = p[(i + 2) % 4];
       final cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
-      if (cross.abs() < 1e-9) continue;
-      final s = cross.sign;
-      if (sign == null) {
-        sign = s;
-      } else if (s != sign) {
-        return false;
-      }
+      if (cross <= 1e-12) return false;
     }
     return true;
   }
