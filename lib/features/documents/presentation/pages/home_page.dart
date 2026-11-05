@@ -316,7 +316,7 @@ class _Header extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Space.x5, Space.x4, Space.x3, Space.x2),
       child: Row(
         children: [
-          BrandMark(color: c.accent),
+          const BrandMark(),
           const SizedBox(width: 10),
           Expanded(
             child: Semantics(

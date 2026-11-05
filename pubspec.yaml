@@ -85,12 +85,15 @@ flutter:
         - asset: assets/fonts/Manrope-800.ttf
           weight: 800
 
+# P1-1: one splash. The 1152 px mark (treated as 4x = 288 dp) fits Android
+# 12's round icon area; the Flutter splash's first frame draws the same
+# image at the same size and centre (see SplashPage).
 flutter_native_splash:
   color: "#0F1012"
-  image: assets/splash/splash_icon.png
+  image: assets/splash/splash_mark_1152.png
   android_12:
     color: "#0F1012"
-    image: assets/splash/splash_icon.png
+    image: assets/splash/splash_mark_1152.png
   ios: true
   android: true
   web: false

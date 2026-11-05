@@ -1,22 +1,29 @@
-import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-/// The Flash Dox flashlight mark (40 × 24 artwork).
+/// The Flash Dox logo mark (P1-1): `flash_dox_logo_mark.svg`, whose viewBox
+/// is trimmed to the glyph (39 × 32), drawn in its own colours and centred
+/// in its box so it never sits off to one side.
 class BrandMark extends StatelessWidget {
-  const BrandMark({super.key, this.width = 34, this.color});
+  const BrandMark({super.key, this.width = 34});
 
   final double width;
-  final Color? color;
+
+  static const double _aspect = 39 / 32;
 
   @override
   Widget build(BuildContext context) {
-    return SvgPicture.asset(
-      'assets/images/brand_mark.svg',
+    return SizedBox(
       width: width,
-      height: width * 24 / 40,
-      colorFilter: ColorFilter.mode(color ?? context.colors.accent, BlendMode.srcIn),
-      excludeFromSemantics: true,
+      height: width / _aspect,
+      child: Center(
+        child: SvgPicture.asset(
+          'assets/images/logo_mark.svg',
+          width: width,
+          height: width / _aspect,
+          excludeFromSemantics: true,
+        ),
+      ),
     );
   }
 }
