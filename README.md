@@ -62,34 +62,35 @@ product flavors, so no Xcode scheme work is needed.
 | Android signing | `buildTypes.release` still signs with the debug key |
 | iOS share-in | needs a Share Extension target in Xcode; Android share-in is done natively in `MainActivity.kt` |
 
-## Engine notes (fix round, Nov 2026)
+## Engine notes (round 3, Nov 2026)
 
-* **Edge detection** (`features/editor/data/opencv/pipeline.dart`,
-  `detectDocument`): two passes on a ~1000 px copy. Edges: Canny with
-  thresholds from the median brightness, close, dilate. Regions: Otsu on gray
-  and on saturation. Every contour (`RETR_LIST`) is simplified; four-sided
-  convex shapes over 15 % of the frame are candidates, 5–10-sided ones use
-  their minimum-area rectangle. Score = area × rectangularity (× aspect match
-  in ID / passport modes). Nothing found → the camera's guide frame (cards) or
-  a 5 % inset, and Adjust edges shows "Couldn't find the edges". Every result
-  is logged as `[edges] …` in debug builds.
-  Real-photo fixtures go in `test/fixtures/edges/` (README there); the
-  26-of-30 target can only be measured once they exist.
-* **Filters** always run after the crop. Auto: median denoise → clamped
-  gray-world balance (±15 %) → shadow correction from one luminance
-  background (divisor ≥ 40, blended 70 %) → CLAHE 1.8 on L → +10 %
-  saturation. Colour survives; only B&W print thresholds.
-* **Exports** warp at full size and shrink with area averaging; Standard is
-  2480 px on the long edge, never enlarged. OCR uses its own full-resolution
-  gray render, cached per page by crop + rotation.
-* **Camera**: `ResolutionPreset.max` (4:3) in a 3:4 well, so the preview is
-  what gets captured; `PreviewGeometry` maps the guide frame and taps into
-  photo coordinates. Tap to focus/expose; focus settles on the centre before
-  a capture. Capture feedback: medium haptic, 150 ms flash, thumbnail flies to
-  the stack, shutter shrinks, and a synthetic shutter click
-  (`assets/sounds/shutter.wav`, toggle in Settings). Replace the WAV with a
-  licensed sound if you have one.
+* **Reference port.** Detection, warp and filters are a line-by-line port of
+  the owner's `tool/reference/flashdox_reference.py`
+  (`features/editor/data/opencv/pipeline.dart`). `python3
+  tool/reference/dump_reference.py` writes the reference's outputs for every
+  photo in `test/fixtures/edges/`; `reference_parity_test.dart` checks the
+  Dart port against them (mean difference ≤ 0.2 levels; OCR and B&W print
+  identical). Keep the two in step when either changes.
+* **Originals are never touched.** Camera shots are moved, imports copied,
+  byte for byte; EXIF is applied whenever they are read. Previews are
+  1200 px, Standard exports 2000 px, High is the original resolution; every
+  output is encoded once and PDFs embed those JPEGs as they are.
+* **Capture.** The shutter does feedback → `takePicture()` → queue. A
+  background queue (`ScanSessionBloc`) processes one page at a time and
+  "Done" waits for it. Logs: `[capture] takePicture … ms; shutter ready again
+  after … ms`, `[ingest] W×H (MP, MB) … sharpness … brightness …`.
+* **Thresholds to calibrate** on real phones: `CaptureChecks.blurThreshold`
+  and `darkThreshold` (provisional; every capture logs its values).
+* **Edge fixtures.** `test/fixtures/edges/*.jpg` + corner JSON (README
+  there). The 26-of-30 acceptance test runs once 30 fixtures exist; until then
+  it reports the count.
+* **OpenCV modules:** `hooks.user_defines.dartcv4.include_modules` in
+  pubspec — `photo` is required (non-local-means denoise).
+* **Modes:** Document / ID Card / Passport. DB schema v2 migrates the old
+  Single / Batch rows to Document.
 * **iOS share-in** needs a one-time Xcode step: see `ios/ShareExtension/README.md`.
+* **Benchmarks / evidence:** `flutter test test/bench --tags bench
+  --run-skipped` prints timings and writes `docs/round3/results_dart.jpg`.
 
 ## Notes
 
