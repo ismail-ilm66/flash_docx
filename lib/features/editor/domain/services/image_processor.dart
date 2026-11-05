@@ -60,6 +60,17 @@ abstract interface class ImageProcessor {
     required String outputPath,
   });
 
+  /// One card side for print at real size and [dpi] (never above native),
+  /// encoded once to [outputPath] (P1-9).
+  Future<String> renderCard(
+    String originalPath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  });
+
   /// Candidate lines and corners for magnetic crop handles (P1-3), from the
   /// editor's base preview.
   Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint});

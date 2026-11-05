@@ -626,10 +626,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get shareQualityStandardHint => 'Smaller file · good for chat';
+  String get shareQualityStandardHint => 'Smaller file, for sharing';
 
   @override
-  String get shareQualityHighHint => 'Full resolution · for print';
+  String get shareQualityHighHint => 'Best for printing';
 
   @override
   String shareButtonFormat(String format) {
@@ -797,4 +797,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsMagneticEdges => 'Magnetic edges';
+
+  @override
+  String get printQualityStandard => 'Standard · 300 DPI';
+
+  @override
+  String get printQualityHigh => 'High · 600 DPI';
 }

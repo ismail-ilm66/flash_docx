@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/string_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
@@ -8,12 +7,12 @@ import 'package:flash_dox/core/services/save_service.dart';
 import 'package:flash_dox/core/services/share_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
-import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
-import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
+import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
+import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 
@@ -21,9 +20,11 @@ import 'package:injectable/injectable.dart';
 /// and shares / saves it.
 @injectable
 class BuildPrintLayout {
-  BuildPrintLayout(this._render, this._pdf, this._sheet, this._files, this._share, this._save, this._repo);
+  BuildPrintLayout(this._processor, this._pdf, this._sheet, this._files, this._share, this._save, this._repo);
 
-  final PageRenderService _render;
+  static int dpiFor(ExportQuality q) => q == ExportQuality.high ? 600 : 300;
+
+  final ImageProcessor _processor;
   final PdfBuilder _pdf;
   final SheetImageRenderer _sheet;
   final FileStore _files;
@@ -39,6 +40,7 @@ class BuildPrintLayout {
     required ExportTarget target,
     bool cutGuides = true,
     bool swapSides = false,
+    ExportQuality quality = ExportQuality.standard,
   }) async {
     final pages = doc.sortedPages;
     if (pages.isEmpty) return const Left(NotFoundFailure());
@@ -51,35 +53,43 @@ class BuildPrintLayout {
       (frontPage, backPage) = (backPage, frontPage);
     }
     final base = '${doc.title.fileSafe}_print';
+    // P1-9: Standard = 300 DPI, High = 600 DPI (or the photo's own
+    // resolution if lower). Always from the original photo, encoded once.
+    final dpi = dpiFor(quality);
+    final card = PrintLayoutCalculator.cardSize(kind);
     try {
-      final front = await _render.renderForExport(
-        frontPage,
-        size: RenderSize.full,
-        outputPath: _files.exportPath('print_${doc.id}/front.jpg'),
-        jpegQuality: Limits.highJpegQuality,
-      );
-      String? back;
-      if (backPage != null) {
-        back = await _render.renderForExport(
-          backPage,
-          size: RenderSize.full,
-          outputPath: _files.exportPath('print_${doc.id}/back.jpg'),
-          jpegQuality: Limits.highJpegQuality,
-        );
-      }
-      final spec = PrintLayoutSpec(
-        kind: kind,
-        output: output,
-        copies: copies,
-        frontPath: front,
-        backPath: back,
-        title: doc.title,
-        cutGuides: cutGuides,
-      );
       final File file;
       if (output == PrintOutput.image) {
-        file = File(await _sheet.render(spec, outputPath: _files.exportPath('$base.jpg')));
+        final spec = PrintLayoutSpec(kind: kind, output: output, copies: copies, frontPath: '', backPath: backPage == null ? null : '', title: doc.title);
+        file = File(
+          await _sheet.render(
+            spec,
+            front: (originalPath: frontPage.originalPath, edits: frontPage.edits),
+            back: backPage == null ? null : (originalPath: backPage.originalPath, edits: backPage.edits),
+            dpi: dpi,
+            outputPath: _files.exportPath('$base.jpg'),
+          ),
+        );
       } else {
+        Future<String> side(ScanPage p, String name) => _processor.renderCard(
+              p.originalPath,
+              p.edits,
+              widthMm: card.w,
+              heightMm: card.h,
+              dpi: dpi,
+              outputPath: _files.exportPath('print_${doc.id}/$name.jpg'),
+            );
+        final front = await side(frontPage, 'front');
+        final back = backPage == null ? null : await side(backPage, 'back');
+        final spec = PrintLayoutSpec(
+          kind: kind,
+          output: output,
+          copies: copies,
+          frontPath: front,
+          backPath: back,
+          title: doc.title,
+          cutGuides: cutGuides,
+        );
         file = await _pdf.printSheet(spec, outputPath: _files.exportPath('$base.pdf'));
       }
       final Either<Failure, Unit> r;

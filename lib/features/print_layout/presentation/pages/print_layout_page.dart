@@ -61,6 +61,16 @@ class _PrintViewState extends State<_PrintView> {
     cubit.setCopies(n);
   }
 
+  Future<void> _pickHighQuality(BuildContext context) async {
+    final cubit = context.read<PrintLayoutCubit>();
+    if (cubit.state.qualityGated) {
+      final ok = await showUnlockDialog(context, PremiumFeature.highQualityExport);
+      if (!ok) return;
+      cubit.unlockHighQuality();
+    }
+    cubit.setQuality(ExportQuality.high);
+  }
+
   static String _mm(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
   @override
@@ -205,6 +215,27 @@ class _PrintViewState extends State<_PrintView> {
                       ),
                       const SizedBox(height: Space.x3),
                     ],
+                    // P1-9: quality under the copies; High needs a video,
+                    // like High quality on the Share sheet.
+                    SectionLabel(l.shareQuality, padding: const EdgeInsets.only(bottom: Space.x2)),
+                    Wrap(
+                      spacing: Space.x2,
+                      runSpacing: Space.x2,
+                      children: [
+                        OptionChip(
+                          label: l.printQualityStandard,
+                          selected: s.quality == ExportQuality.standard,
+                          onTap: () => cubit.setQuality(ExportQuality.standard),
+                        ),
+                        OptionChip(
+                          label: l.printQualityHigh,
+                          selected: s.quality == ExportQuality.high,
+                          gated: s.qualityGated,
+                          onTap: () => _pickHighQuality(context),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: Space.x3),
                     Row(
                       children: [
                         if (s.output != PrintOutput.image)

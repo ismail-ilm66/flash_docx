@@ -1017,6 +1017,31 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   return out;
 }
 
+/// One card side for print (P1-9): from the original, cropped and warped to
+/// the real card shape, filtered, then shrunk with area averaging to the
+/// pixel size for [dpi] at [widthMm] × [heightMm] — never above the photo's
+/// own resolution. Always landscape (portrait renders are turned).
+cv.Mat renderCard(
+  String originalPath,
+  PageEdits edits, {
+  required double widthMm,
+  required double heightMm,
+  required int dpi,
+}) {
+  final full = renderEdits(originalPath, edits);
+  var card = full;
+  if (card.rows > card.cols) {
+    card = cv.rotate(full, cv.ROTATE_90_COUNTERCLOCKWISE);
+    full.dispose();
+  }
+  final tw = (widthMm / 25.4 * dpi).round();
+  final th = (heightMm / 25.4 * dpi).round();
+  if (card.cols <= tw) return card; // native resolution is lower: keep it
+  final out = cv.resize(card, (tw, th), interpolation: cv.INTER_AREA);
+  card.dispose();
+  return out;
+}
+
 /// Dedicated OCR image: crop + rotate at full resolution, then the
 /// reference `ocr_image()`. Never the user's chosen filter.
 cv.Mat renderForOcr(String path, PageEdits edits) {

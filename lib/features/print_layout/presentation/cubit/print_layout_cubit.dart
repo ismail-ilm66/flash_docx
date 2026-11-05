@@ -50,6 +50,8 @@ class PrintLayoutState extends Equatable {
     this.cutGuides = true,
     this.swapSides = false,
     this.sheet = 0,
+    this.quality = ExportQuality.standard,
+    this.highQualityUnlocked = false,
   });
 
   final ScanDocument? document;
@@ -63,6 +65,12 @@ class PrintLayoutState extends Equatable {
 
   /// Which sheet the preview shows (double-sided PDFs have two).
   final int sheet;
+
+  /// P1-9: Standard = 300 DPI, High = 600 DPI (video unlock, like Share).
+  final ExportQuality quality;
+  final bool highQualityUnlocked;
+
+  bool get qualityGated => !highQualityUnlocked;
 
   PrintKind? get kind => switch (document?.mode) {
         ScanMode.idCard => PrintKind.idCard,
@@ -89,6 +97,8 @@ class PrintLayoutState extends Equatable {
     bool? cutGuides,
     bool? swapSides,
     int? sheet,
+    ExportQuality? quality,
+    bool? highQualityUnlocked,
   }) =>
       PrintLayoutState(
         document: document ?? this.document,
@@ -100,11 +110,13 @@ class PrintLayoutState extends Equatable {
         cutGuides: cutGuides ?? this.cutGuides,
         swapSides: swapSides ?? this.swapSides,
         sheet: sheet ?? this.sheet,
+        quality: quality ?? this.quality,
+        highQualityUnlocked: highQualityUnlocked ?? this.highQualityUnlocked,
       );
 
   @override
   List<Object?> get props =>
-      [document, output, copies, status, moreCopiesUnlocked, failure, cutGuides, swapSides, sheet];
+      [document, output, copies, status, moreCopiesUnlocked, failure, cutGuides, swapSides, sheet, quality, highQualityUnlocked];
 
   bool get hasBack => kind == PrintKind.idCard && (document?.pages.length ?? 0) > 1;
 }
@@ -141,6 +153,10 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
 
   void setCutGuides(bool on) => emit(state.copyWith(cutGuides: on));
 
+  void setQuality(ExportQuality q) => emit(state.copyWith(quality: q, status: const PrintIdle()));
+
+  void unlockHighQuality() => emit(state.copyWith(highQualityUnlocked: true));
+
   void toggleSwapSides() => emit(state.copyWith(swapSides: !state.swapSides));
 
   void setSheet(int i) => emit(state.copyWith(sheet: i));
@@ -160,6 +176,7 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
       target: target,
       cutGuides: state.cutGuides,
       swapSides: state.swapSides,
+      quality: state.quality,
     );
     emit(
       r.fold(

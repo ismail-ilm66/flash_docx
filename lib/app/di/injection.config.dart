@@ -185,6 +185,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i567.PrefsService>(),
       ),
     );
+    gh.factory<_i60.BuildPrintLayout>(
+      () => _i60.BuildPrintLayout(
+        gh<_i618.ImageProcessor>(),
+        gh<_i435.PdfBuilder>(),
+        gh<_i84.SheetImageRenderer>(),
+        gh<_i626.FileStore>(),
+        gh<_i856.ShareService>(),
+        gh<_i792.SaveService>(),
+        gh<_i132.DocumentRepository>(),
+      ),
+    );
     gh.factory<_i813.RecognizePageText>(
       () => _i813.RecognizePageText(
         gh<_i917.TextRecognizer>(),
@@ -215,6 +226,13 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i948.WatchDocuments>(),
         gh<_i310.DeleteDocument>(),
         gh<_i310.RenameDocument>(),
+      ),
+    );
+    gh.factoryParam<_i603.PrintLayoutCubit, String, dynamic>(
+      (documentId, _) => _i603.PrintLayoutCubit(
+        gh<_i310.GetDocument>(),
+        gh<_i60.BuildPrintLayout>(),
+        documentId,
       ),
     );
     gh.lazySingleton<_i120.PageRenderService>(
@@ -276,17 +294,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i792.SaveService>(),
         gh<_i132.DocumentRepository>(),
         gh<_i84.SheetImageRenderer>(),
-      ),
-    );
-    gh.factory<_i60.BuildPrintLayout>(
-      () => _i60.BuildPrintLayout(
-        gh<_i120.PageRenderService>(),
-        gh<_i435.PdfBuilder>(),
-        gh<_i84.SheetImageRenderer>(),
-        gh<_i626.FileStore>(),
-        gh<_i856.ShareService>(),
-        gh<_i792.SaveService>(),
-        gh<_i132.DocumentRepository>(),
+        gh<_i618.ImageProcessor>(),
       ),
     );
     gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(
@@ -294,13 +302,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i402.ExportDocument>(),
         gh<_i567.PrefsService>(),
         document,
-      ),
-    );
-    gh.factoryParam<_i603.PrintLayoutCubit, String, dynamic>(
-      (documentId, _) => _i603.PrintLayoutCubit(
-        gh<_i310.GetDocument>(),
-        gh<_i60.BuildPrintLayout>(),
-        documentId,
       ),
     );
     return this;

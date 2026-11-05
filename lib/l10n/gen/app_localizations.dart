@@ -1219,13 +1219,13 @@ abstract class AppLocalizations {
   /// No description provided for @shareQualityStandardHint.
   ///
   /// In en, this message translates to:
-  /// **'Smaller file · good for chat'**
+  /// **'Smaller file, for sharing'**
   String get shareQualityStandardHint;
 
   /// No description provided for @shareQualityHighHint.
   ///
   /// In en, this message translates to:
-  /// **'Full resolution · for print'**
+  /// **'Best for printing'**
   String get shareQualityHighHint;
 
   /// No description provided for @shareButtonFormat.
@@ -1491,6 +1491,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Magnetic edges'**
   String get settingsMagneticEdges;
+
+  /// No description provided for @printQualityStandard.
+  ///
+  /// In en, this message translates to:
+  /// **'Standard · 300 DPI'**
+  String get printQualityStandard;
+
+  /// No description provided for @printQualityHigh.
+  ///
+  /// In en, this message translates to:
+  /// **'High · 600 DPI'**
+  String get printQualityHigh;
 }
 
 class _AppLocalizationsDelegate

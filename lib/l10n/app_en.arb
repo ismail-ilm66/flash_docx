@@ -287,8 +287,8 @@
       }
     }
   },
-  "shareQualityStandardHint": "Smaller file · good for chat",
-  "shareQualityHighHint": "Full resolution · for print",
+  "shareQualityStandardHint": "Smaller file, for sharing",
+  "shareQualityHighHint": "Best for printing",
   "shareButtonFormat": "Share {format}",
   "@shareButtonFormat": {
     "placeholders": {
@@ -391,5 +391,7 @@
   "cameraStorageFull": "Not enough storage to save scans. Free up space and try again.",
   "cameraPreparingProgress": "Preparing {done} of {total}\u2026",
   "@cameraPreparingProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
-  "settingsMagneticEdges": "Magnetic edges"
+  "settingsMagneticEdges": "Magnetic edges",
+  "printQualityStandard": "Standard \u00b7 300 DPI",
+  "printQualityHigh": "High \u00b7 600 DPI"
 }

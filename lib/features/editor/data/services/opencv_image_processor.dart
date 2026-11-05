@@ -114,6 +114,22 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<String> renderCard(
+    String originalPath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  }) {
+    return _runner.run(
+      cardInIsolate,
+      CardMsg(originalPath, edits, widthMm, heightMm, dpi, outputPath),
+      debugLabel: 'card',
+    );
+  }
+
+  @override
   Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint}) async {
     final r = await _runner.run(snapInIsolate, DetectMsg(previewPath, aspectHint), debugLabel: 'snap');
     return SnapCandidates(lines: r.lines, corners: r.corners);
@@ -272,8 +288,45 @@ DetectResult detectInIsolate(DetectMsg m) {
   }
 }
 
+class CardMsg {
+  const CardMsg(this.path, this.edits, this.widthMm, this.heightMm, this.dpi, this.out);
+  final String path;
+  final PageEdits edits;
+  final double widthMm;
+  final double heightMm;
+  final int dpi;
+  final String out;
+}
+
+String cardInIsolate(CardMsg m) {
+  final card = pipe.renderCard(m.path, m.edits, widthMm: m.widthMm, heightMm: m.heightMm, dpi: m.dpi);
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(card, m.out, quality: 95);
+    return m.out;
+  } finally {
+    card.dispose();
+  }
+}
+
+/// Renders an export. If the full-resolution render fails (out of memory on
+/// a low-end phone), retries at A4 300 DPI (3508 px) and then 2000 px
+/// instead of failing the export (P0-C).
 String renderInIsolate(RenderMsg m) {
-  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: m.longEdge);
+  final sizes = <int?>[m.longEdge, if (m.longEdge == null || m.longEdge! > 3508) 3508, if (m.longEdge == null || m.longEdge! > 2000) 2000];
+  Object? lastError;
+  for (final size in sizes) {
+    try {
+      return _renderOnce(m, size);
+    } catch (e) {
+      lastError = e;
+    }
+  }
+  throw StateError('render failed: $lastError');
+}
+
+String _renderOnce(RenderMsg m, int? longEdge) {
+  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: longEdge);
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(out, m.out, quality: m.quality);
