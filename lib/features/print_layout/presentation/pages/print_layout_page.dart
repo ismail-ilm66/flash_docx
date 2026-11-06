@@ -41,7 +41,11 @@ class _PrintViewState extends State<_PrintView> {
   void _goSheet(int i) {
     setState(() => _sheet = i);
     if (_pageCtrl.hasClients) {
-      _pageCtrl.animateToPage(i, duration: Motion.normal, curve: Curves.easeOutCubic);
+      _pageCtrl.animateToPage(
+        i,
+        duration: Motion.normal,
+        curve: Curves.easeOutCubic,
+      );
     }
   }
 
@@ -64,14 +68,18 @@ class _PrintViewState extends State<_PrintView> {
   Future<void> _pickHighQuality(BuildContext context) async {
     final cubit = context.read<PrintLayoutCubit>();
     if (cubit.state.qualityGated) {
-      final ok = await showUnlockDialog(context, PremiumFeature.highQualityExport);
+      final ok = await showUnlockDialog(
+        context,
+        PremiumFeature.highQualityExport,
+      );
       if (!ok) return;
       cubit.unlockHighQuality();
     }
     cubit.setQuality(ExportQuality.high);
   }
 
-  static String _mm(double v) => v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+  static String _mm(double v) =>
+      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -81,8 +89,12 @@ class _PrintViewState extends State<_PrintView> {
       listenWhen: (a, b) => a.status != b.status || a.output != b.output,
       listener: (context, s) {
         final st = s.status;
-        if (st is PrintDone && st.target == ExportTarget.saveToPhone) context.showSnack(l.shareSaved);
-        if (st is PrintFailed) context.showSnack(failureMessage(context, st.failure), error: true);
+        if (st is PrintDone && st.target == ExportTarget.saveToPhone) {
+          context.showSnack(l.shareSaved);
+        }
+        if (st is PrintFailed) {
+          context.showSnack(failureMessage(context, st.failure), error: true);
+        }
         setState(() => _sheet = 0);
       },
       builder: (context, s) {
@@ -92,11 +104,16 @@ class _PrintViewState extends State<_PrintView> {
         if (doc == null) {
           return AppScaffold(
             topBar: AppTopBar(title: l.printTitle),
-            body: s.failure == null ? const Center(child: CircularProgressIndicator()) : ErrorView(failure: s.failure),
+            body: s.failure == null
+                ? const Center(child: CircularProgressIndicator())
+                : ErrorView(failure: s.failure),
           );
         }
         if (kind == null) {
-          return AppScaffold(topBar: AppTopBar(title: l.printTitle), body: EmptyState(title: l.printNotAvailable));
+          return AppScaffold(
+            topBar: AppTopBar(title: l.printTitle),
+            body: EmptyState(title: l.printNotAvailable),
+          );
         }
         final working = s.status is PrintWorking;
         final spec = PrintLayoutSpec(
@@ -112,8 +129,12 @@ class _PrintViewState extends State<_PrintView> {
         final sheet = _sheet.clamp(0, sheets - 1);
         final card = PrintLayoutCalculator.cardSize(kind);
         final pages = doc.sortedPages;
-        final frontPage = s.swapSides && pages.length > 1 ? pages[1] : pages.first;
-        final backPage = pages.length > 1 ? (s.swapSides ? pages.first : pages[1]) : null;
+        final frontPage = s.swapSides && pages.length > 1
+            ? pages[1]
+            : pages.first;
+        final backPage = pages.length > 1
+            ? (s.swapSides ? pages.first : pages[1])
+            : null;
         final duplex = s.output == PrintOutput.pdfDoubleSided && sheets > 1;
         final scale = l.printTipScale;
         final flip = l.printTipFlip;
@@ -123,184 +144,245 @@ class _PrintViewState extends State<_PrintView> {
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (s.allowedOutputs.length > 1)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x4),
-                  child: SegmentedPills<PrintOutput>(
-                    values: s.allowedOutputs,
-                    selected: s.output,
-                    height: 44,
-                    labelSize: 12,
-                    labelOf: (o) => switch (o) {
-                      PrintOutput.image => l.printOutputImage,
-                      PrintOutput.pdfDoubleSided => l.printOutputDoubleSided,
-                      PrintOutput.pdfOnePage => l.printOutputOnePage,
-                    },
-                    onChanged: cubit.setOutput,
-                  ),
-                ),
               Expanded(
-                child: Container(
-                  margin: const EdgeInsets.only(top: Space.x3),
-                  color: c.stage,
-                  padding: const EdgeInsets.symmetric(vertical: Space.x3),
-                  child: Column(
-                    children: [
-                      if (sheets > 1)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            for (var i = 0; i < sheets; i++) ...[
-                              if (i > 0) const SizedBox(width: 6),
-                              _SheetChip(
-                                label: duplex
-                                    ? (i.isEven ? l.printSheetFronts(i + 1) : l.printSheetBacks(i + 1))
-                                    : l.pageOfTotal(i + 1, sheets),
-                                selected: i == sheet,
-                                onTap: () => _goSheet(i),
-                              ),
-                            ],
-                          ],
+                child: _PreviewAndControls(
+                  large: MediaQuery.textScalerOf(context).scale(10) > 13,
+                  top: [
+                    if (s.allowedOutputs.length > 1)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.x4,
                         ),
-                      Expanded(
-                        child: PageView.builder(
-                          controller: _pageCtrl,
-                          itemCount: sheets,
-                          onPageChanged: (i) => setState(() => _sheet = i),
-                          itemBuilder: (context, i) => Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: Space.x6, vertical: Space.x3),
-                            child: Center(
-                              child: AspectRatio(
-                                aspectRatio: PrintLayoutCalculator.sheetW / PrintLayoutCalculator.sheetH,
-                                child: _SheetPreview(
-                                  items: layout.pages[i],
-                                  cutGuides: s.cutGuides && s.output != PrintOutput.image,
-                                  frontPath: frontPage.listImagePath,
-                                  backPath: backPage?.listImagePath,
+                        child: SegmentedPills<PrintOutput>(
+                          values: s.allowedOutputs,
+                          selected: s.output,
+                          height: 44,
+                          labelSize: 12,
+                          labelOf: (o) => switch (o) {
+                            PrintOutput.image => l.printOutputImage,
+                            PrintOutput.pdfDoubleSided =>
+                              l.printOutputDoubleSided,
+                            PrintOutput.pdfOnePage => l.printOutputOnePage,
+                          },
+                          onChanged: cubit.setOutput,
+                        ),
+                      ),
+                  ],
+                  preview: Container(
+                    margin: const EdgeInsets.only(top: Space.x3),
+                    color: c.stage,
+                    padding: const EdgeInsets.symmetric(vertical: Space.x3),
+                    child: Column(
+                      children: [
+                        if (sheets > 1)
+                          Wrap(
+                            alignment: WrapAlignment.center,
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              for (var i = 0; i < sheets; i++) ...[
+                                _SheetChip(
+                                  label: duplex
+                                      ? (i.isEven
+                                            ? l.printSheetFronts(i + 1)
+                                            : l.printSheetBacks(i + 1))
+                                      : l.pageOfTotal(i + 1, sheets),
+                                  selected: i == sheet,
+                                  onTap: () => _goSheet(i),
+                                ),
+                              ],
+                            ],
+                          ),
+                        Expanded(
+                          child: PageView.builder(
+                            controller: _pageCtrl,
+                            itemCount: sheets,
+                            onPageChanged: (i) => setState(() => _sheet = i),
+                            itemBuilder: (context, i) => Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Space.x6,
+                                vertical: Space.x3,
+                              ),
+                              child: Center(
+                                child: AspectRatio(
+                                  aspectRatio:
+                                      PrintLayoutCalculator.sheetW /
+                                      PrintLayoutCalculator.sheetH,
+                                  child: _SheetPreview(
+                                    items: layout.pages[i],
+                                    cutGuides:
+                                        s.cutGuides &&
+                                        s.output != PrintOutput.image,
+                                    frontPath: frontPage.listImagePath,
+                                    backPath: backPage?.listImagePath,
+                                  ),
                                 ),
                               ),
                             ),
                           ),
                         ),
-                      ),
-                      Text(
-                        l.printSheetCaption(_mm(card.w), _mm(card.h)),
-                        style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w500),
-                      ),
-                    ],
+                        Text(
+                          l.printSheetCaption(_mm(card.w), _mm(card.h)),
+                          style: context.text.labelSmall?.copyWith(
+                            color: c.muted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (s.output != PrintOutput.image) ...[
-                      SectionLabel(l.printCopies, padding: const EdgeInsets.only(bottom: Space.x2)),
-                      Row(
-                        children: [
-                          for (final (i, n) in s.allowedCopies.indexed) ...[
-                            if (i > 0) const SizedBox(width: Space.x2),
-                            Expanded(
-                              child: _CopiesButton(
-                                n: n,
-                                selected: s.copies == n,
-                                locked: s.copiesGated(n),
-                                onTap: () => _pickCopies(context, n),
-                              ),
+                  controls: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      Space.x4,
+                      14,
+                      Space.x4,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (s.output != PrintOutput.image) ...[
+                          SectionLabel(
+                            l.printCopies,
+                            padding: const EdgeInsets.only(bottom: Space.x2),
+                          ),
+                          Row(
+                            children: [
+                              for (final (i, n) in s.allowedCopies.indexed) ...[
+                                if (i > 0) const SizedBox(width: Space.x2),
+                                Expanded(
+                                  child: _CopiesButton(
+                                    n: n,
+                                    selected: s.copies == n,
+                                    locked: s.copiesGated(n),
+                                    onTap: () => _pickCopies(context, n),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: Space.x3),
+                        ],
+                        // P1-9: quality under the copies; High needs a video,
+                        // like High quality on the Share sheet.
+                        SectionLabel(
+                          l.shareQuality,
+                          padding: const EdgeInsets.only(bottom: Space.x2),
+                        ),
+                        Wrap(
+                          spacing: Space.x2,
+                          runSpacing: Space.x2,
+                          children: [
+                            OptionChip(
+                              label: l.printQualityStandard,
+                              selected: s.quality == ExportQuality.standard,
+                              onTap: () =>
+                                  cubit.setQuality(ExportQuality.standard),
+                            ),
+                            OptionChip(
+                              label: l.printQualityHigh,
+                              selected: s.quality == ExportQuality.high,
+                              gated: s.qualityGated,
+                              onTap: () => _pickHighQuality(context),
                             ),
                           ],
-                        ],
-                      ),
-                      const SizedBox(height: Space.x3),
-                    ],
-                    // P1-9: quality under the copies; High needs a video,
-                    // like High quality on the Share sheet.
-                    SectionLabel(l.shareQuality, padding: const EdgeInsets.only(bottom: Space.x2)),
-                    Wrap(
-                      spacing: Space.x2,
-                      runSpacing: Space.x2,
-                      children: [
-                        OptionChip(
-                          label: l.printQualityStandard,
-                          selected: s.quality == ExportQuality.standard,
-                          onTap: () => cubit.setQuality(ExportQuality.standard),
                         ),
-                        OptionChip(
-                          label: l.printQualityHigh,
-                          selected: s.quality == ExportQuality.high,
-                          gated: s.qualityGated,
-                          onTap: () => _pickHighQuality(context),
+                        const SizedBox(height: Space.x3),
+                        // A Wrap, so Swap sides moves under the switch when large
+                        // fonts make the row too wide.
+                        Wrap(
+                          alignment: WrapAlignment.spaceBetween,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (s.output != PrintOutput.image)
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Switch.adaptive(
+                                    value: s.cutGuides,
+                                    onChanged: cubit.setCutGuides,
+                                  ),
+                                  const SizedBox(width: Space.x1),
+                                  Flexible(
+                                    child: Text(
+                                      l.printCutGuides,
+                                      style: context.text.labelMedium,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            if (s.hasBack)
+                              TextButton.icon(
+                                onPressed: cubit.toggleSwapSides,
+                                icon: const AppIcon(AppIcons.reorder, size: 18),
+                                label: Text(l.printSwapSides),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: Space.x2),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Space.x3,
+                            vertical: 10,
+                          ),
+                          decoration: BoxDecoration(
+                            color: c.accentSoft,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 1),
+                                child: AppIcon(
+                                  AppIcons.print,
+                                  size: 20,
+                                  color: c.accentText,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _BoldParts(
+                                  text: s.output == PrintOutput.pdfDoubleSided
+                                      ? l.printTipDuplex(flip, scale)
+                                      : l.printTipSingle(scale),
+                                  bold: [flip, scale],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: Space.x3),
-                    Row(
-                      children: [
-                        if (s.output != PrintOutput.image)
-                          Expanded(
-                            child: Row(
-                              children: [
-                                Switch.adaptive(value: s.cutGuides, onChanged: cubit.setCutGuides),
-                                const SizedBox(width: Space.x1),
-                                Flexible(child: Text(l.printCutGuides, style: context.text.labelMedium)),
-                              ],
-                            ),
-                          )
-                        else
-                          const Spacer(),
-                        if (s.hasBack)
-                          TextButton.icon(
-                            onPressed: cubit.toggleSwapSides,
-                            icon: const AppIcon(AppIcons.reorder, size: 18),
-                            label: Text(l.printSwapSides),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: Space.x2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.x3, vertical: 10),
-                      decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(12)),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(top: 1),
-                            child: AppIcon(AppIcons.print, size: 20, color: c.accentText),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _BoldParts(
-                              text: s.output == PrintOutput.pdfDoubleSided
-                                  ? l.printTipDuplex(flip, scale)
-                                  : l.printTipSingle(scale),
-                              bold: [flip, scale],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ),
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 18),
+                  padding: const EdgeInsets.fromLTRB(
+                    Space.x4,
+                    14,
+                    Space.x4,
+                    18,
+                  ),
                   child: Row(
                     children: [
                       Expanded(
                         child: SecondaryButton(
                           label: l.shareSaveToPhone,
                           dense: true,
-                          onPressed: working ? null : () => cubit.run(ExportTarget.saveToPhone),
+                          onPressed: working
+                              ? null
+                              : () => cubit.run(ExportTarget.saveToPhone),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: PrimaryButton(
-                          label: s.output == PrintOutput.image ? l.printShareImage : l.shareButtonFormat(l.sharePdf),
+                          label: s.output == PrintOutput.image
+                              ? l.printShareImage
+                              : l.shareButtonFormat(l.sharePdf),
                           loading: working,
                           onPressed: () => cubit.run(ExportTarget.share),
                         ),
@@ -317,6 +399,47 @@ class _PrintViewState extends State<_PrintView> {
   }
 }
 
+/// Normal fonts: the sheet preview fills the space the controls leave.
+/// Large fonts (P1-5): the controls need most of a small screen, so the page
+/// scrolls and the preview gets a fixed height.
+class _PreviewAndControls extends StatelessWidget {
+  const _PreviewAndControls({
+    required this.large,
+    required this.top,
+    required this.preview,
+    required this.controls,
+  });
+
+  final bool large;
+  final List<Widget> top;
+  final Widget preview;
+  final Widget controls;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!large) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...top,
+          Expanded(child: preview),
+          controls,
+        ],
+      );
+    }
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...top,
+          SizedBox(height: 340, child: preview),
+          controls,
+        ],
+      ),
+    );
+  }
+}
+
 /// Renders [text] with each occurrence of the strings in [bold] in bold.
 class _BoldParts extends StatelessWidget {
   const _BoldParts({required this.text, required this.bold});
@@ -326,7 +449,10 @@ class _BoldParts extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final base = context.text.bodySmall?.copyWith(height: 1.45, color: context.colors.text);
+    final base = context.text.bodySmall?.copyWith(
+      height: 1.45,
+      color: context.colors.text,
+    );
     final spans = <TextSpan>[];
     var rest = text;
     while (rest.isNotEmpty) {
@@ -344,7 +470,12 @@ class _BoldParts extends StatelessWidget {
         break;
       }
       if (at > 0) spans.add(TextSpan(text: rest.substring(0, at)));
-      spans.add(TextSpan(text: hit, style: const TextStyle(fontWeight: FontWeight.w800)));
+      spans.add(
+        TextSpan(
+          text: hit,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+      );
       rest = rest.substring(at + hit.length);
     }
     return Text.rich(TextSpan(style: base, children: spans));
@@ -352,7 +483,11 @@ class _BoldParts extends StatelessWidget {
 }
 
 class _SheetChip extends StatelessWidget {
-  const _SheetChip({required this.label, required this.selected, required this.onTap});
+  const _SheetChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;
@@ -390,7 +525,12 @@ class _SheetChip extends StatelessWidget {
 }
 
 class _CopiesButton extends StatelessWidget {
-  const _CopiesButton({required this.n, required this.selected, required this.locked, required this.onTap});
+  const _CopiesButton({
+    required this.n,
+    required this.selected,
+    required this.locked,
+    required this.onTap,
+  });
 
   final int n;
   final bool selected;
@@ -418,9 +558,17 @@ class _CopiesButton extends StatelessWidget {
               decoration: BoxDecoration(
                 color: selected ? c.accentSoft : Colors.transparent,
                 borderRadius: BorderRadius.circular(12),
-                border: selected ? Border.all(color: c.accent, width: 2) : Border.all(color: c.borderStrong),
+                border: selected
+                    ? Border.all(color: c.accent, width: 2)
+                    : Border.all(color: c.borderStrong),
               ),
-              child: Text('$n', style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w800)),
+              child: Text(
+                '$n',
+                style: context.text.titleSmall?.copyWith(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
             ),
             if (locked)
               Positioned(
@@ -429,7 +577,10 @@ class _CopiesButton extends StatelessWidget {
                 child: Container(
                   width: 18,
                   height: 18,
-                  decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: c.accent,
+                    shape: BoxShape.circle,
+                  ),
                   alignment: Alignment.center,
                   child: AppIcon(AppIcons.play, size: 9, color: c.onAccent),
                 ),
@@ -462,7 +613,13 @@ class _SheetPreview extends StatelessWidget {
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            boxShadow: [BoxShadow(color: Color(0x40000000), blurRadius: 22, offset: Offset(0, 6))],
+            boxShadow: [
+              BoxShadow(
+                color: Color(0x40000000),
+                blurRadius: 22,
+                offset: Offset(0, 6),
+              ),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -510,5 +667,6 @@ class _CropMarksPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _CropMarksPainter old) => old.items != items || old.k != k;
+  bool shouldRepaint(covariant _CropMarksPainter old) =>
+      old.items != items || old.k != k;
 }

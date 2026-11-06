@@ -1,5 +1,6 @@
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 
 /// Single-choice segmented control. Two looks from the design:
@@ -97,13 +98,13 @@ class _Pill extends StatelessWidget {
     final bg = !selected
         ? Colors.transparent
         : accent
-            ? c.accent
-            : c.surface;
+        ? c.accent
+        : c.surface;
     final fg = !selected
         ? c.muted
         : accent
-            ? c.onAccent
-            : c.text;
+        ? c.onAccent
+        : c.text;
     final pill = Semantics(
       button: true,
       selected: selected,
@@ -121,11 +122,8 @@ class _Pill extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Flexible(
-                child: Text(
+                child: FitText(
                   label,
-                  maxLines: 2,
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
                   style: context.text.labelLarge?.copyWith(
                     color: fg,
                     fontSize: labelSize,

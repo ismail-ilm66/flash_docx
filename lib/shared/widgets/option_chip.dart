@@ -2,6 +2,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 
 /// Marks an option that needs a rewarded video. Compact: the small video
@@ -28,7 +29,10 @@ class VideoBadge extends StatelessWidget {
       child: Container(
         height: 18,
         padding: const EdgeInsets.symmetric(horizontal: 7),
-        decoration: BoxDecoration(color: c.accentSoft, borderRadius: Radii.pillR),
+        decoration: BoxDecoration(
+          color: c.accentSoft,
+          borderRadius: Radii.pillR,
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -75,8 +79,8 @@ class OptionChip extends StatelessWidget {
     final fg = !enabled
         ? c.muted.withValues(alpha: 0.5)
         : selected
-            ? (c.isDark ? c.bg : c.surface)
-            : c.text;
+        ? (c.isDark ? c.bg : c.surface)
+        : c.text;
     return Semantics(
       button: true,
       selected: selected,
@@ -95,12 +99,15 @@ class OptionChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                label,
-                style: context.text.labelMedium?.copyWith(
-                  fontSize: 13,
-                  color: fg,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+              Flexible(
+                child: FitText(
+                  label,
+                  maxLines: 1,
+                  style: context.text.labelMedium?.copyWith(
+                    fontSize: 13,
+                    color: fg,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                  ),
                 ),
               ),
               if (gated) ...[
@@ -153,10 +160,13 @@ class OptionCard extends StatelessWidget {
       mainAxisSize: centered ? MainAxisSize.min : MainAxisSize.max,
       children: [
         Flexible(
-          child: Text(
+          child: FitText(
             title,
-            style: context.text.titleSmall?.copyWith(fontSize: titleSize, fontWeight: FontWeight.w800),
-            overflow: TextOverflow.ellipsis,
+            style: context.text.titleSmall?.copyWith(
+              fontSize: titleSize,
+              fontWeight: FontWeight.w800,
+            ),
+            textAlign: centered ? TextAlign.center : TextAlign.start,
           ),
         ),
         if (gated) ...[
@@ -173,8 +183,15 @@ class OptionCard extends StatelessWidget {
         borderRadius: Radii.mdR,
         child: AnimatedContainer(
           duration: Motion.normal,
-          height: height,
-          padding: EdgeInsets.symmetric(horizontal: centered ? Space.x2 : 14, vertical: Space.x2),
+          // A minimum, so a label on two lines (large fonts) grows the card
+          // instead of overflowing it.
+          constraints: height == null
+              ? null
+              : BoxConstraints(minHeight: height!),
+          padding: EdgeInsets.symmetric(
+            horizontal: centered ? Space.x2 : 14,
+            vertical: Space.x2,
+          ),
           decoration: BoxDecoration(
             color: selected ? c.accentSoft : Colors.transparent,
             borderRadius: Radii.mdR,
@@ -191,16 +208,22 @@ class OptionCard extends StatelessWidget {
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: centered ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+                  crossAxisAlignment: centered
+                      ? CrossAxisAlignment.center
+                      : CrossAxisAlignment.start,
                   children: [
                     titleRow,
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),
-                      Text(
+                      FitText(
                         subtitle!,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w500),
+                        textAlign: centered
+                            ? TextAlign.center
+                            : TextAlign.start,
+                        style: context.text.labelSmall?.copyWith(
+                          color: c.muted,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ],
                   ],
@@ -224,14 +247,14 @@ class SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: padding,
-        child: Text(
-          text.toUpperCase(),
-          style: context.text.labelMedium?.copyWith(
-            color: context.colors.muted,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
-        ),
-      );
+    padding: padding,
+    child: Text(
+      text.toUpperCase(),
+      style: context.text.labelMedium?.copyWith(
+        color: context.colors.muted,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.5,
+      ),
+    ),
+  );
 }

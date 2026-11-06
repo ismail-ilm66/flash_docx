@@ -4,6 +4,7 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
 import 'package:flash_dox/shared/widgets/back_guards.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -131,11 +132,17 @@ class _NavItem extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Space.x1),
-            Text(
-              label,
-              style: context.text.labelMedium?.copyWith(
-                color: active ? c.text : c.muted,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+            // Capped like Material's NavigationBar, so the fixed-height bar
+            // never overflows at the largest system font.
+            MediaQuery.withClampedTextScaling(
+              maxScaleFactor: 1.3,
+              child: FitText(
+                label,
+                maxLines: 1,
+                style: context.text.labelMedium?.copyWith(
+                  color: active ? c.text : c.muted,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                ),
               ),
             ),
           ],

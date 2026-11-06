@@ -142,11 +142,9 @@ class CameraOverlay extends StatelessWidget {
                     child: SizedBox(
                       height: Sizes.tap,
                       child: Center(
-                        child: Text(
+                        child: FitText(
                           title,
-                          textAlign: TextAlign.center,
                           maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
                           style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
                         ),
                       ),

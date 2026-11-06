@@ -2,6 +2,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -41,7 +42,8 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         tooltip: leading == TopBarLeading.back
             ? context.l10n.commonBack
             : context.l10n.commonClose,
-        onPressed: onLeading ??
+        onPressed:
+            onLeading ??
             () {
               if (context.canPop()) context.pop();
             },
@@ -51,34 +53,44 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       );
     }
-    final align = centerTitle ? CrossAxisAlignment.center : CrossAxisAlignment.start;
+    final align = centerTitle
+        ? CrossAxisAlignment.center
+        : CrossAxisAlignment.start;
     return AppBar(
       backgroundColor: transparent ? Colors.transparent : c.bg,
       toolbarHeight: Sizes.topBar,
-      leading: lead == null ? null : Padding(padding: const EdgeInsets.only(left: Space.x2), child: lead),
+      leading: lead == null
+          ? null
+          : Padding(
+              padding: const EdgeInsets.only(left: Space.x2),
+              child: lead,
+            ),
       leadingWidth: Sizes.tap + Space.x3,
       automaticallyImplyLeading: false,
       centerTitle: centerTitle,
       titleSpacing: lead == null ? Space.x5 : Space.x1,
-      title: titleWidget ??
+      title:
+          titleWidget ??
           Column(
             crossAxisAlignment: align,
             mainAxisSize: MainAxisSize.min,
             children: [
               if (title != null)
-                Text(
+                FitText(
                   title!,
-                  style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                  style: context.text.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  textAlign: centerTitle ? TextAlign.center : TextAlign.start,
                 ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
-                Text(
+                FitText(
                   subtitle!,
                   style: context.text.bodySmall?.copyWith(color: c.muted),
                   maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  textAlign: centerTitle ? TextAlign.center : TextAlign.start,
                 ),
               ],
             ],
@@ -86,7 +98,10 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         ...actions,
         // Keeps a centred title centred when there is a back button only.
-        if (actions.isEmpty && centerTitle && lead != null) const SizedBox(width: Sizes.tap + Space.x3) else const SizedBox(width: Space.x2),
+        if (actions.isEmpty && centerTitle && lead != null)
+          const SizedBox(width: Sizes.tap + Space.x3)
+        else
+          const SizedBox(width: Space.x2),
       ],
     );
   }

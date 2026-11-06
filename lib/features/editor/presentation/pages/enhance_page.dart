@@ -308,7 +308,7 @@ class _EnhanceViewState extends State<_EnhanceView> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               SizedBox(
-                                height: 64 + 5 + 28,
+                                height: _FilterSwatch.heightFor(context),
                                 child: ListView.separated(
                                   scrollDirection: Axis.horizontal,
                                   padding: const EdgeInsets.symmetric(
@@ -683,6 +683,21 @@ class _FilterSwatch extends StatelessWidget {
   /// until it is ready.
   final String? thumb;
 
+  static const _labelSize = 10.5;
+  static const _labelHeight = 1.15;
+  static const _maxLabelScale = 1.3;
+
+  /// Thumbnail, gap and two label lines at the (capped) system font size.
+  static double heightFor(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(
+      context,
+    ).clamp(maxScaleFactor: _maxLabelScale);
+    return 64 +
+        5 +
+        (scaler.scale(_labelSize) * _labelHeight * 2).ceilToDouble() +
+        2;
+  }
+
   static (Color paper, Color ink) _tone(FilterType f) => switch (f) {
     FilterType.original => (const Color(0xFFE9E3D8), const Color(0xFF8E9196)),
     FilterType.auto => (const Color(0xFFFFFFFF), const Color(0xFF4A4D55)),
@@ -757,16 +772,17 @@ class _FilterSwatch extends StatelessWidget {
                       ),
               ),
               const SizedBox(height: 6),
-              Text(
-                label,
-                maxLines: 2,
-                softWrap: true,
-                textAlign: TextAlign.center,
-                style: context.text.labelSmall?.copyWith(
-                  fontSize: 10.5,
-                  height: 1.15,
-                  fontWeight: FontWeight.w700,
-                  color: selected ? c.accentText : c.muted,
+              // Capped like a nav bar label: the strip has a fixed height.
+              MediaQuery.withClampedTextScaling(
+                maxScaleFactor: _maxLabelScale,
+                child: FitText(
+                  label,
+                  style: context.text.labelSmall?.copyWith(
+                    fontSize: _labelSize,
+                    height: _labelHeight,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? c.accentText : c.muted,
+                  ),
                 ),
               ),
             ],

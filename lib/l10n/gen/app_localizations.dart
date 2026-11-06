@@ -325,19 +325,19 @@ abstract class AppLocalizations {
   /// No description provided for @adjustAuto.
   ///
   /// In en, this message translates to:
-  /// **'Auto edges'**
+  /// **'Auto'**
   String get adjustAuto;
 
   /// No description provided for @adjustRotateLeft.
   ///
   /// In en, this message translates to:
-  /// **'Rotate left'**
+  /// **'Left'**
   String get adjustRotateLeft;
 
   /// No description provided for @adjustRotateRight.
   ///
   /// In en, this message translates to:
-  /// **'Rotate right'**
+  /// **'Right'**
   String get adjustRotateRight;
 
   /// No description provided for @adjustRetake.
@@ -1207,7 +1207,7 @@ abstract class AppLocalizations {
   /// No description provided for @shareQualityStandardHint.
   ///
   /// In en, this message translates to:
-  /// **'Smaller file, for sharing'**
+  /// **'Smaller file · for sharing'**
   String get shareQualityStandardHint;
 
   /// No description provided for @shareQualityHighHint.

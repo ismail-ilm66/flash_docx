@@ -135,13 +135,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adjustHint => 'Drag the corners to fit the document';
 
   @override
-  String get adjustAuto => 'Auto edges';
+  String get adjustAuto => 'Auto';
 
   @override
-  String get adjustRotateLeft => 'Rotate left';
+  String get adjustRotateLeft => 'Left';
 
   @override
-  String get adjustRotateRight => 'Rotate right';
+  String get adjustRotateRight => 'Right';
 
   @override
   String get adjustRetake => 'Retake';
@@ -612,7 +612,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get shareQualityStandardHint => 'Smaller file, for sharing';
+  String get shareQualityStandardHint => 'Smaller file · for sharing';
 
   @override
   String get shareQualityHighHint => 'Best for printing';

@@ -52,9 +52,9 @@
   "cameraImportInstead": "Import instead",
   "adjustTitle": "Adjust edges",
   "adjustHint": "Drag the corners to fit the document",
-  "adjustAuto": "Auto edges",
-  "adjustRotateLeft": "Rotate left",
-  "adjustRotateRight": "Rotate right",
+  "adjustAuto": "Auto",
+  "adjustRotateLeft": "Left",
+  "adjustRotateRight": "Right",
   "adjustRetake": "Retake",
   "adjustDeletePage": "Delete",
   "adjustNext": "Next",
@@ -278,7 +278,7 @@
       }
     }
   },
-  "shareQualityStandardHint": "Smaller file, for sharing",
+  "shareQualityStandardHint": "Smaller file · for sharing",
   "shareQualityHighHint": "Best for printing",
   "shareButtonFormat": "Share {format}",
   "@shareButtonFormat": {

@@ -2,6 +2,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 
 class PrimaryButton extends StatelessWidget {
@@ -45,7 +46,10 @@ class PrimaryButton extends StatelessWidget {
         minimumSize: Size(Sizes.tap, height),
         padding: EdgeInsets.symmetric(horizontal: dense ? Space.x2 : Space.x5),
         shape: const StadiumBorder(),
-        textStyle: context.text.labelLarge?.copyWith(fontSize: dense ? 14 : 15, fontWeight: FontWeight.w800),
+        textStyle: context.text.labelLarge?.copyWith(
+          fontSize: dense ? 14 : 15,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       child: child,
     );
@@ -96,7 +100,12 @@ class SecondaryButton extends StatelessWidget {
         shape: const StadiumBorder(),
         textStyle: context.text.labelLarge?.copyWith(fontSize: dense ? 14 : 15),
       ),
-      child: _ButtonContent(label: label, icon: icon, loading: loading, color: fg),
+      child: _ButtonContent(
+        label: label,
+        icon: icon,
+        loading: loading,
+        color: fg,
+      ),
     );
     return expand ? SizedBox(width: double.infinity, child: btn) : btn;
   }
@@ -124,15 +133,20 @@ class _ButtonContent extends StatelessWidget {
         child: CircularProgressIndicator(strokeWidth: 2.2, color: color),
       );
     }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (icon != null) ...[
-          AppIcon(icon!, size: 18, color: color),
-          const SizedBox(width: Space.x2),
+    // Scaled down rather than cut off when the button is narrow or the
+    // system font is large (P1-5).
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            AppIcon(icon!, size: 18, color: color),
+            const SizedBox(width: Space.x2),
+          ],
+          Text(label, maxLines: 1),
         ],
-        Flexible(child: Text(label, overflow: TextOverflow.ellipsis)),
-      ],
+      ),
     );
   }
 }
@@ -163,10 +177,10 @@ class ToolbarAction extends StatelessWidget {
     final color = !enabled
         ? c.muted.withValues(alpha: 0.5)
         : destructive
-            ? c.danger
-            : active
-                ? c.accentText
-                : c.text;
+        ? c.danger
+        : active
+        ? c.accentText
+        : c.text;
     return Semantics(
       button: true,
       label: label,
@@ -185,14 +199,12 @@ class ToolbarAction extends StatelessWidget {
               children: [
                 AppIcon(icon, size: iconSize, color: color),
                 const SizedBox(height: 6),
-                Text(
+                FitText(
                   label,
                   style: context.text.labelMedium?.copyWith(
                     color: color,
                     fontWeight: active ? FontWeight.w700 : FontWeight.w600,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
@@ -225,7 +237,10 @@ class TopBarTextAction extends StatelessWidget {
         child: SizedBox(
           width: 20,
           height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2.2, color: c.accentText),
+          child: CircularProgressIndicator(
+            strokeWidth: 2.2,
+            color: c.accentText,
+          ),
         ),
       );
     }
@@ -236,7 +251,10 @@ class TopBarTextAction extends StatelessWidget {
         disabledForegroundColor: c.muted,
         minimumSize: const Size(Sizes.tap, Sizes.tap),
         padding: const EdgeInsets.symmetric(horizontal: Space.x3),
-        textStyle: context.text.labelLarge?.copyWith(fontSize: 15, fontWeight: FontWeight.w800),
+        textStyle: context.text.labelLarge?.copyWith(
+          fontSize: 15,
+          fontWeight: FontWeight.w800,
+        ),
       ),
       child: Text(label),
     );

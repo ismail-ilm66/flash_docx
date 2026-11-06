@@ -4,6 +4,7 @@ import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flash_dox/shared/widgets/page_thumb.dart';
 import 'package:flutter/material.dart';
 
@@ -48,7 +49,10 @@ class DocumentTile extends StatelessWidget {
             Container(
               width: 52,
               height: 64,
-              decoration: BoxDecoration(color: c.surface2, borderRadius: Radii.smR),
+              decoration: BoxDecoration(
+                color: c.surface2,
+                borderRadius: Radii.smR,
+              ),
               alignment: Alignment.center,
               child: SizedBox(
                 width: isCard ? 42 : 36,
@@ -68,23 +72,31 @@ class DocumentTile extends StatelessWidget {
                 children: [
                   Text(
                     d.title,
-                    style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-                    maxLines: 1,
+                    style: context.text.titleSmall?.copyWith(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 3),
-                  Text(meta, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                  Text(
+                    meta,
+                    style: context.text.bodySmall?.copyWith(color: c.muted),
+                  ),
                   const SizedBox(height: 3),
                   Row(
                     children: [
                       AppIcon(AppIcons.clock, size: 13, color: c.accentText),
                       const SizedBox(width: 5),
                       Expanded(
-                        child: Text(
+                        child: FitText(
                           activityLine,
-                          style: context.text.bodySmall?.copyWith(color: c.accentText, fontWeight: FontWeight.w600),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.start,
+                          style: context.text.bodySmall?.copyWith(
+                            color: c.accentText,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],

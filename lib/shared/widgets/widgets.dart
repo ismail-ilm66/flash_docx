@@ -11,6 +11,7 @@ export 'brand_mark.dart';
 export 'buttons.dart';
 export 'dashed_border.dart';
 export 'document_tile.dart';
+export 'fit_text.dart';
 export 'labeled_slider.dart';
 export 'option_chip.dart';
 export 'page_dots.dart';
