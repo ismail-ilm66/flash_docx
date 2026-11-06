@@ -1,8 +1,8 @@
 name: CI
 
+# Manual only: run from the Actions tab ("Run workflow").
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 
 jobs:
   analyze-test:
