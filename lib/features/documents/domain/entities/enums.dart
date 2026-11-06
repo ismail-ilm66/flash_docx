@@ -16,6 +16,9 @@ enum ActivityType {
   printLayout,
 }
 
+/// Home folders (round 4, feature 3). Stored by index: append only.
+enum DocFolder { other, bills, ids, education, receipts }
+
 extension ScanModeX on ScanMode {
   bool get supportsPrintLayout =>
       this == ScanMode.idCard || this == ScanMode.passport;

@@ -90,3 +90,35 @@ class GetStorageUsed {
   final DocumentRepository _repo;
   Future<Either<Failure, int>> call() => _repo.storageUsedBytes();
 }
+
+/// Moves a document to a Home folder (feature 3).
+@injectable
+class SetDocumentFolder {
+  SetDocumentFolder(this._repo);
+  final DocumentRepository _repo;
+  Future<Either<Failure, Unit>> call(String id, DocFolder folder) => _repo.setFolder(id, folder);
+}
+
+/// The viewer banner's Apply / ✕ (feature 3). Apply renames and files the
+/// document; either way the banner doesn't come back.
+@injectable
+class NameSuggestionActions {
+  NameSuggestionActions(this._repo);
+  final DocumentRepository _repo;
+
+  Future<Either<Failure, Unit>> apply(ScanDocument doc) async {
+    final s = doc.suggestion;
+    if (s == null) return const Right(unit);
+    final renamed = await _repo.rename(doc.id, s.title);
+    if (renamed.isLeft()) return renamed;
+    final moved = await _repo.setFolder(doc.id, s.folder);
+    if (moved.isLeft()) return moved;
+    return _repo.setSuggestion(doc.id, s.copyWith(dismissed: true));
+  }
+
+  Future<Either<Failure, Unit>> dismiss(ScanDocument doc) async {
+    final s = doc.suggestion;
+    if (s == null) return const Right(unit);
+    return _repo.setSuggestion(doc.id, s.copyWith(dismissed: true));
+  }
+}

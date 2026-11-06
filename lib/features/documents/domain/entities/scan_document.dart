@@ -1,5 +1,6 @@
 import 'package:flash_dox/features/documents/domain/entities/activity.dart';
 import 'package:flash_dox/features/documents/domain/entities/enums.dart';
+import 'package:flash_dox/features/documents/domain/entities/name_suggestion.dart';
 import 'package:flash_dox/features/documents/domain/entities/scan_page.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -16,6 +17,11 @@ abstract class ScanDocument with _$ScanDocument {
     required DateTime createdAt,
     required DateTime updatedAt,
     Activity? lastActivity,
+    @Default(DocFolder.other) DocFolder folder,
+    NameSuggestion? suggestion,
+
+    /// Bytes of all page files on disk (originals and caches).
+    @Default(0) int sizeBytes,
   }) = _ScanDocument;
   const ScanDocument._();
 

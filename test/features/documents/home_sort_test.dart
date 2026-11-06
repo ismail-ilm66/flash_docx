@@ -26,4 +26,19 @@ void main() {
     expect(sortDocuments(docs, HomeSort.name).map((d) => d.id), ['b', 'c', 'a']);
     expect(docs.map((d) => d.id), ['a', 'b', 'c']);
   });
+
+  test('folder chips: counts per folder, filter keeps the sort', () {
+    final all = [
+      _doc('a', 'a', 3).copyWith(folder: DocFolder.bills),
+      _doc('b', 'b', 2).copyWith(folder: DocFolder.ids),
+      _doc('c', 'c', 1).copyWith(folder: DocFolder.bills),
+    ];
+    final s = HomeState(all: all, loading: false);
+    expect(s.counts[DocFolder.bills], 2);
+    expect(s.counts[DocFolder.receipts], 0);
+    expect(s.documents, hasLength(3));
+    final bills = s.copyWith(folder: () => DocFolder.bills);
+    expect(bills.documents.map((d) => d.id), ['a', 'c']);
+    expect(bills.copyWith(folder: () => null).documents, hasLength(3));
+  });
 }

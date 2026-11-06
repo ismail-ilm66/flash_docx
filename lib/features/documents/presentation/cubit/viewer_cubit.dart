@@ -73,6 +73,8 @@ class ViewerCubit extends Cubit<ViewerState> {
     this._addPages,
     this._render,
     this._previews,
+    this._suggestions,
+    this._setFolder,
     @factoryParam String documentId,
   ) : super(const ViewerState()) {
     _sub = _watch(documentId).listen(_onDoc, onError: (Object e) {
@@ -88,6 +90,8 @@ class ViewerCubit extends Cubit<ViewerState> {
   final AddPages _addPages;
   final PageRenderService _render;
   final PreviewCache _previews;
+  final NameSuggestionActions _suggestions;
+  final SetDocumentFolder _setFolder;
   StreamSubscription<ScanDocument?>? _sub;
 
   void _onDoc(ScanDocument? doc) {
@@ -104,6 +108,16 @@ class ViewerCubit extends Cubit<ViewerState> {
 
   Future<Failure?> rename(String title) async =>
       (await _rename(state.document!.id, title)).fold((f) => f, (_) => null);
+
+  /// The smart-name banner (feature 3).
+  Future<Failure?> applySuggestion() async =>
+      (await _suggestions.apply(state.document!)).fold((f) => f, (_) => null);
+
+  Future<Failure?> dismissSuggestion() async =>
+      (await _suggestions.dismiss(state.document!)).fold((f) => f, (_) => null);
+
+  Future<Failure?> moveTo(DocFolder folder) async =>
+      (await _setFolder(state.document!.id, folder)).fold((f) => f, (_) => null);
 
   Future<Failure?> delete() async =>
       (await _delete(state.document!.id)).fold((f) => f, (_) => null);

@@ -1,5 +1,6 @@
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
@@ -36,9 +37,7 @@ class DocumentTile extends StatelessWidget {
         : '${activityLabel(context, act.type)} · ${DateFmt.relative(act.at)}';
 
     final isCard = d.mode == ScanMode.idCard || d.mode == ScanMode.passport;
-    final meta = isCard
-        ? '${modeLabel(context, d.mode)} · ${l.pagesCount(d.pages.length)}'
-        : l.pagesCount(d.pages.length);
+    final meta = documentMeta(context, d);
 
     return InkWell(
       onTap: onTap,
@@ -120,6 +119,28 @@ class DocumentTile extends StatelessWidget {
       ),
     );
   }
+}
+
+String folderLabel(BuildContext context, DocFolder f) {
+  final l = context.l10n;
+  return switch (f) {
+    DocFolder.bills => l.folderBills,
+    DocFolder.ids => l.folderIds,
+    DocFolder.education => l.folderEducation,
+    DocFolder.receipts => l.folderReceipts,
+    DocFolder.other => l.folderOther,
+  };
+}
+
+/// "Bills · 2 pages · 840 KB", "IDs · ID card · 2 sides" (feature 3).
+String documentMeta(BuildContext context, ScanDocument d) {
+  final l = context.l10n;
+  final folder = folderLabel(context, d.folder);
+  if (d.mode != ScanMode.document) {
+    final n = d.pages.length;
+    return '$folder · ${modeLabel(context, d.mode)} · ${d.mode == ScanMode.idCard ? l.sidesCount(n) : l.pagesCount(n)}';
+  }
+  return [folder, l.pagesCount(d.pages.length), if (d.sizeBytes > 0) formatBytes(d.sizeBytes)].join(' · ');
 }
 
 String modeLabel(BuildContext context, ScanMode m) {

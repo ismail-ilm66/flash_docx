@@ -920,4 +920,62 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareShrinking => 'Making it fit…';
+
+  @override
+  String get folderAll => 'All';
+
+  @override
+  String get folderBills => 'Bills';
+
+  @override
+  String get folderIds => 'IDs';
+
+  @override
+  String get folderEducation => 'Education';
+
+  @override
+  String get folderReceipts => 'Receipts';
+
+  @override
+  String get folderOther => 'Other';
+
+  @override
+  String folderEmpty(String folder) {
+    return 'Nothing in $folder yet';
+  }
+
+  @override
+  String smartLooksLike(String kind) {
+    return 'Looks like $kind';
+  }
+
+  @override
+  String smartRenameTo(String title, String folder) {
+    return 'Rename to “$title” · $folder';
+  }
+
+  @override
+  String get smartApply => 'Apply';
+
+  @override
+  String get smartDismiss => 'Dismiss suggestion';
+
+  @override
+  String get menuMoveToFolder => 'Move to folder';
+
+  @override
+  String movedToFolder(String folder) {
+    return 'Moved to $folder';
+  }
+
+  @override
+  String sidesCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sides',
+      one: '1 side',
+    );
+    return '$_temp0';
+  }
 }

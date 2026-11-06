@@ -23,6 +23,8 @@ import 'package:flash_dox/features/documents/data/db/app_database.dart'
     as _i554;
 import 'package:flash_dox/features/documents/data/repositories/document_repository_impl.dart'
     as _i257;
+import 'package:flash_dox/features/documents/data/services/smart_namer.dart'
+    as _i108;
 import 'package:flash_dox/features/documents/domain/entities/entities.dart'
     as _i355;
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart'
@@ -176,11 +178,25 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i310.GetStorageUsed>(
       () => _i310.GetStorageUsed(gh<_i132.DocumentRepository>()),
     );
+    gh.factory<_i310.SetDocumentFolder>(
+      () => _i310.SetDocumentFolder(gh<_i132.DocumentRepository>()),
+    );
+    gh.factory<_i310.NameSuggestionActions>(
+      () => _i310.NameSuggestionActions(gh<_i132.DocumentRepository>()),
+    );
     gh.factory<_i948.WatchDocuments>(
       () => _i948.WatchDocuments(gh<_i132.DocumentRepository>()),
     );
     gh.factory<_i904.RewardCubit>(
       () => _i904.RewardCubit(gh<_i607.RewardGate>()),
+    );
+    gh.factory<_i713.HomeCubit>(
+      () => _i713.HomeCubit(
+        gh<_i948.WatchDocuments>(),
+        gh<_i310.DeleteDocument>(),
+        gh<_i310.RenameDocument>(),
+        gh<_i310.SetDocumentFolder>(),
+      ),
     );
     gh.factory<_i60.BuildPrintLayout>(
       () => _i60.BuildPrintLayout(
@@ -209,6 +225,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i917.TextRecognizer>(),
       ),
     );
+    gh.lazySingleton<_i108.SmartNamer>(
+      () => _i108.SmartNamer(
+        gh<_i132.DocumentRepository>(),
+        gh<_i813.RecognizePageText>(),
+      ),
+    );
     gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
       (initialMode, _) => _i382.ScanSessionBloc(
         gh<_i922.PreparePages>(),
@@ -221,13 +243,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i567.PrefsService>(),
         gh<_i626.FileStore>(),
         gh<_i310.GetStorageUsed>(),
-      ),
-    );
-    gh.factory<_i713.HomeCubit>(
-      () => _i713.HomeCubit(
-        gh<_i948.WatchDocuments>(),
-        gh<_i310.DeleteDocument>(),
-        gh<_i310.RenameDocument>(),
       ),
     );
     gh.lazySingleton<_i242.ThemeCubit>(
@@ -263,6 +278,21 @@ extension GetItInjectableX on _i174.GetIt {
         pageId,
       ),
     );
+    gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
+      (args, _) => _i935.PageEditorBloc(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i310.CreateDocument>(),
+        gh<_i310.AddPages>(),
+        gh<_i310.UpdatePages>(),
+        gh<_i310.LogActivity>(),
+        gh<_i120.PageRenderService>(),
+        gh<_i922.PreparePages>(),
+        gh<_i769.PreviewCache>(),
+        gh<_i108.SmartNamer>(),
+        args,
+      ),
+    );
     gh.factory<_i402.ExportDocument>(
       () => _i402.ExportDocument(
         gh<_i120.PageRenderService>(),
@@ -275,20 +305,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i618.ImageProcessor>(),
       ),
     );
-    gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
-      (args, _) => _i935.PageEditorBloc(
-        gh<_i618.ImageProcessor>(),
-        gh<_i626.FileStore>(),
-        gh<_i310.CreateDocument>(),
-        gh<_i310.AddPages>(),
-        gh<_i310.UpdatePages>(),
-        gh<_i310.LogActivity>(),
-        gh<_i120.PageRenderService>(),
-        gh<_i922.PreparePages>(),
-        gh<_i769.PreviewCache>(),
-        args,
-      ),
-    );
     gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
       (documentId, _) => _i411.ViewerCubit(
         gh<_i310.WatchDocument>(),
@@ -299,6 +315,8 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.AddPages>(),
         gh<_i120.PageRenderService>(),
         gh<_i769.PreviewCache>(),
+        gh<_i310.NameSuggestionActions>(),
+        gh<_i310.SetDocumentFolder>(),
         documentId,
       ),
     );

@@ -12,6 +12,13 @@ abstract interface class DocumentRepository {
     String? title,
   });
   Future<Either<Failure, Unit>> rename(String id, String title);
+
+  /// Moves a document to a Home folder (feature 3).
+  Future<Either<Failure, Unit>> setFolder(String id, DocFolder folder);
+
+  /// Stores (or clears) the smart-name suggestion. Doesn't touch updatedAt:
+  /// a background suggestion mustn't reorder Home.
+  Future<Either<Failure, Unit>> setSuggestion(String id, NameSuggestion? suggestion);
   Future<Either<Failure, Unit>> addPages(String id, List<ScanPage> pages);
   Future<Either<Failure, Unit>> reorder(String id, List<String> pageIds);
   Future<Either<Failure, Unit>> updatePage(ScanPage page);

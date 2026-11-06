@@ -482,5 +482,57 @@
       }
     }
   },
-  "shareShrinking": "Making it fit…"
+  "shareShrinking": "Making it fit…",
+  "folderAll": "All",
+  "folderBills": "Bills",
+  "folderIds": "IDs",
+  "folderEducation": "Education",
+  "folderReceipts": "Receipts",
+  "folderOther": "Other",
+  "folderEmpty": "Nothing in {folder} yet",
+  "@folderEmpty": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "smartLooksLike": "Looks like {kind}",
+  "@smartLooksLike": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "smartRenameTo": "Rename to “{title}” · {folder}",
+  "@smartRenameTo": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      },
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "smartApply": "Apply",
+  "smartDismiss": "Dismiss suggestion",
+  "menuMoveToFolder": "Move to folder",
+  "movedToFolder": "Moved to {folder}",
+  "@movedToFolder": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "sidesCount": "{count, plural, =1{1 side} other{{count} sides}}",
+  "@sidesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

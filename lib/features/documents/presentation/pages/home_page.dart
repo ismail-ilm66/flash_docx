@@ -9,6 +9,7 @@ import 'package:flash_dox/core/services/share_in_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
@@ -186,6 +187,8 @@ class _HomeViewState extends State<_HomeView> {
     switch (action) {
       case DocumentMenuAction.rename:
         await renameDocumentFlow(context, doc, (t) => cubit.rename(doc.id, t));
+      case DocumentMenuAction.moveToFolder:
+        await moveToFolderFlow(context, doc, (f) => cubit.moveTo(doc.id, f));
       case DocumentMenuAction.share:
         await showShareSheet(context, doc);
       case DocumentMenuAction.delete:
@@ -291,6 +294,17 @@ class _HomeViewState extends State<_HomeView> {
                               ),
                             ),
                           ),
+                          if (!showEmpty && s.all.isNotEmpty)
+                            SliverToBoxAdapter(
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 2, bottom: Space.x2),
+                                child: FolderChips(
+                                  counts: s.counts,
+                                  selected: s.folder,
+                                  onSelected: context.read<HomeCubit>().setFolder,
+                                ),
+                              ),
+                            ),
                           if (showEmpty)
                             SliverFillRemaining(
                               hasScrollBody: false,
@@ -301,7 +315,9 @@ class _HomeViewState extends State<_HomeView> {
                           else if (!s.loading && s.documents.isEmpty)
                             SliverFillRemaining(
                               hasScrollBody: false,
-                              child: EmptyState(icon: AppIcons.search, title: l.homeNoResults),
+                              child: s.folder != null && s.all.isNotEmpty
+                                  ? EmptyState(icon: AppIcons.files, title: l.folderEmpty(folderLabel(context, s.folder!)))
+                                  : EmptyState(icon: AppIcons.search, title: l.homeNoResults),
                             )
                           else
                             SliverPadding(

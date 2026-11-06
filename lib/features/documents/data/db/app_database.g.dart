@@ -59,7 +59,36 @@ class $DocumentsTable extends Documents
     requiredDuringInsert: true,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, title, mode, createdAt, updatedAt];
+  late final GeneratedColumnWithTypeConverter<DocFolder, int> folder =
+      GeneratedColumn<int>(
+        'folder',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0),
+      ).withConverter<DocFolder>($DocumentsTable.$converterfolder);
+  static const VerificationMeta _suggestionMeta = const VerificationMeta(
+    'suggestion',
+  );
+  @override
+  late final GeneratedColumn<String> suggestion = GeneratedColumn<String>(
+    'suggestion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    mode,
+    createdAt,
+    updatedAt,
+    folder,
+    suggestion,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -101,6 +130,12 @@ class $DocumentsTable extends Documents
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('suggestion')) {
+      context.handle(
+        _suggestionMeta,
+        suggestion.isAcceptableOrUnknown(data['suggestion']!, _suggestionMeta),
+      );
+    }
     return context;
   }
 
@@ -132,6 +167,16 @@ class $DocumentsTable extends Documents
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      folder: $DocumentsTable.$converterfolder.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}folder'],
+        )!,
+      ),
+      suggestion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suggestion'],
+      ),
     );
   }
 
@@ -142,6 +187,8 @@ class $DocumentsTable extends Documents
 
   static JsonTypeConverter2<ScanMode, int, int> $convertermode =
       const EnumIndexConverter<ScanMode>(ScanMode.values);
+  static JsonTypeConverter2<DocFolder, int, int> $converterfolder =
+      const EnumIndexConverter<DocFolder>(DocFolder.values);
 }
 
 class DocumentRow extends DataClass implements Insertable<DocumentRow> {
@@ -150,12 +197,18 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
   final ScanMode mode;
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  /// v3: Home folder, and the smart-name suggestion as JSON.
+  final DocFolder folder;
+  final String? suggestion;
   const DocumentRow({
     required this.id,
     required this.title,
     required this.mode,
     required this.createdAt,
     required this.updatedAt,
+    required this.folder,
+    this.suggestion,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -167,6 +220,14 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
     }
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    {
+      map['folder'] = Variable<int>(
+        $DocumentsTable.$converterfolder.toSql(folder),
+      );
+    }
+    if (!nullToAbsent || suggestion != null) {
+      map['suggestion'] = Variable<String>(suggestion);
+    }
     return map;
   }
 
@@ -177,6 +238,10 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
       mode: Value(mode),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
+      folder: Value(folder),
+      suggestion: suggestion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(suggestion),
     );
   }
 
@@ -193,6 +258,10 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
       ),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      folder: $DocumentsTable.$converterfolder.fromJson(
+        serializer.fromJson<int>(json['folder']),
+      ),
+      suggestion: serializer.fromJson<String?>(json['suggestion']),
     );
   }
   @override
@@ -206,6 +275,10 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
       ),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'folder': serializer.toJson<int>(
+        $DocumentsTable.$converterfolder.toJson(folder),
+      ),
+      'suggestion': serializer.toJson<String?>(suggestion),
     };
   }
 
@@ -215,12 +288,16 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
     ScanMode? mode,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DocFolder? folder,
+    Value<String?> suggestion = const Value.absent(),
   }) => DocumentRow(
     id: id ?? this.id,
     title: title ?? this.title,
     mode: mode ?? this.mode,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
+    folder: folder ?? this.folder,
+    suggestion: suggestion.present ? suggestion.value : this.suggestion,
   );
   DocumentRow copyWithCompanion(DocumentsCompanion data) {
     return DocumentRow(
@@ -229,6 +306,10 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
       mode: data.mode.present ? data.mode.value : this.mode,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      folder: data.folder.present ? data.folder.value : this.folder,
+      suggestion: data.suggestion.present
+          ? data.suggestion.value
+          : this.suggestion,
     );
   }
 
@@ -239,13 +320,16 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
           ..write('title: $title, ')
           ..write('mode: $mode, ')
           ..write('createdAt: $createdAt, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('folder: $folder, ')
+          ..write('suggestion: $suggestion')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, title, mode, createdAt, updatedAt);
+  int get hashCode =>
+      Object.hash(id, title, mode, createdAt, updatedAt, folder, suggestion);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -254,7 +338,9 @@ class DocumentRow extends DataClass implements Insertable<DocumentRow> {
           other.title == this.title &&
           other.mode == this.mode &&
           other.createdAt == this.createdAt &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.folder == this.folder &&
+          other.suggestion == this.suggestion);
 }
 
 class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
@@ -263,6 +349,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
   final Value<ScanMode> mode;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
+  final Value<DocFolder> folder;
+  final Value<String?> suggestion;
   final Value<int> rowid;
   const DocumentsCompanion({
     this.id = const Value.absent(),
@@ -270,6 +358,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
     this.mode = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.folder = const Value.absent(),
+    this.suggestion = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DocumentsCompanion.insert({
@@ -278,6 +368,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
     required ScanMode mode,
     required DateTime createdAt,
     required DateTime updatedAt,
+    this.folder = const Value.absent(),
+    this.suggestion = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        title = Value(title),
@@ -290,6 +382,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
     Expression<int>? mode,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
+    Expression<int>? folder,
+    Expression<String>? suggestion,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -298,6 +392,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
       if (mode != null) 'mode': mode,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (folder != null) 'folder': folder,
+      if (suggestion != null) 'suggestion': suggestion,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -308,6 +404,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
     Value<ScanMode>? mode,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
+    Value<DocFolder>? folder,
+    Value<String?>? suggestion,
     Value<int>? rowid,
   }) {
     return DocumentsCompanion(
@@ -316,6 +414,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
       mode: mode ?? this.mode,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      folder: folder ?? this.folder,
+      suggestion: suggestion ?? this.suggestion,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -340,6 +440,14 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (folder.present) {
+      map['folder'] = Variable<int>(
+        $DocumentsTable.$converterfolder.toSql(folder.value),
+      );
+    }
+    if (suggestion.present) {
+      map['suggestion'] = Variable<String>(suggestion.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -354,6 +462,8 @@ class DocumentsCompanion extends UpdateCompanion<DocumentRow> {
           ..write('mode: $mode, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('folder: $folder, ')
+          ..write('suggestion: $suggestion, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1298,6 +1408,8 @@ typedef $$DocumentsTableCreateCompanionBuilder =
       required ScanMode mode,
       required DateTime createdAt,
       required DateTime updatedAt,
+      Value<DocFolder> folder,
+      Value<String?> suggestion,
       Value<int> rowid,
     });
 typedef $$DocumentsTableUpdateCompanionBuilder =
@@ -1307,6 +1419,8 @@ typedef $$DocumentsTableUpdateCompanionBuilder =
       Value<ScanMode> mode,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
+      Value<DocFolder> folder,
+      Value<String?> suggestion,
       Value<int> rowid,
     });
 
@@ -1384,6 +1498,17 @@ class $$DocumentsTableFilterComposer
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DocFolder, DocFolder, int> get folder =>
+      $composableBuilder(
+        column: $table.folder,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get suggestion => $composableBuilder(
+    column: $table.suggestion,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1471,6 +1596,16 @@ class $$DocumentsTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get folder => $composableBuilder(
+    column: $table.folder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get suggestion => $composableBuilder(
+    column: $table.suggestion,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DocumentsTableAnnotationComposer
@@ -1496,6 +1631,14 @@ class $$DocumentsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<DocFolder, int> get folder =>
+      $composableBuilder(column: $table.folder, builder: (column) => column);
+
+  GeneratedColumn<String> get suggestion => $composableBuilder(
+    column: $table.suggestion,
+    builder: (column) => column,
+  );
 
   Expression<T> pagesRefs<T extends Object>(
     Expression<T> Function($$PagesTableAnnotationComposer a) f,
@@ -1581,6 +1724,8 @@ class $$DocumentsTableTableManager
                 Value<ScanMode> mode = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<DocFolder> folder = const Value.absent(),
+                Value<String?> suggestion = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentsCompanion(
                 id: id,
@@ -1588,6 +1733,8 @@ class $$DocumentsTableTableManager
                 mode: mode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                folder: folder,
+                suggestion: suggestion,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1597,6 +1744,8 @@ class $$DocumentsTableTableManager
                 required ScanMode mode,
                 required DateTime createdAt,
                 required DateTime updatedAt,
+                Value<DocFolder> folder = const Value.absent(),
+                Value<String?> suggestion = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DocumentsCompanion.insert(
                 id: id,
@@ -1604,6 +1753,8 @@ class $$DocumentsTableTableManager
                 mode: mode,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
+                folder: folder,
+                suggestion: suggestion,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

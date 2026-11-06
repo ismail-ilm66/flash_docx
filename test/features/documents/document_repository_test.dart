@@ -1,11 +1,18 @@
 import 'dart:io';
 
 import 'package:drift/native.dart';
+import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/features/documents/data/db/app_database.dart';
 import 'package:flash_dox/features/documents/data/repositories/document_repository_impl.dart';
+import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/domain/smart_rules.dart';
+import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/ocr/domain/recognize_page_text.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -20,6 +27,8 @@ class _FakePathProvider extends PathProviderPlatform with MockPlatformInterfaceM
 }
 
 void main() {
+  setUpAll(() => registerFallbackValue(const ScanPage(id: '', documentId: '', originalPath: '', edits: PageEdits(), order: 0)));
+
   late Directory tmp;
   late AppDatabase db;
   late FileStore files;
@@ -125,4 +134,79 @@ void main() {
     final filtered = await repo.watchAll(search: 'alp').first;
     expect(filtered.map((d) => d.id), [a.id]);
   });
+
+  group('feature 3: folders, suggestions, sizes', () {
+    test('cards go to IDs, documents to Other', () async {
+      final card = (await repo.create(mode: ScanMode.idCard, pages: [draft('f'), draft('b')])).getOrElse((f) => fail('$f'));
+      final doc = (await repo.create(mode: ScanMode.document, pages: [draft('d')])).getOrElse((f) => fail('$f'));
+      expect(card.folder, DocFolder.ids);
+      final all = await repo.watchAll().first;
+      expect({for (final d in all) d.id: d.folder}, {card.id: DocFolder.ids, doc.id: DocFolder.other});
+    });
+
+    test('setFolder moves; setSuggestion stores without reordering Home', () async {
+      final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a')])).getOrElse((f) => fail('$f'));
+      final before = (await repo.get(doc.id)).getOrElse((f) => fail('$f'));
+      const s = NameSuggestion(title: 'Receipt – 02 Nov 2026', folder: DocFolder.receipts, kind: 'a receipt');
+      await repo.setSuggestion(doc.id, s);
+      await repo.setFolder(doc.id, DocFolder.bills);
+      final after = (await repo.get(doc.id)).getOrElse((f) => fail('$f'));
+      expect(after.suggestion, s);
+      expect(after.folder, DocFolder.bills);
+      expect(after.updatedAt, before.updatedAt);
+    });
+
+    test('size is the sum of the page files', () async {
+      final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a'), draft('b')])).getOrElse((f) => fail('$f'));
+      final cur = (await repo.get(doc.id)).getOrElse((f) => fail('$f'));
+      expect(cur.sizeBytes, 6, reason: 'two 3-byte originals');
+    });
+
+    test('Apply renames, files it and hides the banner; ✕ only hides it', () async {
+      final actions = NameSuggestionActions(repo);
+      const s = NameSuggestion(title: 'Electricity bill – Oct 2026', folder: DocFolder.bills, kind: 'an electricity bill');
+      final a = (await repo.create(mode: ScanMode.document, pages: [draft('a')])).getOrElse((f) => fail('$f'));
+      await repo.setSuggestion(a.id, s);
+      await actions.apply((await repo.get(a.id)).getOrElse((f) => fail('$f')));
+      final applied = (await repo.get(a.id)).getOrElse((f) => fail('$f'));
+      expect(applied.title, s.title);
+      expect(applied.folder, DocFolder.bills);
+      expect(applied.suggestion?.dismissed, isTrue);
+
+      final b = (await repo.create(mode: ScanMode.document, pages: [draft('b')])).getOrElse((f) => fail('$f'));
+      await repo.setSuggestion(b.id, s);
+      await actions.dismiss((await repo.get(b.id)).getOrElse((f) => fail('$f')));
+      final dismissed = (await repo.get(b.id)).getOrElse((f) => fail('$f'));
+      expect(dismissed.title, b.title);
+      expect(dismissed.folder, DocFolder.other);
+      expect(dismissed.suggestion?.dismissed, isTrue);
+    });
+
+    test('SmartNamer stores a suggestion once, from page-1 text', () async {
+      final ocr = _Ocr();
+      final namer = SmartNamer(repo, ocr)..useRules(SmartRules.fromJson(File('assets/smart_rules.json').readAsStringSync()));
+      when(() => ocr(any(), force: any(named: 'force')))
+          .thenAnswer((_) async => const Right('LESCO  BILL MONTH OCT 26  UNITS CONSUMED 312'));
+      final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a')])).getOrElse((f) => fail('$f'));
+      await namer.suggestFor(doc.id);
+      final s = (await repo.get(doc.id)).getOrElse((f) => fail('$f')).suggestion!;
+      expect(s.title, 'Electricity bill – Oct 2026');
+      expect(s.folder, DocFolder.bills);
+      expect((await repo.get(doc.id)).getOrElse((f) => fail('$f')).title, doc.title, reason: 'never applied silently');
+
+      await namer.suggestFor(doc.id);
+      verify(() => ocr(any(), force: any(named: 'force'))).called(1);
+    });
+
+    test('SmartNamer stores nothing when nothing matches or OCR fails', () async {
+      final ocr = _Ocr();
+      final namer = SmartNamer(repo, ocr)..useRules(SmartRules.fromJson(File('assets/smart_rules.json').readAsStringSync()));
+      when(() => ocr(any(), force: any(named: 'force'))).thenAnswer((_) async => const Left(OcrFailure()));
+      final doc = (await repo.create(mode: ScanMode.document, pages: [draft('a')])).getOrElse((f) => fail('$f'));
+      await namer.suggestFor(doc.id);
+      expect((await repo.get(doc.id)).getOrElse((f) => fail('$f')).suggestion, isNull);
+    });
+  });
 }
+
+class _Ocr extends Mock implements RecognizePageText {}

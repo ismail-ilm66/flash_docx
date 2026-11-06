@@ -3,7 +3,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
-enum DocumentMenuAction { rename, share, delete }
+enum DocumentMenuAction { rename, moveToFolder, share, delete }
 
 /// ⋮ menu for a document row. Returns the chosen action.
 Future<DocumentMenuAction?> showDocumentMenu(
@@ -21,6 +21,11 @@ Future<DocumentMenuAction?> showDocumentMenu(
             label: l.viewerRename,
             leading: const AppIcon(AppIcons.rename),
             onTap: () => Navigator.of(ctx).pop(DocumentMenuAction.rename),
+          ),
+          SheetAction(
+            label: l.menuMoveToFolder,
+            leading: const AppIcon(AppIcons.files),
+            onTap: () => Navigator.of(ctx).pop(DocumentMenuAction.moveToFolder),
           ),
           SheetAction(
             label: l.viewerShare,
@@ -82,4 +87,28 @@ Future<bool> deleteDocumentFlow(
     return false;
   }
   return true;
+}
+
+/// ⋮ › Move to folder (feature 3), shared by Home and Viewer.
+Future<void> moveToFolderFlow(
+  BuildContext context,
+  ScanDocument doc,
+  Future<Object?> Function(DocFolder folder) move,
+) async {
+  final l = context.l10n;
+  final picked = await showChoiceSheet<DocFolder>(
+    context,
+    title: l.menuMoveToFolder,
+    values: const [DocFolder.bills, DocFolder.ids, DocFolder.education, DocFolder.receipts, DocFolder.other],
+    selected: doc.folder,
+    labelOf: (f) => folderLabel(context, f),
+  );
+  if (picked == null || picked == doc.folder || !context.mounted) return;
+  final err = await move(picked);
+  if (!context.mounted) return;
+  if (err != null) {
+    context.showSnack(l.errorGeneric, error: true);
+  } else {
+    context.showSnack(l.movedToFolder(folderLabel(context, picked)));
+  }
 }

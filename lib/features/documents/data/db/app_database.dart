@@ -15,6 +15,10 @@ class Documents extends Table {
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
 
+  /// v3: Home folder, and the smart-name suggestion as JSON.
+  IntColumn get folder => intEnum<DocFolder>().withDefault(const Constant(0))();
+  TextColumn get suggestion => text().nullable()();
+
   @override
   Set<Column> get primaryKey => {id};
 }
@@ -57,7 +61,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,6 +72,15 @@ class AppDatabase extends _$AppDatabase {
             await customStatement(
               'UPDATE documents SET mode = CASE mode '
               'WHEN 0 THEN 0 WHEN 1 THEN 0 WHEN 2 THEN 1 WHEN 3 THEN 2 ELSE 0 END',
+            );
+          }
+          if (from < 3) {
+            await m.addColumn(documents, documents.folder);
+            await m.addColumn(documents, documents.suggestion);
+            // ID cards and passports go to the IDs folder.
+            await customStatement(
+              'UPDATE documents SET folder = ${DocFolder.ids.index} '
+              'WHERE mode IN (${ScanMode.idCard.index}, ${ScanMode.passport.index})',
             );
           }
         },
@@ -104,6 +117,17 @@ class AppDatabase extends _$AppDatabase {
         thumbPath: Value(p.thumbPath),
         ocrText: Value(p.ocrText),
       );
+
+  static NameSuggestion? suggestionFromJson(String? json) {
+    if (json == null) return null;
+    try {
+      return NameSuggestion.fromJson(jsonDecode(json) as Map<String, dynamic>);
+    } on Object {
+      return null;
+    }
+  }
+
+  static String? suggestionToJson(NameSuggestion? s) => s == null ? null : jsonEncode(s.toJson());
 
   static Activity activityFromRow(ActivityRow r) => Activity(
         id: r.id,

@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
@@ -31,6 +32,8 @@ class _Log extends Mock implements LogActivity {}
 class _Render extends Mock implements PageRenderService {}
 
 class _Prepare extends Mock implements PreparePages {}
+
+class _Namer extends Mock implements SmartNamer {}
 
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
@@ -113,6 +116,7 @@ void main() {
       _Render(),
       _Prepare(),
       PreviewCache(proc, files),
+      _Namer(),
       args,
     )..add(EditorStarted(args));
   }
@@ -242,6 +246,7 @@ void main() {
         _Render(),
         prepare,
         PreviewCache(proc, files),
+        _Namer(),
         EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
       );
       const guide = Quad(
@@ -371,6 +376,7 @@ void main() {
         _Render(),
         _Prepare(),
         PreviewCache(proc, files),
+        _Namer(),
         args,
       )..add(EditorStarted(args));
     }

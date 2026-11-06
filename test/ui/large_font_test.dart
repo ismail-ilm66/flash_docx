@@ -10,7 +10,10 @@ import 'package:flash_dox/app/theme/app_theme.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/features/documents/data/db/app_database.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/suggestion_banner.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
@@ -105,6 +108,10 @@ void main() {
       title: 'ID card',
     ))
         .getOrElse((f) => throw StateError('$f'));
+    await getIt<DocumentRepository>().setSuggestion(
+      doc.id,
+      const NameSuggestion(title: 'Electricity bill – Oct 2026', folder: DocFolder.bills, kind: 'an electricity bill'),
+    );
   });
 
   tearDown(() async {
@@ -168,8 +175,9 @@ void main() {
     await settle(tester);
     expectNothingCutOff(tester, 'Home');
     final list = find.byType(Scrollable).first;
-    await tester.scrollUntilVisible(find.textContaining(l.pagesCount(2)), 200, scrollable: list);
+    await tester.scrollUntilVisible(find.textContaining(l.sidesCount(2)), 200, scrollable: list);
     await settle(tester);
+    expect(find.byType(FolderChips), findsOneWidget);
     expectNothingCutOff(tester, 'Home, Tools and first document');
     await tester.scrollUntilVisible(find.text('Lease'), 200, scrollable: list);
     await settle(tester);
@@ -212,6 +220,7 @@ void main() {
       final router = await pumpApp(tester);
       router.go(Routes.viewer(d.id));
       await settle(tester);
+      if (mode == ScanMode.document) expect(find.byType(SuggestionBanner), findsOneWidget);
       expectNothingCutOff(tester, 'Viewer');
 
       await tester.tap(find.widgetWithText(PrimaryButton, l.viewerShare).first);

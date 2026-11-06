@@ -9,6 +9,7 @@ import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/suggestion_banner.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
@@ -52,7 +53,11 @@ class _ViewerViewState extends State<_ViewerView> {
 
   void _jump(int i) {
     if (!_pageCtrl.hasClients) return;
-    _pageCtrl.animateToPage(i, duration: Motion.normal, curve: Curves.easeOutCubic);
+    _pageCtrl.animateToPage(
+      i,
+      duration: Motion.normal,
+      curve: Curves.easeOutCubic,
+    );
   }
 
   Future<void> _menu(BuildContext context, ViewerState s) async {
@@ -65,10 +70,28 @@ class _ViewerViewState extends State<_ViewerView> {
         title: doc.title,
         child: Column(
           children: [
-            SheetAction(label: l.viewerRename, leading: const AppIcon(AppIcons.rename), onTap: () => Navigator.of(ctx).pop(_ViewerAction.rename)),
+            SheetAction(
+              label: l.viewerRename,
+              leading: const AppIcon(AppIcons.rename),
+              onTap: () => Navigator.of(ctx).pop(_ViewerAction.rename),
+            ),
+            SheetAction(
+              label: l.menuMoveToFolder,
+              leading: const AppIcon(AppIcons.files),
+              onTap: () => Navigator.of(ctx).pop(_ViewerAction.moveToFolder),
+            ),
             if (doc.pages.length > 1)
-              SheetAction(label: l.viewerDeletePage, leading: const AppIcon(AppIcons.delete), onTap: () => Navigator.of(ctx).pop(_ViewerAction.deletePage)),
-            SheetAction(label: l.viewerDelete, leading: const AppIcon(AppIcons.delete), destructive: true, onTap: () => Navigator.of(ctx).pop(_ViewerAction.delete)),
+              SheetAction(
+                label: l.viewerDeletePage,
+                leading: const AppIcon(AppIcons.delete),
+                onTap: () => Navigator.of(ctx).pop(_ViewerAction.deletePage),
+              ),
+            SheetAction(
+              label: l.viewerDelete,
+              leading: const AppIcon(AppIcons.delete),
+              destructive: true,
+              onTap: () => Navigator.of(ctx).pop(_ViewerAction.delete),
+            ),
           ],
         ),
       ),
@@ -77,8 +100,16 @@ class _ViewerViewState extends State<_ViewerView> {
     switch (action) {
       case _ViewerAction.rename:
         await renameDocumentFlow(context, doc, cubit.rename);
+      case _ViewerAction.moveToFolder:
+        await moveToFolderFlow(context, doc, cubit.moveTo);
       case _ViewerAction.deletePage:
-        final ok = await AppDialog.confirm(context, title: l.deletePageTitle, body: l.deletePageBody, confirmLabel: l.commonDelete, destructive: true);
+        final ok = await AppDialog.confirm(
+          context,
+          title: l.deletePageTitle,
+          body: l.deletePageBody,
+          confirmLabel: l.commonDelete,
+          destructive: true,
+        );
         if (ok) await cubit.deleteCurrentPage();
       case _ViewerAction.delete:
         final done = await deleteDocumentFlow(context, doc, cubit.delete);
@@ -99,23 +130,36 @@ class _ViewerViewState extends State<_ViewerView> {
         final cubit = context.read<ViewerCubit>();
         final doc = s.document;
         if (s.loading) {
-          return const AppScaffold(topBar: AppTopBar(), body: Center(child: CircularProgressIndicator()));
+          return const AppScaffold(
+            topBar: AppTopBar(),
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
         if (doc == null) {
-          return AppScaffold(topBar: const AppTopBar(), body: ErrorView(failure: s.failure));
+          return AppScaffold(
+            topBar: const AppTopBar(),
+            body: ErrorView(failure: s.failure),
+          );
         }
         final pages = s.pages;
         final cur = s.current;
         final multi = pages.length > 1;
         void edit() => context.push(
-              Routes.adjust,
-              extra: EditorArgs(pages: pages, mode: doc.mode, documentId: doc.id, initialIndex: s.index),
-            );
+          Routes.adjust,
+          extra: EditorArgs(
+            pages: pages,
+            mode: doc.mode,
+            documentId: doc.id,
+            initialIndex: s.index,
+          ),
+        );
         Future<void> addPages() async {
           final added = await collectNewPages(context, mode: doc.mode);
           if (added == null || added.isEmpty || !context.mounted) return;
           final err = await cubit.addPages(added);
-          if (err != null && context.mounted) context.showSnack(failureMessage(context, err), error: true);
+          if (err != null && context.mounted) {
+            context.showSnack(failureMessage(context, err), error: true);
+          }
         }
 
         return AppScaffold(
@@ -123,7 +167,8 @@ class _ViewerViewState extends State<_ViewerView> {
             centerTitle: false,
             titleWidget: _TitleButton(
               title: doc.title,
-              subtitle: '${l.pagesCount(pages.length)} · ${_stamp(context, doc.updatedAt)}',
+              subtitle:
+                  '${l.pagesCount(pages.length)} · ${_stamp(context, doc.updatedAt)}',
               onTap: () => renameDocumentFlow(context, doc, cubit.rename),
             ),
             actions: [
@@ -141,66 +186,102 @@ class _ViewerViewState extends State<_ViewerView> {
                   color: c.stage,
                   child: pages.isEmpty
                       ? EmptyState(title: l.homeEmptyTitle)
-                      : Column(
-                          children: [
-                            Expanded(
-                              // P0-5: pinch / double-tap zoom that never fights
-                              // the page swipe; zoomed content clips only at
-                              // the edge of this area.
-                              child: ZoomablePages(
-                                controller: _pageCtrl,
-                                itemCount: pages.length,
-                                onPageChanged: cubit.select,
-                                itemBuilder: (context, i) {
-                                  final path = s.imageFor(pages[i]);
-                                  return Padding(
-                                    padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, Space.x3),
-                                    child: Center(
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(4),
-                                          border: Border.all(color: c.border),
-                                          boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 6))],
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(4),
-                                          child: path == null
-                                              ? const SizedBox(
-                                                  width: 240,
-                                                  height: 320,
-                                                  child: Center(child: CircularProgressIndicator()),
-                                                )
-                                              : Image.file(
-                                                  File(path),
-                                                  key: ValueKey(path),
-                                                  gaplessPlayback: true,
-                                                  fit: BoxFit.contain,
-                                                  cacheWidth: RenderPx.previewLongEdge,
-                                                ),
+                      : _WithSuggestion(
+                          document: doc,
+                          onApply: cubit.applySuggestion,
+                          onDismiss: cubit.dismissSuggestion,
+                          child: Column(
+                            children: [
+                              Expanded(
+                                // P0-5: pinch / double-tap zoom that never fights
+                                // the page swipe; zoomed content clips only at
+                                // the edge of this area.
+                                child: ZoomablePages(
+                                  controller: _pageCtrl,
+                                  itemCount: pages.length,
+                                  onPageChanged: cubit.select,
+                                  itemBuilder: (context, i) {
+                                    final path = s.imageFor(pages[i]);
+                                    return Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        Space.x10,
+                                        Space.x6,
+                                        Space.x10,
+                                        Space.x3,
+                                      ),
+                                      child: Center(
+                                        child: DecoratedBox(
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            border: Border.all(color: c.border),
+                                            boxShadow: const [
+                                              BoxShadow(
+                                                color: Color(0x40000000),
+                                                blurRadius: 24,
+                                                offset: Offset(0, 6),
+                                              ),
+                                            ],
+                                          ),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                            child: path == null
+                                                ? const SizedBox(
+                                                    width: 240,
+                                                    height: 320,
+                                                    child: Center(
+                                                      child:
+                                                          CircularProgressIndicator(),
+                                                    ),
+                                                  )
+                                                : Image.file(
+                                                    File(path),
+                                                    key: ValueKey(path),
+                                                    gaplessPlayback: true,
+                                                    fit: BoxFit.contain,
+                                                    cacheWidth: RenderPx
+                                                        .previewLongEdge,
+                                                  ),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  );
-                                },
+                                    );
+                                  },
+                                ),
                               ),
-                            ),
-                            // P1-6: a small chip under the page, not a bar.
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: Space.x4),
-                              child: Container(
-                                height: 26,
-                                padding: const EdgeInsets.symmetric(horizontal: Space.x3),
-                                decoration: BoxDecoration(color: c.chip, borderRadius: Radii.pillR),
-                                child: Center(
-                                  widthFactor: 1,
-                                  child: Text(
-                                    l.viewerCounter(s.index + 1, pages.length),
-                                    style: context.text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                              // P1-6: a small chip under the page, not a bar.
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: Space.x4,
+                                ),
+                                child: Container(
+                                  height: 26,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: Space.x3,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: c.chip,
+                                    borderRadius: Radii.pillR,
+                                  ),
+                                  child: Center(
+                                    widthFactor: 1,
+                                    child: Text(
+                                      l.viewerCounter(
+                                        s.index + 1,
+                                        pages.length,
+                                      ),
+                                      style: context.text.labelMedium?.copyWith(
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                 ),
               ),
@@ -221,10 +302,16 @@ class _ViewerViewState extends State<_ViewerView> {
                     ),
                     if (multi)
                       Padding(
-                        padding: const EdgeInsets.only(right: Space.x4, bottom: 12),
+                        padding: const EdgeInsets.only(
+                          right: Space.x4,
+                          bottom: 12,
+                        ),
                         child: Text(
                           l.viewerHoldToReorder,
-                          style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w500),
+                          style: context.text.labelSmall?.copyWith(
+                            color: c.muted,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                   ],
@@ -232,11 +319,18 @@ class _ViewerViewState extends State<_ViewerView> {
               ),
               Container(
                 margin: const EdgeInsets.only(top: 10),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: c.border))),
+                decoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: c.border)),
+                ),
                 child: SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 18),
+                    padding: const EdgeInsets.fromLTRB(
+                      Space.x4,
+                      14,
+                      Space.x4,
+                      18,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
@@ -254,7 +348,11 @@ class _ViewerViewState extends State<_ViewerView> {
                             icon: AppIcons.text,
                             label: l.viewerText,
                             iconSize: 22,
-                            onPressed: cur == null ? null : () => context.push('${Routes.text(doc.id)}?page=${cur.id}'),
+                            onPressed: cur == null
+                                ? null
+                                : () => context.push(
+                                    '${Routes.text(doc.id)}?page=${cur.id}',
+                                  ),
                           ),
                         ),
                         if (doc.mode.supportsPrintLayout)
@@ -264,7 +362,8 @@ class _ViewerViewState extends State<_ViewerView> {
                               icon: AppIcons.print,
                               label: l.viewerPrint,
                               iconSize: 22,
-                              onPressed: () => context.push(Routes.print(doc.id)),
+                              onPressed: () =>
+                                  context.push(Routes.print(doc.id)),
                             ),
                           ),
                         const SizedBox(width: 6),
@@ -274,7 +373,9 @@ class _ViewerViewState extends State<_ViewerView> {
                             label: l.viewerShare,
                             icon: AppIcons.share,
                             height: 48,
-                            onPressed: pages.isEmpty ? null : () => showShareSheet(context, doc),
+                            onPressed: pages.isEmpty
+                                ? null
+                                : () => showShareSheet(context, doc),
                           ),
                         ),
                       ],
@@ -298,13 +399,19 @@ String _stamp(BuildContext context, DateTime d) {
   final day = DateTime(d.year, d.month, d.day);
   final time = DateFormat.Hm().format(d);
   if (day == today) return l.dateTodayAt(time);
-  if (day == today.subtract(const Duration(days: 1))) return l.dateYesterdayAt(time);
+  if (day == today.subtract(const Duration(days: 1))) {
+    return l.dateYesterdayAt(time);
+  }
   return '${DateFmt.relative(d)}, $time';
 }
 
 /// Title + subtitle with a pencil: tap to rename.
 class _TitleButton extends StatelessWidget {
-  const _TitleButton({required this.title, required this.subtitle, required this.onTap});
+  const _TitleButton({
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
   final String title;
   final String subtitle;
@@ -335,10 +442,17 @@ class _TitleButton extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                        style: context.text.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
                       const SizedBox(height: 1),
-                      Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                      Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.text.bodySmall?.copyWith(color: c.muted),
+                      ),
                     ],
                   ),
                 ),
@@ -353,4 +467,54 @@ class _TitleButton extends StatelessWidget {
   }
 }
 
-enum _ViewerAction { rename, deletePage, delete }
+/// The page area with the smart-name banner over its top edge (feature 3).
+class _WithSuggestion extends StatelessWidget {
+  const _WithSuggestion({
+    required this.document,
+    required this.onApply,
+    required this.onDismiss,
+    required this.child,
+  });
+
+  final ScanDocument document;
+  final Future<Object?> Function() onApply;
+  final Future<Object?> Function() onDismiss;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = document.suggestion;
+    final show = s != null && !s.dismissed;
+    return Stack(
+      children: [
+        Positioned.fill(child: child),
+        Positioned(
+          left: Space.x3,
+          right: Space.x3,
+          top: Space.x3,
+          child: AnimatedSwitcher(
+            duration: Motion.normal,
+            child: !show
+                ? const SizedBox.shrink()
+                : SuggestionBanner(
+                    key: ValueKey(s.title),
+                    suggestion: s,
+                    onApply: () async {
+                      final err = await onApply();
+                      if (err != null && context.mounted) {
+                        context.showSnack(
+                          context.l10n.errorGeneric,
+                          error: true,
+                        );
+                      }
+                    },
+                    onDismiss: onDismiss,
+                  ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+enum _ViewerAction { rename, moveToFolder, deletePage, delete }

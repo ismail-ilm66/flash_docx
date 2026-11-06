@@ -7,6 +7,7 @@ import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
@@ -38,6 +39,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._renderService,
     this._prepare,
     this._previews,
+    this._namer,
     @factoryParam EditorArgs args,
   ) : super(
         PageEditorState(
@@ -86,6 +88,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final PageRenderService _renderService;
   final PreparePages _prepare;
   final PreviewCache _previews;
+  final SmartNamer _namer;
 
   /// Set once the scan was saved or the user confirmed discarding it, so the
   /// editor screens pop without asking again.
@@ -567,6 +570,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
                 (Object e) => debugPrint('cache warm failed: $e'),
               ),
         );
+        // A new scan gets a smart-name suggestion (feature 3).
+        if (args.isNewDocument) unawaited(_namer.suggestFor(docId));
       },
     );
   }

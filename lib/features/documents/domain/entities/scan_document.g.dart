@@ -19,6 +19,13 @@ _ScanDocument _$ScanDocumentFromJson(Map<String, dynamic> json) =>
       lastActivity: json['lastActivity'] == null
           ? null
           : Activity.fromJson(json['lastActivity'] as Map<String, dynamic>),
+      folder:
+          $enumDecodeNullable(_$DocFolderEnumMap, json['folder']) ??
+          DocFolder.other,
+      suggestion: json['suggestion'] == null
+          ? null
+          : NameSuggestion.fromJson(json['suggestion'] as Map<String, dynamic>),
+      sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$ScanDocumentToJson(_ScanDocument instance) =>
@@ -30,10 +37,21 @@ Map<String, dynamic> _$ScanDocumentToJson(_ScanDocument instance) =>
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
       'lastActivity': instance.lastActivity?.toJson(),
+      'folder': _$DocFolderEnumMap[instance.folder]!,
+      'suggestion': instance.suggestion?.toJson(),
+      'sizeBytes': instance.sizeBytes,
     };
 
 const _$ScanModeEnumMap = {
   ScanMode.document: 'document',
   ScanMode.idCard: 'idCard',
   ScanMode.passport: 'passport',
+};
+
+const _$DocFolderEnumMap = {
+  DocFolder.other: 'other',
+  DocFolder.bills: 'bills',
+  DocFolder.ids: 'ids',
+  DocFolder.education: 'education',
+  DocFolder.receipts: 'receipts',
 };

@@ -1713,6 +1713,90 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Making it fit…'**
   String get shareShrinking;
+
+  /// No description provided for @folderAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get folderAll;
+
+  /// No description provided for @folderBills.
+  ///
+  /// In en, this message translates to:
+  /// **'Bills'**
+  String get folderBills;
+
+  /// No description provided for @folderIds.
+  ///
+  /// In en, this message translates to:
+  /// **'IDs'**
+  String get folderIds;
+
+  /// No description provided for @folderEducation.
+  ///
+  /// In en, this message translates to:
+  /// **'Education'**
+  String get folderEducation;
+
+  /// No description provided for @folderReceipts.
+  ///
+  /// In en, this message translates to:
+  /// **'Receipts'**
+  String get folderReceipts;
+
+  /// No description provided for @folderOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get folderOther;
+
+  /// No description provided for @folderEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing in {folder} yet'**
+  String folderEmpty(String folder);
+
+  /// No description provided for @smartLooksLike.
+  ///
+  /// In en, this message translates to:
+  /// **'Looks like {kind}'**
+  String smartLooksLike(String kind);
+
+  /// No description provided for @smartRenameTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename to “{title}” · {folder}'**
+  String smartRenameTo(String title, String folder);
+
+  /// No description provided for @smartApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply'**
+  String get smartApply;
+
+  /// No description provided for @smartDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss suggestion'**
+  String get smartDismiss;
+
+  /// No description provided for @menuMoveToFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Move to folder'**
+  String get menuMoveToFolder;
+
+  /// No description provided for @movedToFolder.
+  ///
+  /// In en, this message translates to:
+  /// **'Moved to {folder}'**
+  String movedToFolder(String folder);
+
+  /// No description provided for @sidesCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 side} other{{count} sides}}'**
+  String sidesCount(int count);
 }
 
 class _AppLocalizationsDelegate

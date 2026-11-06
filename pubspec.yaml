@@ -68,6 +68,7 @@ flutter:
     - assets/images/
     - assets/splash/
     - assets/sounds/
+    - assets/smart_rules.json
 
   fonts:
     - family: Manrope

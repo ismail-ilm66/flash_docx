@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "notes": "Smart names (round 4, feature 3). Keywords score 2, hints score 1; a rule needs 2. Ties go to the earlier rule. Titles: {name}, {date} (05 Nov 2026), {monthYear} (Oct 2026), {year}, {chapter}.",
+  "rules": [
+    {
+      "folder": "bills", "name": "Electricity bill", "kind": "an electricity bill", "title": "{name} – {monthYear}",
+      "keywords": ["electricity", "units consumed", "lesco", "iesco", "fesco", "gepco", "mepco", "pesco", "hesco", "sepco", "qesco", "tesco", "k-electric", "wapda"],
+      "hints": ["kwh", "meter no", "tariff", "bill month"]
+    },
+    {
+      "folder": "bills", "name": "Gas bill", "kind": "a gas bill", "title": "{name} – {monthYear}",
+      "keywords": ["sngpl", "ssgc", "sui gas", "gas bill", "mmbtu", "hm3"],
+      "hints": ["bill month", "consumer no"]
+    },
+    {
+      "folder": "bills", "name": "Phone bill", "kind": "a phone bill", "title": "{name} – {monthYear}",
+      "keywords": ["ptcl", "telephone bill", "broadband bill", "mobile bill"],
+      "hints": ["bill month", "due date"]
+    },
+    {
+      "folder": "bills", "name": "Bill", "kind": "a bill", "title": "{name} – {monthYear}",
+      "keywords": ["bill month", "amount payable", "payable within due date", "billing month"],
+      "hints": ["due date", "consumer no", "arrears"]
+    },
+    {
+      "folder": "education", "name": "Result card", "kind": "a result card", "title": "{name} – {year}",
+      "keywords": ["result card", "marksheet", "mark sheet", "marks obtained", "total marks", "cgpa", "gpa", "detailed marks"],
+      "hints": ["result", "marks", "grade", "roll no", "examination", "board of intermediate"]
+    },
+    {
+      "folder": "education", "name": "Certificate", "kind": "a certificate", "title": "{name} – {year}",
+      "keywords": ["certificate", "certify that", "certified that"],
+      "hints": ["awarded", "university", "degree"]
+    },
+    {
+      "folder": "education", "name": "Notes", "kind": "class notes", "title": "Notes – Chapter {chapter}", "fallbackTitle": "Notes – {date}",
+      "keywords": ["chapter", "assignment", "lecture", "homework"],
+      "hints": ["university", "exercise", "question", "definition"]
+    },
+    {
+      "folder": "receipts", "name": "Receipt", "kind": "a receipt", "title": "{name} – {date}",
+      "keywords": ["receipt", "invoice", "cash memo", "sales tax invoice"],
+      "hints": ["total", "gst", "cash", "subtotal", "qty", "change"]
+    }
+  ],
+  "ids": {
+    "cnicPattern": "\\b\\d{5}-\\d{7}-\\d\\b",
+    "cnic": { "title": "CNIC – front & back", "singleTitle": "CNIC", "kind": "a CNIC" },
+    "idCard": { "title": "ID card – front & back", "singleTitle": "ID card", "kind": "an ID card" },
+    "passport": { "title": "Passport – data page", "kind": "a passport" }
+  }
+}

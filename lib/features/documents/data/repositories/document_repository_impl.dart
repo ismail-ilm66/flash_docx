@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:flash_dox/core/error/app_exception.dart';
@@ -17,6 +18,19 @@ class DocumentRepositoryImpl implements DocumentRepository {
 
   final AppDatabase _db;
   final FileStore _files;
+
+  /// Page file sizes, keyed by the page's file paths (fresh cache files get
+  /// fresh names, so a key never goes stale).
+  final Map<String, int> _pageBytes = {};
+
+  int _bytesOf(ScanPage p) {
+    final key = '${p.originalPath}|${p.processedPath}|${p.thumbPath}';
+    return _pageBytes[key] ??= [p.originalPath, p.processedPath, p.thumbPath].fold<int>(0, (sum, path) {
+      if (path == null) return sum;
+      final f = File(path);
+      return sum + (f.existsSync() ? f.lengthSync() : 0);
+    });
+  }
 
   Failure _dbFail(Object e, StackTrace _) => DatabaseFailure(e.toString());
 
@@ -101,18 +115,21 @@ class DocumentRepositoryImpl implements DocumentRepository {
     }
     return [
       for (final d in docs)
-        ScanDocument(
-          id: d.id,
-          title: d.title,
-          mode: d.mode,
-          pages: (pagesBy[d.id] ?? const [])
-            ..sort((a, b) => a.order.compareTo(b.order)),
-          createdAt: d.createdAt,
-          updatedAt: d.updatedAt,
-          lastActivity: lastBy[d.id] == null
-              ? null
-              : AppDatabase.activityFromRow(lastBy[d.id]!),
-        ),
+        () {
+          final docPages = (pagesBy[d.id] ?? <ScanPage>[])..sort((a, b) => a.order.compareTo(b.order));
+          return ScanDocument(
+            id: d.id,
+            title: d.title,
+            mode: d.mode,
+            pages: docPages,
+            createdAt: d.createdAt,
+            updatedAt: d.updatedAt,
+            lastActivity: lastBy[d.id] == null ? null : AppDatabase.activityFromRow(lastBy[d.id]!),
+            folder: d.folder,
+            suggestion: AppDatabase.suggestionFromJson(d.suggestion),
+            sizeBytes: docPages.fold(0, (sum, p) => sum + _bytesOf(p)),
+          );
+        }(),
     ];
   }
 
@@ -147,6 +164,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
                 mode: mode,
                 createdAt: now,
                 updatedAt: now,
+                folder: Value(folderForMode(mode)),
               ),
             );
         await _db.batch((b) {
@@ -162,6 +180,7 @@ class DocumentRepositoryImpl implements DocumentRepository {
           pages: adopted,
           createdAt: now,
           updatedAt: now,
+          folder: folderForMode(mode),
           lastActivity: Activity(
             id: '',
             documentId: docId,
@@ -179,6 +198,10 @@ class DocumentRepositoryImpl implements DocumentRepository {
       );
     }
   }
+
+  /// Card scans go straight to IDs (feature 3); documents wait for the
+  /// smart-name suggestion.
+  static DocFolder folderForMode(ScanMode mode) => mode == ScanMode.document ? DocFolder.other : DocFolder.ids;
 
   /// "Flash Scan - 05 Nov 2026", then "… (2)", "… (3)" on the same day.
   Future<String> _uniqueDefaultTitle(DateTime at) async {
@@ -198,6 +221,26 @@ class DocumentRepositoryImpl implements DocumentRepository {
     final day = at.day.toString().padLeft(2, '0');
     return 'Flash Scan - $day ${months[at.month - 1]} ${at.year}';
   }
+
+  @override
+  Future<Either<Failure, Unit>> setFolder(String id, DocFolder folder) => guard(
+        () async {
+          await (_db.update(_db.documents)..where((d) => d.id.equals(id)))
+              .write(DocumentsCompanion(folder: Value(folder)));
+          return unit;
+        },
+        onError: _dbFail,
+      );
+
+  @override
+  Future<Either<Failure, Unit>> setSuggestion(String id, NameSuggestion? suggestion) => guard(
+        () async {
+          await (_db.update(_db.documents)..where((d) => d.id.equals(id)))
+              .write(DocumentsCompanion(suggestion: Value(AppDatabase.suggestionToJson(suggestion))));
+          return unit;
+        },
+        onError: _dbFail,
+      );
 
   @override
   Future<Either<Failure, Unit>> rename(String id, String title) => guard(
