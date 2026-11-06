@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
@@ -46,21 +44,30 @@ class _PrepStep extends ExportEvent {
 }
 
 class _PrepFinished extends ExportEvent {
-  const _PrepFinished(this.key, this.ok);
+  const _PrepFinished(this.key, this.result);
   final ExportOptions key;
-  final bool ok;
+  final Either<Failure, PreparedExport> result;
 }
 
 // ---------- state ----------
 
 /// Progress of building the files for the current options.
 class ExportPrep extends Equatable {
-  const ExportPrep(this.done, this.total, {this.ready = false});
+  const ExportPrep(this.done, this.total, {this.ready = false, this.bytes, this.hardToRead = false, this.failure});
   final int done;
   final int total;
   final bool ready;
+
+  /// Max file size: the final size, and whether small text may be hard to
+  /// read at the settings it took.
+  final int? bytes;
+  final bool hardToRead;
+
+  /// Building failed (for Max file size: it couldn't fit).
+  final Failure? failure;
+
   @override
-  List<Object?> get props => [done, total, ready];
+  List<Object?> get props => [done, total, ready, bytes, hardToRead, failure];
 }
 
 sealed class ExportStatus extends Equatable {
@@ -173,14 +180,29 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
     on<_PrepFinished>((e, emit) {
       if (e.key != _jobKey) return;
       final total = state.prep?.total ?? 0;
-      emit(state.copyWith(prep: ExportPrep(total, total, ready: e.ok)));
+      e.result.fold(
+        (f) {
+          if (f is! CancelledFailure) emit(state.copyWith(prep: ExportPrep(total, total, failure: f)));
+        },
+        (p) => emit(
+          state.copyWith(
+            prep: ExportPrep(
+              total,
+              total,
+              ready: true,
+              bytes: p.shrunk == null ? null : p.bytes,
+              hardToRead: p.shrunk?.hardToRead ?? false,
+            ),
+          ),
+        ),
+      );
     });
     on<ExportRequested>(_onExport);
   }
 
   final ExportDocument _export;
 
-  Future<Either<Failure, List<File>>>? _job;
+  Future<Either<Failure, PreparedExport>>? _job;
   ExportOptions? _jobKey;
   CancelToken? _cancel;
 
@@ -209,7 +231,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
 
   /// Starts building the files for the current options; an older job stops
   /// before its next page.
-  Future<Either<Failure, List<File>>> _startPrep(Emitter<ExportState> emit) {
+  Future<Either<Failure, PreparedExport>> _startPrep(Emitter<ExportState> emit) {
     final key = _keyOf(state.options);
     if (key == _jobKey && _job != null) return _job!;
     _cancel?.cancel();
@@ -236,7 +258,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
           '(${state.document.pages.length} pages, ${key.format.name} ${key.quality.name})',
         );
       }
-      if (!isClosed) add(_PrepFinished(key, r.isRight()));
+      if (!isClosed) add(_PrepFinished(key, r));
     });
     return job;
   }
@@ -247,14 +269,16 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
     emit(state.copyWith(status: ExportWorking(e.target)));
     // Uses the file built since the sheet opened, or waits for it.
     var r = await _startPrep(emit);
-    // A previous job that failed (not just superseded) gets one fresh try.
-    if (r.isLeft() && r.getLeft().toNullable() is! CancelledFailure) {
+    // A previous job that failed (not just superseded) gets one fresh try;
+    // a file that can't fit the size limit won't fit on a second try either.
+    final failed = r.getLeft().toNullable();
+    if (failed != null && failed is! CancelledFailure && failed is! ShrinkFailure) {
       _job = null;
       r = await _startPrep(emit);
     }
     final out = await r.fold(
       (f) async => Left<Failure, Unit>(f),
-      (files) => _export.deliver(state.document, files, options, e.target),
+      (prepared) => _export.deliver(state.document, prepared.files, options, e.target),
     );
     if (isClosed) return;
     emit(

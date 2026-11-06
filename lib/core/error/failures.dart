@@ -48,6 +48,19 @@ class OfflineFailure extends Failure {
   const OfflineFailure([super.message]);
 }
 
+/// Max file size: the PDF can't get under [targetBytes] at readable settings.
+/// [canTryGrayscale] when it was colour and black and white might fit.
+class ShrinkFailure extends Failure {
+  const ShrinkFailure({required this.targetBytes, required this.smallestBytes, required this.canTryGrayscale});
+
+  final int targetBytes;
+  final int smallestBytes;
+  final bool canTryGrayscale;
+
+  @override
+  List<Object?> get props => [targetBytes, smallestBytes, canTryGrayscale];
+}
+
 class UnknownFailure extends Failure {
   const UnknownFailure([super.message]);
 }

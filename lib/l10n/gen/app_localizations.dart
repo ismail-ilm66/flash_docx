@@ -1581,6 +1581,138 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'No documents yet. Scan one first.'**
   String get pickDocumentEmpty;
+
+  /// No description provided for @shareMaxSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Max file size'**
+  String get shareMaxSize;
+
+  /// No description provided for @shareMaxSizeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'For upload limits on forms and portals'**
+  String get shareMaxSizeHint;
+
+  /// No description provided for @maxSizeNoLimit.
+  ///
+  /// In en, this message translates to:
+  /// **'No limit'**
+  String get maxSizeNoLimit;
+
+  /// No description provided for @maxSizeUnder.
+  ///
+  /// In en, this message translates to:
+  /// **'Under {size}'**
+  String maxSizeUnder(String size);
+
+  /// No description provided for @maxSizeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'The PDF is shrunk until it fits. Use this when a form or portal limits the upload size.'**
+  String get maxSizeBody;
+
+  /// No description provided for @maxSizeNoteOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original size'**
+  String get maxSizeNoteOriginal;
+
+  /// No description provided for @maxSizeNote1mb.
+  ///
+  /// In en, this message translates to:
+  /// **'Email and most portals'**
+  String get maxSizeNote1mb;
+
+  /// No description provided for @maxSizeNote500kb.
+  ///
+  /// In en, this message translates to:
+  /// **'Common form limit'**
+  String get maxSizeNote500kb;
+
+  /// No description provided for @maxSizeNote200kb.
+  ///
+  /// In en, this message translates to:
+  /// **'Small text may get soft'**
+  String get maxSizeNote200kb;
+
+  /// No description provided for @maxSizeTagBest.
+  ///
+  /// In en, this message translates to:
+  /// **'Best'**
+  String get maxSizeTagBest;
+
+  /// No description provided for @maxSizeTagSharp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sharp'**
+  String get maxSizeTagSharp;
+
+  /// No description provided for @maxSizeTagGood.
+  ///
+  /// In en, this message translates to:
+  /// **'Good'**
+  String get maxSizeTagGood;
+
+  /// No description provided for @maxSizeTagReadable.
+  ///
+  /// In en, this message translates to:
+  /// **'Readable'**
+  String get maxSizeTagReadable;
+
+  /// No description provided for @maxSizeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get maxSizeCustom;
+
+  /// No description provided for @maxSizeCustomHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 300'**
+  String get maxSizeCustomHint;
+
+  /// No description provided for @maxSizeKb.
+  ///
+  /// In en, this message translates to:
+  /// **'KB'**
+  String get maxSizeKb;
+
+  /// No description provided for @shareReadySize.
+  ///
+  /// In en, this message translates to:
+  /// **'Ready · {size}'**
+  String shareReadySize(String size);
+
+  /// No description provided for @shareHardToRead.
+  ///
+  /// In en, this message translates to:
+  /// **'Small text may be hard to read.'**
+  String get shareHardToRead;
+
+  /// No description provided for @shareNeedsGrayscale.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t fit in colour. Make it black and white to fit?'**
+  String get shareNeedsGrayscale;
+
+  /// No description provided for @shareMakeGrayscale.
+  ///
+  /// In en, this message translates to:
+  /// **'Black and white'**
+  String get shareMakeGrayscale;
+
+  /// No description provided for @shareCantFit.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t get under {size} without making it unreadable. Try fewer pages or black and white.'**
+  String shareCantFit(String size);
+
+  /// No description provided for @shareShrinking.
+  ///
+  /// In en, this message translates to:
+  /// **'Making it fit…'**
+  String get shareShrinking;
 }
 
 class _AppLocalizationsDelegate

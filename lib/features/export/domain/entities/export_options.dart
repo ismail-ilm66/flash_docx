@@ -32,6 +32,13 @@ abstract class ExportOptions with _$ExportOptions {
     @Default(PdfPageSize.a4) PdfPageSize pageSize,
     @Default('') String fileName,
     @Default(ExportLayout.oneImage) ExportLayout layout,
+
+    /// Max file size (feature 2), PDF only: shrink until the file is at most
+    /// this many bytes. null = no limit.
+    int? maxBytes,
+
+    /// The user agreed to black and white because colour couldn't fit.
+    @Default(false) bool grayscaleToFit,
   }) = _ExportOptions;
   const ExportOptions._();
 

@@ -846,4 +846,78 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pickDocumentEmpty => 'No documents yet. Scan one first.';
+
+  @override
+  String get shareMaxSize => 'Max file size';
+
+  @override
+  String get shareMaxSizeHint => 'For upload limits on forms and portals';
+
+  @override
+  String get maxSizeNoLimit => 'No limit';
+
+  @override
+  String maxSizeUnder(String size) {
+    return 'Under $size';
+  }
+
+  @override
+  String get maxSizeBody =>
+      'The PDF is shrunk until it fits. Use this when a form or portal limits the upload size.';
+
+  @override
+  String get maxSizeNoteOriginal => 'Original size';
+
+  @override
+  String get maxSizeNote1mb => 'Email and most portals';
+
+  @override
+  String get maxSizeNote500kb => 'Common form limit';
+
+  @override
+  String get maxSizeNote200kb => 'Small text may get soft';
+
+  @override
+  String get maxSizeTagBest => 'Best';
+
+  @override
+  String get maxSizeTagSharp => 'Sharp';
+
+  @override
+  String get maxSizeTagGood => 'Good';
+
+  @override
+  String get maxSizeTagReadable => 'Readable';
+
+  @override
+  String get maxSizeCustom => 'Custom';
+
+  @override
+  String get maxSizeCustomHint => 'e.g. 300';
+
+  @override
+  String get maxSizeKb => 'KB';
+
+  @override
+  String shareReadySize(String size) {
+    return 'Ready · $size';
+  }
+
+  @override
+  String get shareHardToRead => 'Small text may be hard to read.';
+
+  @override
+  String get shareNeedsGrayscale =>
+      'Can\'t fit in colour. Make it black and white to fit?';
+
+  @override
+  String get shareMakeGrayscale => 'Black and white';
+
+  @override
+  String shareCantFit(String size) {
+    return 'Can\'t get under $size without making it unreadable. Try fewer pages or black and white.';
+  }
+
+  @override
+  String get shareShrinking => 'Making it fit…';
 }

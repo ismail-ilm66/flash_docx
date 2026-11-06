@@ -12,6 +12,7 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
+import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -53,6 +54,8 @@ void main() {
   late _Share share;
   late ExportDocument export;
   late ScanDocument doc;
+  late _Proc proc;
+  var pdfBytes = <int>[9];
 
   setUpAll(() {
     registerFallbackValue(const PdfOptions());
@@ -86,8 +89,9 @@ void main() {
       _Save(),
       repo,
       _Sheet(),
-      _Proc(),
+      proc = _Proc(),
     );
+    pdfBytes = [9];
     when(
       () => render.renderForExport(
         any(),
@@ -107,7 +111,7 @@ void main() {
     ).thenAnswer((inv) async {
       final out = File(inv.namedArguments[#outputPath] as String)
         ..parent.createSync(recursive: true);
-      return out..writeAsBytesSync([9]);
+      return out..writeAsBytesSync(pdfBytes);
     });
     when(
       () => share.shareFiles(any(), subject: any(named: 'subject')),
@@ -180,7 +184,7 @@ void main() {
       final jpg = (await export.prepare(
         doc,
         const ExportOptions(format: ExportFormat.jpg),
-      )).getOrElse((_) => []);
+      )).getOrElse((_) => const PreparedExport([])).files;
       expect(jpg, hasLength(3));
       verifyNever(
         () => render.renderForExport(
@@ -221,7 +225,7 @@ void main() {
     final jpg = (await export.prepare(
       doc,
       const ExportOptions(format: ExportFormat.jpg),
-    )).getOrElse((_) => []);
+    )).getOrElse((_) => const PreparedExport([])).files;
     final r = await export.deliver(
       doc,
       jpg,
@@ -243,5 +247,94 @@ void main() {
       'My lease_3.jpg',
     ]);
     expect(shared.every((f) => f.existsSync()), isTrue);
+  });
+
+  group('Max file size (feature 2)', () {
+    void stubShrink(List<ShrinkOutcome> outcomes) {
+      var call = 0;
+      when(
+        () => proc.shrinkPages(
+          any(),
+          targetBytes: any(named: 'targetBytes'),
+          overheadBytes: any(named: 'overheadBytes'),
+          grayscale: any(named: 'grayscale'),
+          outputs: any(named: 'outputs'),
+        ),
+      ).thenAnswer((inv) async {
+        for (final out in inv.namedArguments[#outputs] as List<String>) {
+          File(out)
+            ..parent.createSync(recursive: true)
+            ..writeAsBytesSync([1]);
+        }
+        return outcomes[call++];
+      });
+    }
+
+    List<Object?> shrinkCall(String name) => verify(
+          () => proc.shrinkPages(
+            any(),
+            targetBytes: any(named: 'targetBytes'),
+            overheadBytes: name == 'overheadBytes' ? captureAny(named: 'overheadBytes') : any(named: 'overheadBytes'),
+            grayscale: name == 'grayscale' ? captureAny(named: 'grayscale') : any(named: 'grayscale'),
+            outputs: any(named: 'outputs'),
+          ),
+        ).captured;
+
+    test('renders 2000 px bases once, then builds the PDF at the chosen settings', () async {
+      stubShrink([const ShrinkFits(ShrinkStep(1700, 70), 400000)]);
+      final steps = <String>[];
+      final r = await export.prepare(doc, const ExportOptions(maxBytes: 500000), onStep: (d, t) => steps.add('$d/$t'));
+      final prepared = r.getOrElse((f) => throw StateError('$f'));
+      expect(prepared.shrunk, const ShrinkStep(1700, 70));
+      expect(steps.last, '4/4', reason: '3 pages + the search');
+      verify(
+        () => render.renderForExport(any(), size: RenderSize.standard, outputPath: any(named: 'outputPath'), jpegQuality: 95),
+      ).called(3);
+
+      // A second export with another limit reuses the bases.
+      stubShrink([const ShrinkFits(ShrinkStep(1228, 60), 190000)]);
+      final small = (await export.prepare(doc, const ExportOptions(maxBytes: 200000))).getOrElse((f) => throw StateError('$f'));
+      expect(small.shrunk!.hardToRead, isTrue);
+      verifyNever(
+        () => render.renderForExport(any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')),
+      );
+    });
+
+    test('colour that cannot fit offers black and white; grayscale that cannot fit gives up', () async {
+      stubShrink([const ShrinkNeedsGrayscale(260000)]);
+      final colour = await export.prepare(doc, const ExportOptions(maxBytes: 200000));
+      expect(
+        colour.getLeft().toNullable(),
+        const ShrinkFailure(targetBytes: 200000, smallestBytes: 260000, canTryGrayscale: true),
+      );
+
+      stubShrink([const ShrinkCantFit(230000)]);
+      final gray = await export.prepare(doc, const ExportOptions(maxBytes: 200000, grayscaleToFit: true));
+      expect((gray.getLeft().toNullable()! as ShrinkFailure).canTryGrayscale, isFalse);
+      expect(shrinkCall('grayscale'), [false, true], reason: 'colour first, then black and white');
+    });
+
+    test('a PDF bigger than estimated searches again with the real overhead', () async {
+      pdfBytes = List.filled(1200, 0);
+      stubShrink([const ShrinkFits(ShrinkStep(2000, 80), 900), const ShrinkFits(ShrinkStep(2000, 75), 700)]);
+      pdfBytes = List.filled(1200, 0);
+      var builds = 0;
+      when(() => pdf.fromPages(any(), any(), outputPath: any(named: 'outputPath'))).thenAnswer((inv) async {
+        final out = File(inv.namedArguments[#outputPath] as String)..parent.createSync(recursive: true);
+        // First build overshoots the 1000-byte limit, the second fits.
+        return out..writeAsBytesSync(List.filled(builds++ == 0 ? 1200 : 950, 0));
+      });
+      final r = await export.prepare(doc, const ExportOptions(maxBytes: 1000));
+      expect(r.getOrElse((f) => throw StateError('$f')).shrunk, const ShrinkStep(2000, 75));
+      final overheads = shrinkCall('overheadBytes').cast<int>();
+      expect(overheads, hasLength(2));
+      expect(overheads[1] - overheads[0], 1200 - 900);
+    });
+
+    test('images and the one-picture card layout ignore the limit', () {
+      expect(ExportDocument.shrinks(doc, const ExportOptions(maxBytes: 1, format: ExportFormat.jpg)), isFalse);
+      expect(ExportDocument.shrinks(doc, const ExportOptions(maxBytes: 1)), isTrue);
+      expect(ExportDocument.shrinks(doc, const ExportOptions()), isFalse);
+    });
   });
 }

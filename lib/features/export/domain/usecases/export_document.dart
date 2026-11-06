@@ -14,13 +14,27 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
+import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
 import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layout.dart';
+import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 import 'package:path/path.dart' as p;
+
+/// Files built by [ExportDocument.prepare].
+class PreparedExport {
+  const PreparedExport(this.files, {this.shrunk});
+
+  final List<File> files;
+
+  /// The settings Max file size settled on, if it was used.
+  final ShrinkStep? shrunk;
+
+  int get bytes => files.fold(0, (sum, f) => sum + f.lengthSync());
+}
 
 /// Builds the export in two steps (P0-4 point 6):
 ///
@@ -59,9 +73,13 @@ class ExportDocument {
       doc.pages.length >= 2 &&
       o.layout == ExportLayout.oneImage;
 
+  /// True when Max file size applies: a page-per-page PDF with a limit.
+  static bool shrinks(ScanDocument doc, ExportOptions o) =>
+      o.format == ExportFormat.pdf && o.maxBytes != null && !usesOneImage(doc, o);
+
   /// Number of steps [prepare] reports through `onStep`.
   static int stepsFor(ScanDocument doc, ExportOptions o) =>
-      usesOneImage(doc, o) ? 2 : doc.pages.length;
+      usesOneImage(doc, o) ? 2 : doc.pages.length + (shrinks(doc, o) ? 1 : 0);
 
   /// Prepare then deliver, in one go.
   Future<Either<Failure, Unit>> call(
@@ -72,11 +90,11 @@ class ExportDocument {
     final r = await prepare(doc, options);
     return r.fold(
       (f) async => Left(f),
-      (files) => deliver(doc, files, options, target),
+      (prepared) => deliver(doc, prepared.files, options, target),
     );
   }
 
-  Future<Either<Failure, List<File>>> prepare(
+  Future<Either<Failure, PreparedExport>> prepare(
     ScanDocument doc,
     ExportOptions options, {
     void Function(int done, int total)? onStep,
@@ -98,6 +116,8 @@ class ExportDocument {
     );
     final total = stepsFor(doc, options);
     bool cancelled() => cancel?.isCancelled ?? false;
+
+    if (shrinks(doc, options)) return _prepareShrunk(doc, options, staging, onStep: onStep, cancel: cancel);
 
     if (usesOneImage(doc, options)) {
       // Front above back at real size (P1-2), straight from the originals at
@@ -130,7 +150,7 @@ class ExportDocument {
             outputPath: p.join(staging, 'card.$imgExt'),
           );
           onStep?.call(total, total);
-          return Right([File(out)]);
+          return Right(PreparedExport([File(out)]));
         }
         Future<String> side(ScanPage pg, String name) => _processor.renderCard(
           pg.originalPath,
@@ -157,7 +177,7 @@ class ExportDocument {
           outputPath: p.join(staging, 'doc.pdf'),
         );
         onStep?.call(total, total);
-        return Right([pdf]);
+        return Right(PreparedExport([pdf]));
       } catch (e) {
         return Left(
           options.isImage
@@ -210,20 +230,94 @@ class ExportDocument {
     } catch (e) {
       return Left(ImageProcessingFailure(e.toString()));
     }
-    if (options.isImage) return Right(rendered.map(File.new).toList());
+    if (options.isImage) return Right(PreparedExport(rendered.map(File.new).toList()));
     if (cancelled()) return const Left(CancelledFailure());
     try {
-      return Right([
-        await _pdf.fromPages(
-          rendered,
-          PdfOptions(pageSize: options.pageSize, title: doc.title),
-          outputPath: p.join(staging, 'doc.pdf'),
-        ),
-      ]);
+      return Right(
+        PreparedExport([
+          await _pdf.fromPages(
+            rendered,
+            PdfOptions(pageSize: options.pageSize, title: doc.title),
+            outputPath: p.join(staging, 'doc.pdf'),
+          ),
+        ]),
+      );
     } catch (e) {
       return Left(PdfFailure(e.toString()));
     }
   }
+
+  /// Max file size (feature 2): renders each page once at 2000 px, then
+  /// lets [ShrinkToFit] pick the best settings that fit. The PDF overhead
+  /// is estimated first and corrected once from the real file if needed.
+  Future<Either<Failure, PreparedExport>> _prepareShrunk(
+    ScanDocument doc,
+    ExportOptions options,
+    String staging, {
+    void Function(int done, int total)? onStep,
+    CancelToken? cancel,
+  }) async {
+    final pages = doc.sortedPages;
+    final total = stepsFor(doc, options);
+    final target = options.maxBytes!;
+    final bases = <String>[];
+    try {
+      onStep?.call(0, total);
+      for (final (i, page) in pages.indexed) {
+        if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
+        final base = _files.exportPagePath(page.id, page.originalPath, page.edits, sizeKey: 'shrinkBase', jpegQuality: _baseQuality);
+        if (!File(base).existsSync()) {
+          final tmp = '${p.withoutExtension(base)}.part.jpg';
+          await _render.renderForExport(page, size: RenderSize.standard, outputPath: tmp, jpegQuality: _baseQuality);
+          File(tmp).renameSync(base);
+        }
+        bases.add(base);
+        onStep?.call(i + 1, total);
+      }
+      if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
+
+      var overhead = _pdfOverheadBase + _pdfOverheadPerPage * pages.length;
+      final outputs = [for (var i = 0; i < pages.length; i++) p.join(staging, 'page_${i + 1}.jpg')];
+      for (var attempt = 0; attempt < 2; attempt++) {
+        final outcome = await _processor.shrinkPages(
+          bases,
+          targetBytes: target,
+          overheadBytes: overhead,
+          grayscale: options.grayscaleToFit,
+          outputs: outputs,
+        );
+        switch (outcome) {
+          case ShrinkNeedsGrayscale(:final smallestBytes):
+            return Left(ShrinkFailure(targetBytes: target, smallestBytes: smallestBytes, canTryGrayscale: true));
+          case ShrinkCantFit(:final smallestBytes):
+            return Left(ShrinkFailure(targetBytes: target, smallestBytes: smallestBytes, canTryGrayscale: false));
+          case ShrinkFits(:final step, :final bytes):
+            final pdf = await _pdf.fromPages(
+              outputs,
+              PdfOptions(pageSize: options.pageSize, title: doc.title),
+              outputPath: p.join(staging, 'doc.pdf'),
+            );
+            final size = pdf.lengthSync();
+            debugPrint('[shrink] $step -> $size bytes (target $target, estimate $bytes)');
+            if (size <= target) {
+              onStep?.call(total, total);
+              return Right(PreparedExport([pdf], shrunk: step));
+            }
+            // The real overhead was bigger than estimated: search again.
+            overhead += size - bytes;
+        }
+      }
+      return Left(
+        ShrinkFailure(targetBytes: target, smallestBytes: target + 1, canTryGrayscale: !options.grayscaleToFit),
+      );
+    } catch (e) {
+      return Left(PdfFailure(e.toString()));
+    }
+  }
+
+  static const _baseQuality = 95;
+  static const _pdfOverheadBase = 2048;
+  static const _pdfOverheadPerPage = 1024;
 
   /// Final file names for the prepared files: `Name.pdf`, `Name.jpg` or
   /// `Name_1.jpg`, `Name_2.jpg`, …

@@ -439,5 +439,48 @@
   "toolShrinkPdf": "Shrink PDF",
   "toolExtractText": "Extract text",
   "pickDocumentTitle": "Pick a document",
-  "pickDocumentEmpty": "No documents yet. Scan one first."
+  "pickDocumentEmpty": "No documents yet. Scan one first.",
+  "shareMaxSize": "Max file size",
+  "shareMaxSizeHint": "For upload limits on forms and portals",
+  "maxSizeNoLimit": "No limit",
+  "maxSizeUnder": "Under {size}",
+  "@maxSizeUnder": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "maxSizeBody": "The PDF is shrunk until it fits. Use this when a form or portal limits the upload size.",
+  "maxSizeNoteOriginal": "Original size",
+  "maxSizeNote1mb": "Email and most portals",
+  "maxSizeNote500kb": "Common form limit",
+  "maxSizeNote200kb": "Small text may get soft",
+  "maxSizeTagBest": "Best",
+  "maxSizeTagSharp": "Sharp",
+  "maxSizeTagGood": "Good",
+  "maxSizeTagReadable": "Readable",
+  "maxSizeCustom": "Custom",
+  "maxSizeCustomHint": "e.g. 300",
+  "maxSizeKb": "KB",
+  "shareReadySize": "Ready · {size}",
+  "@shareReadySize": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "shareHardToRead": "Small text may be hard to read.",
+  "shareNeedsGrayscale": "Can't fit in colour. Make it black and white to fit?",
+  "shareMakeGrayscale": "Black and white",
+  "shareCantFit": "Can't get under {size} without making it unreadable. Try fewer pages or black and white.",
+  "@shareCantFit": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "shareShrinking": "Making it fit…"
 }

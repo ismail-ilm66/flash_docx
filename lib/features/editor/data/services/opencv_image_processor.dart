@@ -9,6 +9,7 @@ import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
+import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
@@ -81,6 +82,21 @@ class OpenCvImageProcessor implements ImageProcessor {
       debugLabel: 'look',
       priority: JobPriority.interactive,
       cancel: cancel,
+    );
+  }
+
+  @override
+  Future<ShrinkOutcome> shrinkPages(
+    List<String> bases, {
+    required int targetBytes,
+    required int overheadBytes,
+    required bool grayscale,
+    required List<String> outputs,
+  }) {
+    return _runner.run(
+      shrinkInIsolate,
+      ShrinkMsg(bases, targetBytes, overheadBytes, grayscale, outputs),
+      debugLabel: 'shrink',
     );
   }
 
@@ -393,6 +409,69 @@ String cardInIsolate(CardMsg m) {
 /// Renders an export. If the full-resolution render fails (out of memory on
 /// a low-end phone), retries at A4 300 DPI (3508 px) and then 2000 px
 /// instead of failing the export (P0-C).
+class ShrinkMsg {
+  const ShrinkMsg(this.bases, this.target, this.overhead, this.grayscale, this.outputs);
+  final List<String> bases;
+  final int target;
+  final int overhead;
+  final bool grayscale;
+  final List<String> outputs;
+}
+
+/// Decodes each page once, keeps one resized copy per long edge, and
+/// measures in memory: nothing touches the disk until the search is done.
+ShrinkOutcome shrinkInIsolate(ShrinkMsg m) {
+  final sources = [for (final b in m.bases) cv.imread(b)];
+  final sized = <int, List<cv.Mat>>{};
+  List<cv.Mat> at(int edge) => sized.putIfAbsent(edge, () {
+        return [
+          for (final src in sources)
+            () {
+              final long = math.max(src.cols, src.rows);
+              final s = math.min(1.0, edge / long);
+              final r = s < 1
+                  ? cv.resize(src, ((src.cols * s).round(), (src.rows * s).round()), interpolation: cv.INTER_AREA)
+                  : src.clone();
+              if (!m.grayscale) return r;
+              final g = cv.cvtColor(r, cv.COLOR_BGR2GRAY);
+              r.dispose();
+              return g;
+            }(),
+        ];
+      });
+  int jpegBytes(cv.Mat img, int quality) {
+    final params = cv.VecI32.fromList([cv.IMWRITE_JPEG_QUALITY, quality]);
+    final (ok, bytes) = cv.imencode('.jpg', img, params: params);
+    params.dispose();
+    if (!ok) throw StateError('jpeg encode failed');
+    return bytes.length;
+  }
+
+  try {
+    final outcome = ShrinkToFit.search(
+      m.target,
+      (step) => m.overhead + at(step.longEdge).fold(0, (sum, img) => sum + jpegBytes(img, step.quality)),
+      grayscale: m.grayscale,
+    );
+    if (outcome is ShrinkFits) {
+      for (final (i, img) in at(outcome.step.longEdge).indexed) {
+        File(m.outputs[i]).parent.createSync(recursive: true);
+        pipe.writeJpeg(img, m.outputs[i], quality: outcome.step.quality);
+      }
+    }
+    return outcome;
+  } finally {
+    for (final mats in sized.values) {
+      for (final mat in mats) {
+        mat.dispose();
+      }
+    }
+    for (final s in sources) {
+      s.dispose();
+    }
+  }
+}
+
 class StripMsg {
   const StripMsg(this.path, this.edits, this.outputs);
   final String path;

@@ -2,9 +2,12 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
+import 'package:flash_dox/features/export/presentation/max_size_sheet.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/rewards/presentation/unlock_dialog.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
@@ -13,13 +16,20 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Share / save bottom sheet (§11). Starts building the default export as
 /// soon as it opens (P0-4).
-Future<void> showShareSheet(BuildContext context, ScanDocument doc) {
+Future<void> showShareSheet(
+  BuildContext context,
+  ScanDocument doc, {
+  ExportOptions Function(ExportOptions defaults)? options,
+}) {
   getIt<RewardGate>().preload();
   return AppBottomSheet.show<void>(
     context,
     builder: (_) => BlocProvider(
-      create: (_) =>
-          getIt<ExportBloc>(param1: doc)..add(const ExportSheetOpened()),
+      create: (_) {
+        final bloc = getIt<ExportBloc>(param1: doc);
+        if (options != null) bloc.add(ExportOptionsChanged(options(bloc.state.options)));
+        return bloc..add(const ExportSheetOpened());
+      },
       child: const _ShareSheet(),
     ),
   );
@@ -206,6 +216,18 @@ class _ShareSheetState extends State<_ShareSheet> {
                   ),
                 ],
               ),
+              if (o.format == ExportFormat.pdf && !ExportDocument.usesOneImage(s.document, o)) ...[
+                const SizedBox(height: Space.x3),
+                _MaxSizeRow(
+                  value: maxSizeLabel(context, o.maxBytes),
+                  onTap: () async {
+                    final picked = await showMaxSizeSheet(context, o.maxBytes);
+                    if (picked == null || !context.mounted) return;
+                    final cur = context.read<ExportBloc>().state.options;
+                    _update(cur.copyWith(maxBytes: picked.bytes, grayscaleToFit: false));
+                  },
+                ),
+              ],
               gap,
               SectionLabel(
                 l.shareFileName,
@@ -247,13 +269,16 @@ class _ShareSheetState extends State<_ShareSheet> {
                 ),
                 const SizedBox(height: Space.x2),
                 Text(
-                  preparing
-                      ? l.sharePreparingPages(prep.done, prep.total)
-                      : l.sharePreparing,
+                  !preparing
+                      ? l.sharePreparing
+                      : ExportDocument.shrinks(s.document, o) && prep.done >= pageCount
+                      ? l.shareShrinking
+                      : l.sharePreparingPages(prep.done.clamp(0, pageCount), pageCount),
                   style: context.text.bodySmall?.copyWith(color: c.muted),
                 ),
                 const SizedBox(height: Space.x3),
               ],
+              if (!preparing && !working && prep != null) ..._result(context, prep, o),
               Row(
                 children: [
                   Expanded(
@@ -281,6 +306,83 @@ class _ShareSheetState extends State<_ShareSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+/// Max file size outcome above the buttons: the final size, a readability
+/// warning, or why it couldn't fit (with the black and white offer).
+List<Widget> _result(BuildContext context, ExportPrep prep, ExportOptions o) {
+  final l = context.l10n;
+  final c = context.colors;
+  final f = prep.failure;
+  Widget line(String text, {Color? color, FontWeight? weight}) => Padding(
+        padding: const EdgeInsets.only(bottom: Space.x3),
+        child: Text(text, style: context.text.bodySmall?.copyWith(color: color ?? c.muted, fontWeight: weight)),
+      );
+  if (f is ShrinkFailure) {
+    return [
+      line(failureMessage(context, f), color: c.danger, weight: FontWeight.w600),
+      if (f.canTryGrayscale)
+        Padding(
+          padding: const EdgeInsets.only(bottom: Space.x3),
+          child: SecondaryButton(
+            label: l.shareMakeGrayscale,
+            dense: true,
+            onPressed: () => context.read<ExportBloc>().add(ExportOptionsChanged(o.copyWith(grayscaleToFit: true))),
+          ),
+        ),
+    ];
+  }
+  if (prep.bytes == null) return const [];
+  return [
+    line(l.shareReadySize(formatBytes(prep.bytes!)), color: c.text, weight: FontWeight.w700),
+    if (prep.hardToRead) line(l.shareHardToRead),
+  ];
+}
+
+/// "Max file size · Under 500 KB ›" (artboard *Export*).
+class _MaxSizeRow extends StatelessWidget {
+  const _MaxSizeRow({required this.value, required this.onTap});
+  final String value;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.fromLTRB(14, Space.x2, 12, Space.x2),
+        decoration: BoxDecoration(border: Border.all(color: c.borderStrong), borderRadius: BorderRadius.circular(14)),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  FitText(l.shareMaxSize, textAlign: TextAlign.start, style: context.text.titleSmall?.copyWith(fontSize: 14, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(l.shareMaxSizeHint, style: context.text.labelSmall?.copyWith(fontSize: 11, color: c.muted)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: FitText(
+                value,
+                textAlign: TextAlign.end,
+                style: context.text.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: c.accentText),
+              ),
+            ),
+            const SizedBox(width: 4),
+            AppIcon(AppIcons.chevronRight, size: 16, color: c.accentText),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -219,6 +219,14 @@ void main() {
       expect(find.byType(AppBottomSheet), findsOneWidget);
       expect(find.textContaining(l.sharePreparingPages(0, 0).split(' ').first), findsOneWidget, reason: 'builds on open');
       expectNothingCutOff(tester, 'Share sheet');
+
+      if (mode == ScanMode.document) {
+        await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
+        await tester.tap(find.text(l.shareMaxSize));
+        await settle(tester);
+        expect(find.text(l.maxSizeBody), findsOneWidget);
+        expectNothingCutOff(tester, 'Max file size');
+      }
       await close(tester);
     });
   }

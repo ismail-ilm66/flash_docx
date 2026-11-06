@@ -12,6 +12,8 @@ import 'package:flash_dox/features/documents/presentation/widgets/document_menu.
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/presentation/max_size_sheet.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
@@ -145,6 +147,19 @@ class _HomeViewState extends State<_HomeView> {
     final l = context.l10n;
     return [
       HomeTool(
+        icon: AppIcons.shrink,
+        label: l.toolShrinkPdf,
+        onTap: () => _withPickedDocument(context, l.toolShrinkPdf, (d) async {
+          final limit = await showMaxSizeSheet(context, 500000);
+          if (limit == null || !context.mounted) return;
+          await showShareSheet(
+            context,
+            d,
+            options: (o) => o.copyWith(format: ExportFormat.pdf, layout: ExportLayout.separate, maxBytes: limit.bytes),
+          );
+        }),
+      ),
+      HomeTool(
         icon: AppIcons.text,
         label: l.toolExtractText,
         onTap: () => _withPickedDocument(context, l.toolExtractText, (d) => context.push(Routes.text(d.id))),
@@ -152,9 +167,13 @@ class _HomeViewState extends State<_HomeView> {
     ];
   }
 
-  Future<void> _withPickedDocument(BuildContext context, String title, void Function(ScanDocument) then) async {
+  Future<void> _withPickedDocument(
+    BuildContext context,
+    String title,
+    FutureOr<void> Function(ScanDocument) then,
+  ) async {
     final d = await showPickDocumentSheet(context, title: title);
-    if (d != null && context.mounted) then(d);
+    if (d != null && context.mounted) await then(d);
   }
 
   void _scan(BuildContext context, ScanMode? mode) =>

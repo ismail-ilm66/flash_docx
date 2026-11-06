@@ -2,6 +2,7 @@ import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
+import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 
 /// Implemented with OpenCV in `data/`. All methods run off the UI isolate.
 abstract interface class ImageProcessor {
@@ -38,6 +39,17 @@ abstract interface class ImageProcessor {
     required String workPath,
     required String outputPath,
     CancelToken? cancel,
+  });
+
+  /// Max file size (feature 2): finds the best [ShrinkStep] at which the
+  /// [bases] (2000 px page renders) plus [overheadBytes] fit [targetBytes],
+  /// and on a fit writes each page at that step to [outputs]. Background lane.
+  Future<ShrinkOutcome> shrinkPages(
+    List<String> bases, {
+    required int targetBytes,
+    required int overheadBytes,
+    required bool grayscale,
+    required List<String> outputs,
   });
 
   /// All six filter thumbnails for one page in one job (160 px, P0-4).

@@ -4,6 +4,7 @@ import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
@@ -107,7 +108,7 @@ void main() {
     },
   );
 
-  void stubPrepare({Either<Failure, List<File>> result = const Right([])}) {
+  void stubPrepare({Either<Failure, PreparedExport> result = const Right(PreparedExport([]))}) {
     when(
       () => export.prepare(
         any(),
@@ -230,5 +231,23 @@ void main() {
       bloc.stream,
       emitsThrough(predicate<ExportState>((s) => s.status is ExportFailed)),
     );
+  });
+
+  test('Max file size: a limit that cannot fit in colour shows the offer; black and white re-prepares', () async {
+    const fail = ShrinkFailure(targetBytes: 200000, smallestBytes: 260000, canTryGrayscale: true);
+    when(() => export.prepare(any(), any(), onStep: any(named: 'onStep'), cancel: any(named: 'cancel'))).thenAnswer((inv) async {
+      final o = inv.positionalArguments[1] as ExportOptions;
+      return o.grayscaleToFit
+          ? const Right(PreparedExport([], shrunk: ShrinkStep(1228, 60, grayscale: true)))
+          : const Left(fail);
+    });
+    final bloc = ExportBloc(export, prefs, doc);
+    bloc
+      ..add(ExportOptionsChanged(bloc.state.options.copyWith(format: ExportFormat.pdf, maxBytes: 200000)))
+      ..add(const ExportSheetOpened());
+    await expectLater(bloc.stream, emitsThrough(predicate<ExportState>((s) => s.prep?.failure == fail)));
+
+    bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(grayscaleToFit: true)));
+    await expectLater(bloc.stream, emitsThrough(predicate<ExportState>((s) => (s.prep?.ready ?? false) && s.prep!.hardToRead)));
   });
 }

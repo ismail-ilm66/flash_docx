@@ -1,6 +1,7 @@
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
 import 'package:flash_dox/shared/widgets/buttons.dart';
@@ -97,6 +98,8 @@ String failureMessage(BuildContext context, Failure? f) {
     PdfFailure() => l.errorPdf,
     PermissionFailure() => l.errorPermission,
     OfflineFailure() => l.errorOffline,
+    ShrinkFailure(:final canTryGrayscale, :final targetBytes) =>
+      canTryGrayscale ? l.shareNeedsGrayscale : l.shareCantFit(formatBytes(targetBytes)),
     _ => l.errorGeneric,
   };
 }
