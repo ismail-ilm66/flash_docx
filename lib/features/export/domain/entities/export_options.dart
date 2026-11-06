@@ -10,7 +10,8 @@ enum ExportQuality { standard, high }
 enum PdfPageSize {
   a4(PaperMm.a4Width, PaperMm.a4Height),
   letter(PaperMm.letterWidth, PaperMm.letterHeight),
-  fit(null, null);
+  fit(null, null)
+  ;
 
   const PdfPageSize(this.widthMm, this.heightMm);
 
@@ -36,10 +37,10 @@ abstract class ExportOptions with _$ExportOptions {
 
   bool get isImage => format != ExportFormat.pdf;
   String get extension => switch (format) {
-        ExportFormat.pdf => 'pdf',
-        ExportFormat.jpg => 'jpg',
-        ExportFormat.png => 'png',
-      };
+    ExportFormat.pdf => 'pdf',
+    ExportFormat.jpg => 'jpg',
+    ExportFormat.png => 'png',
+  };
 }
 
 @freezed

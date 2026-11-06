@@ -421,5 +421,16 @@
     }
   },
   "enhanceZoomIn": "Zoom in",
-  "enhanceZoomOut": "Zoom out"
+  "enhanceZoomOut": "Zoom out",
+  "sharePreparingPages": "Preparing… {done}/{total} pages",
+  "@sharePreparingPages": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  }
 }

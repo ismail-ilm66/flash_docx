@@ -115,6 +115,21 @@ class FileStore {
     'strip_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}_${filter.name}.jpg',
   );
 
+  /// One page rendered for export at one size and JPEG quality (P0-4).
+  /// Shared by every export of the same look, so a page-size or format change
+  /// doesn't re-render.
+  String exportPagePath(
+    String pageId,
+    String originalPath,
+    PageEdits edits, {
+    required String sizeKey,
+    required int jpegQuality,
+  }) => p.join(
+    _exportTemp.path,
+    'pages',
+    '${pageId}_${Object.hash(_stamp(originalPath), edits, sizeKey, jpegQuality)}.jpg',
+  );
+
   /// Identifies one version of an original: its path plus modification time,
   /// so a retake saved over the same path still gets fresh previews.
   int _stamp(String originalPath) {

@@ -11,13 +11,15 @@ import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Share / save bottom sheet (§11). Preloads a rewarded ad on open.
+/// Share / save bottom sheet (§11). Starts building the default export as
+/// soon as it opens (P0-4).
 Future<void> showShareSheet(BuildContext context, ScanDocument doc) {
   getIt<RewardGate>().preload();
   return AppBottomSheet.show<void>(
     context,
     builder: (_) => BlocProvider(
-      create: (_) => getIt<ExportBloc>(param1: doc),
+      create: (_) =>
+          getIt<ExportBloc>(param1: doc)..add(const ExportSheetOpened()),
       child: const _ShareSheet(),
     ),
   );
@@ -36,7 +38,9 @@ class _ShareSheetState extends State<_ShareSheet> {
   @override
   void initState() {
     super.initState();
-    _name = TextEditingController(text: context.read<ExportBloc>().state.options.fileName);
+    _name = TextEditingController(
+      text: context.read<ExportBloc>().state.options.fileName,
+    );
   }
 
   @override
@@ -45,7 +49,8 @@ class _ShareSheetState extends State<_ShareSheet> {
     super.dispose();
   }
 
-  void _update(ExportOptions o) => context.read<ExportBloc>().add(ExportOptionsChanged(o));
+  void _update(ExportOptions o) =>
+      context.read<ExportBloc>().add(ExportOptionsChanged(o));
 
   Future<void> _go(ExportTarget target) async {
     final bloc = context.read<ExportBloc>();
@@ -68,12 +73,16 @@ class _ShareSheetState extends State<_ShareSheet> {
       listener: (context, s) {
         final st = s.status;
         if (st is ExportDone) {
-          if (st.target == ExportTarget.saveToPhone) context.showSnack(l.shareSaved);
+          if (st.target == ExportTarget.saveToPhone) {
+            context.showSnack(l.shareSaved);
+          }
           Navigator.of(context).pop();
         } else if (st is ExportFailed) {
           final f = st.failure;
           context.showSnack(
-            f is PermissionFailure ? l.errorPermission : failureMessage(context, f),
+            f is PermissionFailure
+                ? l.errorPermission
+                : failureMessage(context, f),
             error: true,
           );
         }
@@ -81,13 +90,16 @@ class _ShareSheetState extends State<_ShareSheet> {
       builder: (context, s) {
         final o = s.options;
         final working = s.status is ExportWorking;
-        final progress = s.status is ExportWorking ? (s.status as ExportWorking).progress : null;
+        final prep = s.prep;
+        // "Preparing… 2/3 pages" while the file builds in the background;
+        // Share stays tappable and waits for it.
+        final preparing = prep != null && !prep.ready && prep.done < prep.total;
         final pageCount = s.document.pages.length;
         String formatName(ExportFormat f) => switch (f) {
-              ExportFormat.pdf => l.sharePdf,
-              ExportFormat.jpg => l.shareJpg,
-              ExportFormat.png => l.sharePng,
-            };
+          ExportFormat.pdf => l.sharePdf,
+          ExportFormat.jpg => l.shareJpg,
+          ExportFormat.png => l.sharePng,
+        };
         const gap = SizedBox(height: 18);
         return AppBottomSheet(
           title: l.shareTitle,
@@ -95,7 +107,10 @@ class _ShareSheetState extends State<_ShareSheet> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              SectionLabel(l.shareFormat, padding: const EdgeInsets.only(bottom: Space.x2)),
+              SectionLabel(
+                l.shareFormat,
+                padding: const EdgeInsets.only(bottom: Space.x2),
+              ),
               Row(
                 children: [
                   for (final (i, f) in ExportFormat.values.indexed) ...[
@@ -106,28 +121,41 @@ class _ShareSheetState extends State<_ShareSheet> {
                         height: 64,
                         titleSize: 15,
                         title: formatName(f),
-                        subtitle: f == ExportFormat.pdf ? l.shareOneFile : l.shareImagesCount(pageCount),
+                        subtitle: f == ExportFormat.pdf
+                            ? l.shareOneFile
+                            : l.shareImagesCount(pageCount),
                         selected: o.format == f,
-                        gated: f == ExportFormat.png && !s.unlocked.contains(PremiumFeature.pngExport),
+                        gated:
+                            f == ExportFormat.png &&
+                            !s.unlocked.contains(PremiumFeature.pngExport),
                         onTap: () => _update(o.copyWith(format: f)),
                       ),
                     ),
                   ],
                 ],
               ),
-              if (s.document.mode.supportsPrintLayout && s.document.pages.length >= 2) ...[
+              if (s.document.mode.supportsPrintLayout &&
+                  s.document.pages.length >= 2) ...[
                 const SizedBox(height: Space.x4),
-                SectionLabel(l.shareLayout, padding: const EdgeInsets.only(bottom: Space.x2)),
+                SectionLabel(
+                  l.shareLayout,
+                  padding: const EdgeInsets.only(bottom: Space.x2),
+                ),
                 SegmentedPills<ExportLayout>(
                   values: ExportLayout.values,
                   selected: o.layout,
-                  labelOf: (v) => v == ExportLayout.oneImage ? l.shareLayoutOneImage : l.shareLayoutSeparate,
+                  labelOf: (v) => v == ExportLayout.oneImage
+                      ? l.shareLayoutOneImage
+                      : l.shareLayoutSeparate,
                   onChanged: (v) => _update(o.copyWith(layout: v)),
                 ),
               ],
               if (!o.isImage) ...[
                 gap,
-                SectionLabel(l.sharePageSize, padding: const EdgeInsets.only(bottom: Space.x2)),
+                SectionLabel(
+                  l.sharePageSize,
+                  padding: const EdgeInsets.only(bottom: Space.x2),
+                ),
                 Wrap(
                   spacing: Space.x2,
                   runSpacing: Space.x2,
@@ -146,7 +174,10 @@ class _ShareSheetState extends State<_ShareSheet> {
                 ),
               ],
               gap,
-              SectionLabel(l.shareQuality, padding: const EdgeInsets.only(bottom: Space.x2)),
+              SectionLabel(
+                l.shareQuality,
+                padding: const EdgeInsets.only(bottom: Space.x2),
+              ),
               Row(
                 children: [
                   Expanded(
@@ -155,7 +186,8 @@ class _ShareSheetState extends State<_ShareSheet> {
                       title: l.shareQualityStandard,
                       subtitle: l.shareQualityStandardHint,
                       selected: o.quality == ExportQuality.standard,
-                      onTap: () => _update(o.copyWith(quality: ExportQuality.standard)),
+                      onTap: () =>
+                          _update(o.copyWith(quality: ExportQuality.standard)),
                     ),
                   ),
                   const SizedBox(width: Space.x2),
@@ -165,31 +197,61 @@ class _ShareSheetState extends State<_ShareSheet> {
                       title: l.shareQualityHigh,
                       subtitle: l.shareQualityHighHint,
                       selected: o.quality == ExportQuality.high,
-                      gated: !s.unlocked.contains(PremiumFeature.highQualityExport),
-                      onTap: () => _update(o.copyWith(quality: ExportQuality.high)),
+                      gated: !s.unlocked.contains(
+                        PremiumFeature.highQualityExport,
+                      ),
+                      onTap: () =>
+                          _update(o.copyWith(quality: ExportQuality.high)),
                     ),
                   ),
                 ],
               ),
               gap,
-              SectionLabel(l.shareFileName, padding: const EdgeInsets.only(bottom: 6)),
+              SectionLabel(
+                l.shareFileName,
+                padding: const EdgeInsets.only(bottom: 6),
+              ),
               TextField(
                 controller: _name,
                 textInputAction: TextInputAction.done,
-                style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                style: context.text.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
                 decoration: InputDecoration(
                   suffixText: '.${o.extension}',
-                  suffixStyle: context.text.bodyMedium?.copyWith(color: c.muted, fontWeight: FontWeight.w600),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent, width: 1.5)),
+                  suffixStyle: context.text.bodyMedium?.copyWith(
+                    color: c.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.borderStrong),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.borderStrong),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.accent, width: 1.5),
+                  ),
                 ),
               ),
               const SizedBox(height: 22),
-              if (working) ...[
-                LinearProgressIndicator(value: progress == 0 ? null : progress, borderRadius: Radii.pillR),
+              if (preparing || working) ...[
+                LinearProgressIndicator(
+                  value: prep == null || prep.done == 0 || prep.ready
+                      ? null
+                      : prep.done / prep.total,
+                  borderRadius: Radii.pillR,
+                ),
                 const SizedBox(height: Space.x2),
-                Text(l.sharePreparing, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                Text(
+                  preparing
+                      ? l.sharePreparingPages(prep.done, prep.total)
+                      : l.sharePreparing,
+                  style: context.text.bodySmall?.copyWith(color: c.muted),
+                ),
                 const SizedBox(height: Space.x3),
               ],
               Row(
@@ -199,7 +261,9 @@ class _ShareSheetState extends State<_ShareSheet> {
                       label: l.shareSaveToPhone,
                       icon: AppIcons.save,
                       dense: true,
-                      onPressed: working ? null : () => _go(ExportTarget.saveToPhone),
+                      onPressed: working
+                          ? null
+                          : () => _go(ExportTarget.saveToPhone),
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -208,7 +272,7 @@ class _ShareSheetState extends State<_ShareSheet> {
                       label: l.shareButtonFormat(formatName(o.format)),
                       icon: AppIcons.share,
                       loading: working,
-                      onPressed: () => _go(ExportTarget.share),
+                      onPressed: working ? null : () => _go(ExportTarget.share),
                     ),
                   ),
                 ],

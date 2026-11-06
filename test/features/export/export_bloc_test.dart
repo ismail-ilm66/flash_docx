@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -19,7 +21,15 @@ void main() {
     id: 'd',
     title: 'Doc',
     mode: ScanMode.document,
-    pages: const [ScanPage(id: 'p', documentId: 'd', originalPath: '/x', edits: PageEdits(), order: 0)],
+    pages: const [
+      ScanPage(
+        id: 'p',
+        documentId: 'd',
+        originalPath: '/x',
+        edits: PageEdits(),
+        order: 0,
+      ),
+    ],
     createdAt: DateTime(2025),
     updatedAt: DateTime(2025),
   );
@@ -31,6 +41,7 @@ void main() {
     registerFallbackValue(doc);
     registerFallbackValue(const ExportOptions());
     registerFallbackValue(ExportTarget.share);
+    registerFallbackValue(<File>[]);
   });
 
   test('defaults come from prefs and the document title', () {
@@ -40,56 +51,184 @@ void main() {
     expect(bloc.state.requiredUnlock, isNull);
   });
 
-  test('premium options are free while rewarded ads are off', () async {
-    final bloc = ExportBloc(export, prefs, doc);
-    bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(quality: ExportQuality.high, format: ExportFormat.png)));
-    await Future<void>.delayed(Duration.zero);
-    expect(bloc.state.requiredUnlock, isNull);
-  }, skip: rewardedAdsEnabled);
+  test(
+    'premium options are free while rewarded ads are off',
+    () async {
+      final bloc = ExportBloc(export, prefs, doc);
+      bloc.add(
+        ExportOptionsChanged(
+          bloc.state.options.copyWith(
+            quality: ExportQuality.high,
+            format: ExportFormat.png,
+          ),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.requiredUnlock, isNull);
+    },
+    skip: rewardedAdsEnabled,
+  );
 
-  test('premium options require an unlock until granted', skip: !rewardedAdsEnabled, () {
-    final bloc = ExportBloc(export, prefs, doc);
-    bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(quality: ExportQuality.high)));
-    expect(bloc.stream, emitsThrough(predicate<ExportState>((s) => s.requiredUnlock == PremiumFeature.highQualityExport)));
-  });
+  test(
+    'premium options require an unlock until granted',
+    skip: !rewardedAdsEnabled,
+    () {
+      final bloc = ExportBloc(export, prefs, doc);
+      bloc.add(
+        ExportOptionsChanged(
+          bloc.state.options.copyWith(quality: ExportQuality.high),
+        ),
+      );
+      expect(
+        bloc.stream,
+        emitsThrough(
+          predicate<ExportState>(
+            (s) => s.requiredUnlock == PremiumFeature.highQualityExport,
+          ),
+        ),
+      );
+    },
+  );
 
-  test('unlocked feature clears the requirement', skip: !rewardedAdsEnabled, () async {
-    final bloc = ExportBloc(export, prefs, doc);
-    bloc
-      ..add(ExportOptionsChanged(bloc.state.options.copyWith(format: ExportFormat.png)))
-      ..add(const ExportFeatureUnlocked(PremiumFeature.pngExport));
-    await Future<void>.delayed(Duration.zero);
-    expect(bloc.state.requiredUnlock, isNull);
-  });
+  test(
+    'unlocked feature clears the requirement',
+    skip: !rewardedAdsEnabled,
+    () async {
+      final bloc = ExportBloc(export, prefs, doc);
+      bloc
+        ..add(
+          ExportOptionsChanged(
+            bloc.state.options.copyWith(format: ExportFormat.png),
+          ),
+        )
+        ..add(const ExportFeatureUnlocked(PremiumFeature.pngExport));
+      await Future<void>.delayed(Duration.zero);
+      expect(bloc.state.requiredUnlock, isNull);
+    },
+  );
 
-  test('export reports progress then done', () async {
-    when(() => export(any(), any(), any(), onProgress: any(named: 'onProgress'))).thenAnswer((inv) async {
-      final cb = inv.namedArguments[#onProgress] as void Function(double)?;
-      cb?.call(0.5);
-      cb?.call(1);
-      return const Right(unit);
+  void stubPrepare({Either<Failure, List<File>> result = const Right([])}) {
+    when(
+      () => export.prepare(
+        any(),
+        any(),
+        onStep: any(named: 'onStep'),
+        cancel: any(named: 'cancel'),
+      ),
+    ).thenAnswer((inv) async {
+      final step = inv.namedArguments[#onStep] as void Function(int, int)?;
+      step?.call(0, 1);
+      step?.call(1, 1);
+      return result;
     });
-    final bloc = ExportBloc(export, prefs, doc)..add(const ExportRequested(ExportTarget.share));
-    await expectLater(
-      bloc.stream,
-      emitsInOrder([
-        predicate<ExportState>((s) => s.status == const ExportWorking(0)),
-        predicate<ExportState>((s) => s.status == const ExportWorking(0.5)),
-        predicate<ExportState>((s) => s.status == const ExportWorking(1)),
-        predicate<ExportState>((s) => s.status == const ExportDone(ExportTarget.share)),
-      ]),
-    );
-  });
+  }
+
+  test(
+    'P0-4: opening the sheet builds the default export; Share uses it',
+    () async {
+      stubPrepare();
+      when(
+        () => export.deliver(any(), any(), any(), any()),
+      ).thenAnswer((_) async => const Right(unit));
+      final bloc = ExportBloc(export, prefs, doc)
+        ..add(const ExportSheetOpened());
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<ExportState>((s) => s.prep?.ready ?? false)),
+      );
+
+      bloc.add(const ExportRequested(ExportTarget.share));
+      await expectLater(
+        bloc.stream,
+        emitsThrough(
+          predicate<ExportState>(
+            (s) => s.status == const ExportDone(ExportTarget.share),
+          ),
+        ),
+      );
+      verify(
+        () => export.prepare(
+          any(),
+          any(),
+          onStep: any(named: 'onStep'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).called(1);
+      verify(
+        () => export.deliver(any(), any(), any(), ExportTarget.share),
+      ).called(1);
+    },
+  );
+
+  test(
+    'a new page size re-prepares; a new file name does not, and is used on share',
+    () async {
+      stubPrepare();
+      when(
+        () => export.deliver(any(), any(), any(), any()),
+      ).thenAnswer((_) async => const Right(unit));
+      final bloc = ExportBloc(export, prefs, doc)
+        ..add(const ExportSheetOpened());
+      await Future<void>.delayed(Duration.zero);
+      bloc
+        ..add(
+          ExportOptionsChanged(
+            bloc.state.options.copyWith(fileName: 'Renamed'),
+          ),
+        )
+        ..add(
+          ExportOptionsChanged(
+            bloc.state.options.copyWith(
+              fileName: 'Renamed',
+              pageSize: PdfPageSize.letter,
+            ),
+          ),
+        )
+        ..add(const ExportRequested(ExportTarget.share));
+      await expectLater(
+        bloc.stream,
+        emitsThrough(predicate<ExportState>((s) => s.status is ExportDone)),
+      );
+      final prepared = verify(
+        () => export.prepare(
+          any(),
+          captureAny(),
+          onStep: any(named: 'onStep'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).captured;
+      expect(prepared.map((o) => (o as ExportOptions).pageSize), [
+        PdfPageSize.a4,
+        PdfPageSize.letter,
+      ]);
+      final delivered =
+          verify(
+                () => export.deliver(any(), any(), captureAny(), any()),
+              ).captured.single
+              as ExportOptions;
+      expect(delivered.fileName, 'Renamed');
+      expect(delivered.pageSize, PdfPageSize.letter);
+    },
+  );
 
   test('cancelled share goes back to idle, other failures surface', () async {
-    when(() => export(any(), any(), any(), onProgress: any(named: 'onProgress')))
-        .thenAnswer((_) async => const Left(CancelledFailure()));
-    var bloc = ExportBloc(export, prefs, doc)..add(const ExportRequested(ExportTarget.share));
-    await expectLater(bloc.stream, emitsThrough(predicate<ExportState>((s) => s.status is ExportIdle)));
+    stubPrepare();
+    when(
+      () => export.deliver(any(), any(), any(), any()),
+    ).thenAnswer((_) async => const Left(CancelledFailure()));
+    var bloc = ExportBloc(export, prefs, doc)
+      ..add(const ExportRequested(ExportTarget.share));
+    await expectLater(
+      bloc.stream,
+      emitsThrough(predicate<ExportState>((s) => s.status is ExportIdle)),
+    );
 
-    when(() => export(any(), any(), any(), onProgress: any(named: 'onProgress')))
-        .thenAnswer((_) async => const Left(PdfFailure('x')));
-    bloc = ExportBloc(export, prefs, doc)..add(const ExportRequested(ExportTarget.saveToPhone));
-    await expectLater(bloc.stream, emitsThrough(predicate<ExportState>((s) => s.status is ExportFailed)));
+    stubPrepare(result: const Left(PdfFailure('x')));
+    bloc = ExportBloc(export, prefs, doc)
+      ..add(const ExportRequested(ExportTarget.saveToPhone));
+    await expectLater(
+      bloc.stream,
+      emitsThrough(predicate<ExportState>((s) => s.status is ExportFailed)),
+    );
   });
 }

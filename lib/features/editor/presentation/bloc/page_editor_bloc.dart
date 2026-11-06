@@ -213,8 +213,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (cur == null ||
         base == null ||
         state.snaps.containsKey(cur.id) ||
-        !_snapsInFlight.add(cur.id))
+        !_snapsInFlight.add(cur.id)) {
       return;
+    }
     try {
       final c = await _processor.snapCandidates(
         base,
@@ -242,8 +243,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     };
     final key = outputs[FilterType.original]!;
     if (state.filterThumbs[cur.id]?[FilterType.original] == key ||
-        !_thumbsInFlight.add(key))
+        !_thumbsInFlight.add(key)) {
       return;
+    }
     try {
       if (!outputs.values.every((p) => File(p).existsSync())) {
         await _processor.renderFilterStrip(
@@ -252,12 +254,13 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           outputs: outputs,
         );
       }
-      if (!isClosed)
+      if (!isClosed) {
         emit(
           state.copyWith(
             filterThumbs: {...state.filterThumbs, cur.id: outputs},
           ),
         );
+      }
     } catch (err) {
       debugPrint('filter strip failed: $err');
     } finally {

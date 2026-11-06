@@ -1533,6 +1533,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Zoom out'**
   String get enhanceZoomOut;
+
+  /// No description provided for @sharePreparingPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing… {done}/{total} pages'**
+  String sharePreparingPages(int done, int total);
 }
 
 class _AppLocalizationsDelegate

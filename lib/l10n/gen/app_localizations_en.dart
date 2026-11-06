@@ -820,4 +820,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get enhanceZoomOut => 'Zoom out';
+
+  @override
+  String sharePreparingPages(int done, int total) {
+    return 'Preparing… $done/$total pages';
+  }
 }

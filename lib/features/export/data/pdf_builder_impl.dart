@@ -33,7 +33,10 @@ class PdfBuilderImpl implements PdfBuilder {
   }
 
   @override
-  Future<File> printSheet(PrintLayoutSpec spec, {required String outputPath}) async {
+  Future<File> printSheet(
+    PrintLayoutSpec spec, {
+    required String outputPath,
+  }) async {
     final bytes = await _runner.run(_buildSheet, spec, debugLabel: 'pdfSheet');
     final f = File(outputPath);
     await f.parent.create(recursive: true);
@@ -84,7 +87,11 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
   final back = spec.backPath == null
       ? null
       : pw.MemoryImage(File(spec.backPath!).readAsBytesSync());
-  final doc = pw.Document(title: spec.title, creator: 'Flash Dox', compress: true);
+  final doc = pw.Document(
+    title: spec.title,
+    creator: 'Flash Dox',
+    compress: true,
+  );
   const format = PdfPageFormat(
     PrintLayoutCalculator.sheetW * _mm,
     PrintLayoutCalculator.sheetH * _mm,
@@ -107,7 +114,8 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
                       ..setStrokeColor(PdfColors.grey400)
                       ..setLineWidth(0.3);
                     // pdf's canvas origin is bottom-left; flip y.
-                    for (final ((x1, y1), (x2, y2)) in PrintLayoutCalculator.cropMarks(items)) {
+                    for (final ((x1, y1), (x2, y2))
+                        in PrintLayoutCalculator.cropMarks(items)) {
                       canvas
                         ..moveTo(x1 * _mm, size.y - y1 * _mm)
                         ..lineTo(x2 * _mm, size.y - y2 * _mm);

@@ -106,8 +106,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// Portrait aspect (width / height) of the capture, or 3:4 until known.
   double get _photoAspect {
     final c = _controller;
-    if (c == null || !c.value.isInitialized)
+    if (c == null || !c.value.isInitialized) {
       return PreviewGeometry.defaultPhotoAspect;
+    }
     return 1 / c.value.aspectRatio;
   }
 
