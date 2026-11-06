@@ -14,6 +14,10 @@ Future<void> bootstrap(Flavor flavor) async {
   FlutterNativeSplash.preserve(widgetsBinding: binding);
   FlavorConfig.set(flavor);
 
+  // No log output in release ([perf], [ingest], [shrink], [smart]…). Profile
+  // builds keep them for timing runs on the test phones.
+  if (kReleaseMode) debugPrint = (message, {wrapWidth}) {};
+
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
   if (flavor == Flavor.dev) {
