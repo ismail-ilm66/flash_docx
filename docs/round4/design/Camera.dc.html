@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Camera</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #000000; color: #F3F3F1; font-family: Manrope, system-ui, sans-serif; position: relative; overflow: hidden">
+
+<div style="position: absolute; left: 0; top: 0; width: 390px; height: 844px; background: #2A2622; overflow: hidden">
+<div style="position: absolute; left: 72px; top: 150px; width: 246px; height: 330px; background: #F4F2EE; transform: rotate(-4deg); box-shadow: 0 10px 30px rgba(0,0,0,0.45); padding: 26px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 9px">
+<div style="height: 8px; width: 55%; background: #8E9196"></div>
+<div style="height: 4px; background: #C3C5C9"></div><div style="height: 4px; background: #C3C5C9"></div><div style="height: 4px; width: 85%; background: #C3C5C9"></div>
+<div style="height: 4px; background: #C3C5C9; margin-top: 10px"></div><div style="height: 4px; background: #C3C5C9"></div><div style="height: 4px; width: 70%; background: #C3C5C9"></div>
+<div style="height: 4px; background: #C3C5C9; margin-top: 10px"></div><div style="height: 4px; width: 90%; background: #C3C5C9"></div>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 262px; display: flex; justify-content: center">
+<div style="background: rgba(0,0,0,0.6); border-radius: 18px; padding: 9px 16px; font-size: 13px; font-weight: 600">Hold steady · edges are found automatically</div>
+</div>
+</div>
+
+<div style="position: absolute; left: 0; top: 0; right: 0; height: 96px; background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0)); display: flex; align-items: flex-start; justify-content: space-between; padding: 14px 8px 0 8px; box-sizing: border-box">
+<a href="Home.dc.html" aria-label="Close camera" style="width: 44px; height: 44px; color: #F3F3F1; display: flex; align-items: center; justify-content: center">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></a>
+<div style="height: 44px; display: flex; align-items: center; font-size: 15px; font-weight: 700">Document · 3 pages</div>
+<button aria-label="Flash: auto" style="height: 44px; border: 0; background: rgba(0,0,0,0.45); color: #F3F3F1; border-radius: 22px; padding: 0 14px; display: flex; align-items: center; gap: 6px; font-family: inherit; font-size: 13px; font-weight: 700">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"></path></svg>Auto</button>
+</div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 250px; background: linear-gradient(rgba(0,0,0,0), rgba(0,0,0,0.78) 32%); display: flex; flex-direction: column; justify-content: flex-end; gap: 22px; padding-bottom: 28px; box-sizing: border-box">
+<div style="display: flex; justify-content: center; gap: 8px">
+<button style="height: 38px; border: 0; background: #FFC233; color: #1B1400; border-radius: 19px; font-family: inherit; font-size: 14px; font-weight: 800; padding: 0 18px">Document</button>
+<button style="height: 38px; border: 0; background: transparent; color: #A6AAB2; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px">ID Card</button>
+<button style="height: 38px; border: 0; background: transparent; color: #A6AAB2; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px">Passport</button>
+</div>
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 0 32px">
+<button aria-label="Import from Photos or Files" style="width: 56px; height: 56px; border: 0; border-radius: 16px; background: #24272D; color: #F3F3F1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-family: inherit; font-size: 10px; font-weight: 700">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg>Import</button>
+<button aria-label="Take photo" style="width: 84px; height: 84px; border-radius: 42px; border: 4px solid #FFFFFF; background: transparent; padding: 5px; box-sizing: border-box; display: flex">
+<span style="flex: 1; border-radius: 50%; background: #FFFFFF"></span></button>
+<a href="Crop.dc.html" aria-label="Done, review 3 pages" style="width: 56px; height: 60px; position: relative; display: flex; flex-direction: column; align-items: center; text-decoration: none; color: #F3F3F1">
+<span style="position: relative; width: 42px; height: 46px">
+<span style="position: absolute; left: 2px; top: 0; width: 38px; height: 46px; border-radius: 6px; background: #D5D7DB; transform: rotate(6deg)"></span>
+<span style="position: absolute; left: 2px; top: 0; width: 38px; height: 46px; border-radius: 6px; background: #F4F2EE; border: 2px solid #FFFFFF; box-sizing: border-box"></span>
+<span style="position: absolute; right: -10px; top: -8px; min-width: 24px; height: 24px; border-radius: 12px; background: #FFC233; color: #1B1400; font-size: 13px; font-weight: 800; display: flex; align-items: center; justify-content: center">3</span>
+</span>
+<span style="font-size: 11px; font-weight: 700; margin-top: 4px">Done</span>
+</a>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>

@@ -1,7 +1,9 @@
 package com.flashdox.app
 
+import android.app.UiModeManager
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.StatFs
 import io.flutter.embedding.android.FlutterActivity
@@ -41,6 +43,26 @@ class MainActivity : FlutterActivity() {
                     "freeBytes" -> try {
                         result.success(StatFs(filesDir.path).availableBytes)
                     } catch (e: Exception) {
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        // The Android 12+ system splash is drawn before Flutter starts, so it
+        // can only match the in-app theme if Android already knows it. The
+        // app night mode is persisted by the OS and used for the next launch.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flashdox.app/theme")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "setNightMode" -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            val mode = when (call.arguments as? String) {
+                                "light" -> UiModeManager.MODE_NIGHT_NO
+                                "dark" -> UiModeManager.MODE_NIGHT_YES
+                                else -> UiModeManager.MODE_NIGHT_AUTO
+                            }
+                            getSystemService(UiModeManager::class.java)?.setApplicationNightMode(mode)
+                        }
                         result.success(null)
                     }
                     else -> result.notImplemented()

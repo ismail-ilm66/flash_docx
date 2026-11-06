@@ -10,11 +10,10 @@
 
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 
-import 'package:connectivity_plus/connectivity_plus.dart' as _i895;
 import 'package:flash_dox/app/di/register_module.dart' as _i254;
-import 'package:flash_dox/core/services/connectivity_service.dart' as _i427;
 import 'package:flash_dox/core/services/file_store.dart' as _i626;
 import 'package:flash_dox/core/services/isolate_runner.dart' as _i448;
+import 'package:flash_dox/core/services/night_mode_service.dart' as _i990;
 import 'package:flash_dox/core/services/prefs_service.dart' as _i567;
 import 'package:flash_dox/core/services/save_service.dart' as _i792;
 import 'package:flash_dox/core/services/share_in_service.dart' as _i742;
@@ -66,7 +65,8 @@ import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layo
     as _i60;
 import 'package:flash_dox/features/print_layout/presentation/cubit/print_layout_cubit.dart'
     as _i603;
-import 'package:flash_dox/features/rewards/data/admob_reward_gate.dart' as _i32;
+import 'package:flash_dox/features/rewards/data/unlock_all_reward_gate.dart'
+    as _i215;
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart' as _i607;
 import 'package:flash_dox/features/rewards/presentation/reward_cubit.dart'
     as _i904;
@@ -97,7 +97,6 @@ extension GetItInjectableX on _i174.GetIt {
       () => registerModule.prefs,
       preResolve: true,
     );
-    gh.lazySingleton<_i895.Connectivity>(() => registerModule.connectivity);
     gh.lazySingleton<_i998.SharePlus>(() => registerModule.sharePlus);
     gh.lazySingleton<_i183.ImagePicker>(() => registerModule.imagePicker);
     await gh.lazySingletonAsync<_i626.FileStore>(() {
@@ -105,6 +104,7 @@ extension GetItInjectableX on _i174.GetIt {
       return i.init().then((_) => i);
     }, preResolve: true);
     gh.lazySingleton<_i448.IsolateRunner>(() => _i448.IsolateRunner());
+    gh.lazySingleton<_i990.NightModeService>(() => _i990.NightModeService());
     gh.lazySingleton<_i792.SaveService>(() => _i792.SaveService());
     gh.lazySingleton<_i742.ShareInService>(() => _i742.ShareInService());
     gh.lazySingleton<_i114.StorageService>(() => _i114.StorageService());
@@ -122,11 +122,9 @@ extension GetItInjectableX on _i174.GetIt {
       () => _i346.MlKitTextRecognizer(),
       dispose: (i) => i.dispose(),
     );
+    gh.lazySingleton<_i607.RewardGate>(() => _i215.UnlockAllRewardGate());
     gh.lazySingleton<_i856.ShareService>(
       () => _i856.ShareService(gh<_i998.SharePlus>()),
-    );
-    gh.lazySingleton<_i427.ConnectivityService>(
-      () => _i427.ConnectivityService(gh<_i895.Connectivity>()),
     );
     gh.lazySingleton<_i567.PrefsService>(
       () => _i567.PrefsService(gh<_i460.SharedPreferences>()),
@@ -179,11 +177,8 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i948.WatchDocuments>(
       () => _i948.WatchDocuments(gh<_i132.DocumentRepository>()),
     );
-    gh.lazySingleton<_i607.RewardGate>(
-      () => _i32.AdMobRewardGate(
-        gh<_i427.ConnectivityService>(),
-        gh<_i567.PrefsService>(),
-      ),
+    gh.factory<_i904.RewardCubit>(
+      () => _i904.RewardCubit(gh<_i607.RewardGate>()),
     );
     gh.factory<_i60.BuildPrintLayout>(
       () => _i60.BuildPrintLayout(
@@ -204,9 +199,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
       ),
     );
-    gh.lazySingleton<_i242.ThemeCubit>(
-      () => _i242.ThemeCubit(gh<_i567.PrefsService>()),
-    );
     gh.factory<_i493.SettingsCubit>(
       () => _i493.SettingsCubit(
         gh<_i567.PrefsService>(),
@@ -226,6 +218,12 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i948.WatchDocuments>(),
         gh<_i310.DeleteDocument>(),
         gh<_i310.RenameDocument>(),
+      ),
+    );
+    gh.lazySingleton<_i242.ThemeCubit>(
+      () => _i242.ThemeCubit(
+        gh<_i567.PrefsService>(),
+        gh<_i990.NightModeService>(),
       ),
     );
     gh.factoryParam<_i603.PrintLayoutCubit, String, dynamic>(
@@ -253,9 +251,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i120.PageRenderService>(),
         args,
       ),
-    );
-    gh.factory<_i904.RewardCubit>(
-      () => _i904.RewardCubit(gh<_i607.RewardGate>()),
     );
     gh.factoryParam<_i323.OcrCubit, String, String?>(
       (documentId, pageId) => _i323.OcrCubit(

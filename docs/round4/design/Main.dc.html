@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Splash</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: #0F1012; color: #F3F3F1; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 0 0 48px 0">
+<div style="height: 120px"></div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 20px">
+<div style="width: 104px; height: 104px; border-radius: 28px; background: #1A1C20; border: 1px solid #2E3239; display: flex; align-items: center; justify-content: center; color: {{accent}}">
+<svg width="68" height="56" viewBox="4 8 39 32" role="img" aria-label="Flash Dox logo"><path d="M5 20h13l7-3v14l-7-3H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="{{accent}}"></path><rect x="7" y="23" width="5" height="2" rx="1" fill="#1A1C20"></rect><path d="M26 8H38L43 13V39a1 1 0 0 1-1 1H26a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="{{accent}}"></path><path d="M38 8V13H43z" fill="#B47F00"></path><g stroke="#1B1400" stroke-width="1.8" stroke-linecap="round"><line x1="29" y1="19" x2="39" y2="19"></line><line x1="29" y1="24" x2="39" y2="24"></line><line x1="29" y1="29" x2="39" y2="29"></line><line x1="29" y1="34" x2="35" y2="34"></line></g></svg>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<div style="font-size: 32px; font-weight: 800; letter-spacing: 3px">FLASH DOX</div>
+<div style="font-size: 14px; color: #A6AAB2">Scan. Clean. Share.</div>
+</div>
+</div>
+<div style="font-size: 13px; font-weight: 700; letter-spacing: 4px; color: #A6AAB2">SWATNOA</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"accent":{"editor":"color","default":"#FFC233","options":["#FFC233","#4C8DFF","#2ED3A0"]},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+return { accent: this.props.accent ?? '#FFC233' };
+}
+}
+</script>
+</body>
+</html>

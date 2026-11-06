@@ -1,20 +1,28 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- v1 has no ads and needs no network: CAMERA is the only permission
+         (Play checklist). Debug builds still get INTERNET from
+         src/debug/AndroidManifest.xml for hot reload. Plugins must not add
+         network or broad media permissions either. -->
+    <uses-permission android:name="android.permission.INTERNET" tools:node="remove" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- camera_android_camerax declares these for video recording, which the
+         app doesn't do (photos go to app storage, enableAudio: false). The
+         merger also implies READ_EXTERNAL_STORAGE from the write permission.
+         Gallery import uses the system photo picker and needs none of them. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
 
     <application
         android:label="Flash Dox"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
-
-        <!-- AdMob app ID. This is Google's public TEST app ID; replace with the
-             production ID before a store release. -->
-        <meta-data
-            android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-3940256099942544~3347511713" />
-
         <activity
             android:name=".MainActivity"
             android:exported="true"

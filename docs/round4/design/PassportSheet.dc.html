@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Passport photo – print sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.bg}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 8px">
+<a href="PassportPhoto.dc.html" aria-label="Back to crop" style="width: 44px; height: 44px; color: {{c.text}}; display: flex; align-items: center; justify-content: center">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="font-size: 16px; font-weight: 700">Print sheet</div>
+<div style="font-size: 12px; color: {{c.muted}}">Step 2 of 2 · 35 × 45 mm</div>
+</div>
+<div style="width: 44px"></div>
+</div>
+
+<div style="flex: 1; background: {{c.stage}}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+<div style="width: 230px; height: 325px; background: #FFFFFF; box-shadow: 0 6px 22px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px">
+<sc-for list="{{photos}}" as="p" hint-placeholder-count="12">
+<div style="width: 38px; height: 49px; background: #FFFFFF; outline: 1px dashed #C9CCD1; outline-offset: 1px; position: relative; overflow: hidden">
+<div style="position: absolute; left: 12px; top: 8px; width: 14px; height: 18px; border-radius: 50%; background: #8C7A68"></div>
+<div style="position: absolute; left: 5px; top: 28px; width: 28px; height: 24px; border-radius: 14px 14px 0 0; background: #4E5866"></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="font-size: 11px; color: {{c.muted}}">A4 · 12 photos at real size · dashed = cut lines</div>
+</div>
+
+<div style="padding: 14px 16px 18px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">PAPER</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="height: 52px; border: 2px solid {{c.accent}}; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.text}}; font-family: inherit; text-align: left; padding: 0 12px; display: flex; flex-direction: column; justify-content: center; gap: 1px"><span style="font-size: 14px; font-weight: 800">A4</span><span style="font-size: 11px; color: {{c.muted}}">Up to 25 photos</span></button>
+<button style="height: 52px; border: 1px solid {{c.border}}; border-radius: 12px; background: transparent; color: {{c.text}}; font-family: inherit; text-align: left; padding: 0 12px; display: flex; flex-direction: column; justify-content: center; gap: 1px"><span style="font-size: 14px; font-weight: 700">4 × 6 in photo paper</span><span style="font-size: 11px; color: {{c.muted}}">Up to 6 photos</span></button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">PHOTOS ON SHEET</div>
+<div style="display: flex; gap: 8px">
+<sc-for list="{{counts}}" as="n" hint-placeholder-count="5">
+<button style="height: 44px; min-width: 52px; border: {{n.border}}; border-radius: 12px; background: {{n.bgc}}; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 800; padding: 0 12px">{{n.label}}</button>
+</sc-for>
+</div>
+</div>
+<div style="border-radius: 12px; background: {{c.accentSoft}}; padding: 10px 12px; font-size: 12px; line-height: 1.45">Print at <b>100% / Actual size</b>. Photo shops can print the 4 × 6 sheet on glossy photo paper.</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<button style="height: 50px; border: 1px solid {{c.border}}; border-radius: 25px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 15px; font-weight: 700">Save to phone</button>
+<button style="height: 50px; border: 0; border-radius: 25px; background: {{c.accent}}; color: {{c.onAccent}}; font-family: inherit; font-size: 15px; font-weight: 800">Share PDF</button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { bg: '#0F1012', stage: '#1A1C20', border: '#3A3E46', text: '#F3F3F1', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)' };
+const light = { bg: '#F5F5F2', stage: '#E8E8E3', border: '#D6D6D0', text: '#15171A', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)' };
+const c = (this.props.theme ?? 'dark') === 'light' ? light : dark;
+const photos = Array.from({ length: 12 }, (_, i) => ({ i }));
+const counts = ['4', '8', '12', '16', 'Full'].map((label) => ({
+label,
+border: label === '12' ? '2px solid ' + c.accent : '1px solid ' + c.border,
+bgc: label === '12' ? c.accentSoft : 'transparent'
+}));
+return { c, photos, counts };
+}
+}
+</script>
+</body>
+</html>

@@ -65,7 +65,7 @@ class ExportState extends Equatable {
     required this.document,
     required this.options,
     this.status = const ExportIdle(),
-    this.unlocked = const {},
+    this.unlocked = unlockedByDefault,
   });
 
   final ScanDocument document;

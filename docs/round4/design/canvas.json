@@ -1,0 +1,249 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Camera.dc.html": {
+      "h": 844,
+      "title": "Camera",
+      "w": 390,
+      "x": 940,
+      "y": 0
+    },
+    "Crop.dc.html": {
+      "h": 844,
+      "title": "Adjust edges",
+      "w": 390,
+      "x": 1410,
+      "y": 0
+    },
+    "Enhance.dc.html": {
+      "h": 844,
+      "title": "Enhance",
+      "w": 390,
+      "x": 1880,
+      "y": 0
+    },
+    "Export.dc.html": {
+      "h": 844,
+      "title": "Share sheet",
+      "w": 390,
+      "x": 3290,
+      "y": 0
+    },
+    "ExportLight.dc.html": {
+      "h": 844,
+      "title": "Share sheet \u00b7 light",
+      "w": 390,
+      "x": 3290,
+      "y": 1460
+    },
+    "Home.dc.html": {
+      "h": 844,
+      "w": 390,
+      "x": 470,
+      "y": 0
+    },
+    "HomeLight.dc.html": {
+      "h": 844,
+      "title": "Home \u00b7 light",
+      "w": 390,
+      "x": 470,
+      "y": 1460
+    },
+    "IdPrint.dc.html": {
+      "h": 844,
+      "title": "ID card print layout",
+      "w": 390,
+      "x": 3760,
+      "y": 0
+    },
+    "IdPrintLight.dc.html": {
+      "h": 844,
+      "title": "ID card print layout \u00b7 light",
+      "w": 390,
+      "x": 3760,
+      "y": 1460
+    },
+    "Main.dc.html": {
+      "h": 844,
+      "title": "Splash",
+      "w": 390,
+      "x": 0,
+      "y": 0
+    },
+    "Settings.dc.html": {
+      "h": 1360,
+      "title": "Settings",
+      "w": 390,
+      "x": 4700,
+      "y": 0
+    },
+    "SettingsLight.dc.html": {
+      "h": 1360,
+      "title": "Settings \u00b7 light",
+      "w": 390,
+      "x": 4700,
+      "y": 1460
+    },
+    "Text.dc.html": {
+      "h": 844,
+      "title": "Extracted text",
+      "w": 390,
+      "x": 2820,
+      "y": 0
+    },
+    "TextLight.dc.html": {
+      "h": 844,
+      "title": "Extracted text \u00b7 light",
+      "w": 390,
+      "x": 2820,
+      "y": 1460
+    },
+    "Unlock.dc.html": {
+      "h": 844,
+      "title": "Unlock with video",
+      "w": 390,
+      "x": 4230,
+      "y": 0
+    },
+    "UnlockLight.dc.html": {
+      "h": 844,
+      "title": "Unlock with video \u00b7 light",
+      "w": 390,
+      "x": 4230,
+      "y": 1460
+    },
+    "Viewer.dc.html": {
+      "h": 844,
+      "title": "Document viewer",
+      "w": 390,
+      "x": 2350,
+      "y": 0
+    },
+    "ViewerLight.dc.html": {
+      "h": 844,
+      "title": "Document viewer \u00b7 light",
+      "w": 390,
+      "x": 2350,
+      "y": 1460
+    },
+    "Logos.dc.html": {
+      "x": 0,
+      "y": 2860,
+      "w": 1656,
+      "h": 940,
+      "title": "Logo options"
+    },
+    "PassportPhoto.dc.html": {
+      "x": 0,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "Passport photo \u00b7 crop"
+    },
+    "PassportSheet.dc.html": {
+      "x": 470,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "Passport photo \u00b7 print sheet"
+    },
+    "FileSize.dc.html": {
+      "x": 940,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "Max file size"
+    },
+    "SignatureCreate.dc.html": {
+      "x": 1410,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "My signature"
+    },
+    "SignaturePlace.dc.html": {
+      "x": 1880,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "Sign a document"
+    },
+    "TextUrdu.dc.html": {
+      "x": 2350,
+      "y": 4180,
+      "w": 390,
+      "h": 844,
+      "title": "Urdu text \u00b7 download"
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-03T15:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "notes": {
+    "t1": {
+      "kind": "title1",
+      "maxW": 5090,
+      "text": "Flash Dox \u00b7 dark (default)",
+      "w": 240,
+      "x": 0,
+      "y": -300
+    },
+    "t2": {
+      "kind": "title1",
+      "maxW": 4620,
+      "text": "Light theme \u00b7 camera, crop and enhance stay dark",
+      "w": 240,
+      "x": 470,
+      "y": 1160
+    },
+    "t3": {
+      "x": 0,
+      "y": 2560,
+      "text": "Logo options",
+      "kind": "title1",
+      "maxW": 1656
+    },
+    "t4": {
+      "x": 0,
+      "y": 3900,
+      "text": "New features",
+      "kind": "title1",
+      "maxW": 2740
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Home.dc.html",
+    "Camera.dc.html",
+    "Crop.dc.html",
+    "Enhance.dc.html",
+    "Viewer.dc.html",
+    "Text.dc.html",
+    "Export.dc.html",
+    "IdPrint.dc.html",
+    "Unlock.dc.html",
+    "Settings.dc.html",
+    "HomeLight.dc.html",
+    "ViewerLight.dc.html",
+    "TextLight.dc.html",
+    "ExportLight.dc.html",
+    "IdPrintLight.dc.html",
+    "UnlockLight.dc.html",
+    "SettingsLight.dc.html",
+    "Logos.dc.html",
+    "PassportPhoto.dc.html",
+    "PassportSheet.dc.html",
+    "FileSize.dc.html",
+    "SignatureCreate.dc.html",
+    "SignaturePlace.dc.html",
+    "TextUrdu.dc.html"
+  ],
+  "pages": [],
+  "title": "Flash Dox App Design"
+}

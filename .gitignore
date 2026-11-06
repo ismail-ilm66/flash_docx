@@ -44,3 +44,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 android/.kotlin/
+
+# Play Store launch kit (listing copy, screenshots, graphics), kept local
+/store/

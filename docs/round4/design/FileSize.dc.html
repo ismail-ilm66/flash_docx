@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Max file size</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.stage}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; position: relative; overflow: hidden">
+<div style="position: absolute; left: 55px; top: 70px; width: 280px; height: 300px; background: #FFFFFF; border-radius: 4px"></div>
+<div style="position: absolute; inset: 0; background: {{c.scrim}}"></div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; background: {{c.surface}}; border-radius: 28px 28px 0 0; padding: 10px 16px 22px 16px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: center"><span style="width: 40px; height: 4px; border-radius: 2px; background: {{c.border}}"></span></div>
+<div style="display: flex; align-items: flex-start; gap: 4px; padding: 0 4px">
+<a href="Export.dc.html" aria-label="Back to share" style="width: 36px; height: 36px; margin-left: -8px; color: {{c.text}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; gap: 3px">
+<div style="font-size: 20px; font-weight: 800">Max file size</div>
+<div style="font-size: 13px; line-height: 1.4; color: {{c.muted}}">The PDF is shrunk until it fits. Use this when a form or portal limits the upload size.</div>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; border: 1px solid {{c.border}}; border-radius: 16px; overflow: hidden">
+<sc-for list="{{opts}}" as="o" hint-placeholder-count="5">
+<button style="min-height: 60px; border: 0; border-top: {{o.divider}}; background: {{o.bgc}}; color: {{c.text}}; font-family: inherit; display: flex; align-items: center; gap: 12px; padding: 0 14px; text-align: left">
+<span style="width: 22px; height: 22px; border-radius: 11px; border: {{o.radio}}; box-sizing: border-box; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><span style="width: 10px; height: 10px; border-radius: 5px; background: {{o.dot}}"></span></span>
+<span style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+<span style="font-size: 15px; font-weight: 700">{{o.label}}</span>
+<span style="font-size: 12px; color: {{c.muted}}">{{o.note}}</span>
+</span>
+<span style="height: 24px; border-radius: 12px; padding: 0 9px; font-size: 11px; font-weight: 800; display: flex; align-items: center; background: {{o.tagBg}}; color: {{o.tagText}}; flex-shrink: 0">{{o.tag}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="display: flex; align-items: center; gap: 10px; padding: 0 4px">
+<label for="customkb" style="font-size: 13px; font-weight: 700; color: {{c.muted}}; flex-shrink: 0">Custom</label>
+<input id="customkb" placeholder="e.g. 300" style="flex: 1; min-width: 0; height: 44px; border: 1px solid {{c.border}}; border-radius: 12px; background: {{c.surface2}}; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 12px; box-sizing: border-box">
+<span style="font-size: 14px; font-weight: 700; color: {{c.muted}}; flex-shrink: 0">KB</span>
+</div>
+
+<a href="Export.dc.html" style="height: 52px; border-radius: 26px; background: {{c.accent}}; color: {{c.onAccent}}; text-decoration: none; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center">Done</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { stage: '#1A1C20', scrim: 'rgba(0,0,0,0.62)', surface: '#1A1C20', surface2: '#24272D', border: '#3A3E46', text: '#F3F3F1', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)', good: 'rgba(46,211,160,0.16)', goodText: '#5BE0B5', warn: 'rgba(255,138,138,0.16)', warnText: '#FF9C9C' };
+const light = { stage: '#E8E8E3', scrim: 'rgba(15,16,18,0.45)', surface: '#FFFFFF', surface2: '#F5F5F2', border: '#D6D6D0', text: '#15171A', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)', good: 'rgba(16,140,100,0.12)', goodText: '#0B6B4C', warn: 'rgba(200,50,50,0.10)', warnText: '#A12A2A' };
+const c = (this.props.theme ?? 'dark') === 'light' ? light : dark;
+const list = [
+{ label: 'No limit', note: 'Original size · about 3.4 MB', tag: 'Best', t: 'good' },
+{ label: 'Under 1 MB', note: 'Email and most portals', tag: 'Sharp', t: 'good' },
+{ label: 'Under 500 KB', note: 'Common form limit', tag: 'Good', t: 'good', on: true },
+{ label: 'Under 200 KB', note: 'Small text may get soft', tag: 'Readable', t: 'warn' },
+];
+const opts = list.map((o, i) => ({
+label: o.label, note: o.note, tag: o.tag,
+divider: i === 0 ? '0' : '1px solid ' + c.border,
+bgc: o.on ? c.accentSoft : 'transparent',
+radio: o.on ? '2px solid ' + c.accent : '2px solid ' + c.border,
+dot: o.on ? c.accent : 'transparent',
+tagBg: o.t === 'good' ? c.good : c.warn,
+tagText: o.t === 'good' ? c.goodText : c.warnText
+}));
+return { c, opts };
+}
+}
+</script>
+</body>
+</html>

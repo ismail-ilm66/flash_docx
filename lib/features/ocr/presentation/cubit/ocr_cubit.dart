@@ -5,6 +5,7 @@ import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/ocr/domain/recognize_page_text.dart';
+import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
@@ -46,7 +47,7 @@ class OcrState extends Equatable {
     this.scope = OcrScope.page,
     this.status = const OcrIdle(),
     this.text = '',
-    this.allPagesUnlocked = false,
+    this.allPagesUnlocked = !rewardedAdsEnabled,
   });
 
   final ScanDocument? document;

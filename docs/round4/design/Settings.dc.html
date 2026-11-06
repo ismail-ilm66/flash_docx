@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 1360px; box-sizing: border-box; background: {{c.bg}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="padding: 20px 20px 8px 20px; font-size: 26px; font-weight: 800">Settings</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; gap: 18px; padding: 8px 16px 16px 16px">
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px; padding-left: 4px">APPEARANCE</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; background: {{c.surface}}; border: 1px solid {{c.border}}; border-radius: 16px; padding: 4px">
+<button style="height: 44px; border: 0; border-radius: 12px; background: {{c.sysBg}}; color: {{c.sysText}}; font-family: inherit; font-size: 14px; font-weight: 700">System</button>
+<button style="height: 44px; border: 0; border-radius: 12px; background: {{c.lightBg}}; color: {{c.lightText}}; font-family: inherit; font-size: 14px; font-weight: 700">Light</button>
+<button style="height: 44px; border: 0; border-radius: 12px; background: {{c.darkBg}}; color: {{c.darkText}}; font-family: inherit; font-size: 14px; font-weight: 700">Dark</button>
+</div>
+</div>
+
+<sc-for list="{{sections}}" as="s" hint-placeholder-count="4">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px; padding-left: 4px">{{s.title}}</div>
+<div style="background: {{c.surface}}; border: 1px solid {{c.border}}; border-radius: 16px; overflow: hidden">
+<sc-for list="{{s.rows}}" as="r" hint-placeholder-count="3">
+<button style="width: 100%; min-height: 52px; border: 0; border-top: {{r.divider}}; background: transparent; color: {{c.text}}; font-family: inherit; display: flex; align-items: center; justify-content: space-between; padding: 0 14px 0 16px; box-sizing: border-box; text-align: left">
+<span style="font-size: 15px; font-weight: 600">{{r.label}}</span>
+<span style="display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: {{r.valueColor}}">{{r.value}}
+<sc-if value="{{r.chev}}" hint-placeholder-val="{{ true }}">
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="{{c.muted}}" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg>
+</sc-if>
+</span>
+</button>
+</sc-for>
+</div>
+</div>
+</sc-for>
+
+<div style="display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 4px">
+<div style="font-size: 12px; color: {{c.muted}}">Flash Dox · version 1.0.0</div>
+<div style="font-size: 11px; font-weight: 700; letter-spacing: 3px; color: {{c.muted}}">SWATNOA</div>
+</div>
+</div>
+
+<div style="height: 76px; flex-shrink: 0; background: {{c.surface}}; border-top: 1px solid {{c.border}}; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center">
+<a href="Home.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: {{c.muted}}; font-size: 12px; font-weight: 600">
+<span style="width: 56px; height: 30px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Home</a>
+<div style="display: flex; justify-content: center">
+<a href="Camera.dc.html" aria-label="Scan with camera" style="width: 64px; height: 64px; border-radius: 32px; background: {{c.accent}}; color: {{c.onAccent}}; display: flex; align-items: center; justify-content: center; margin-top: -40px; border: 5px solid {{c.bg}}">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"></path><circle cx="12" cy="13.5" r="3.5"></circle></svg></a>
+</div>
+<a href="Settings.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: {{c.text}}; font-size: 12px; font-weight: 700">
+<span style="width: 56px; height: 30px; border-radius: 15px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg></span>Settings</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":1360}}'>
+class Component extends DCLogic {
+renderVals() {
+const isLight = (this.props.theme ?? 'dark') === 'light';
+const dark = { bg: '#0F1012', surface: '#1A1C20', border: '#2E3239', text: '#F3F3F1', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)' };
+const light = { bg: '#F5F5F2', surface: '#FFFFFF', border: '#E1E1DC', text: '#15171A', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)' };
+const base = isLight ? light : dark;
+const on = { b: '#FFC233', t: '#1B1400' };
+const off = { b: 'transparent', t: base.muted };
+const c = Object.assign({}, base, {
+sysBg: on.b, sysText: on.t,
+lightBg: off.b, lightText: off.t,
+darkBg: off.b, darkText: off.t
+});
+const row = (label, value, i, chev, valueColor) => ({
+label, value, chev: chev !== false,
+divider: i === 0 ? '0' : '1px solid ' + base.border,
+valueColor: valueColor || base.muted
+});
+const sections = [
+{ title: 'SCANNING', rows: [row('Default filter', 'Auto', 0), row('Magnetic edges', 'On', 1), row('Shutter sound', 'On', 2)] },
+{ title: 'TEXT RECOGNITION', rows: [row('English', 'Built in', 0, false), row('Urdu', 'Download · 10+ MB', 1, true, base.accentText)] },
+{ title: 'SIGNATURE', rows: [row('My signature', 'Saved', 0)] },
+{ title: 'SHARING', rows: [row('Default format', 'PDF', 0), row('PDF page size', 'A4', 1), row('Image quality', 'Standard', 2)] },
+{ title: 'STORAGE', rows: [row('Used by Flash Dox', '56 MB', 0, false), row('Clear temporary files', '', 1, true)] },
+{ title: 'ABOUT', rows: [row('Privacy Policy', '', 0), row('FAQ', '', 1), row('Rate Flash Dox', '', 2), row('Share the app', '', 3)] }
+];
+return { c, sections };
+}
+}
+</script>
+</body>
+</html>

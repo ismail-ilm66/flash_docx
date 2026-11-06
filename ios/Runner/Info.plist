@@ -49,15 +49,6 @@
 		<string>Flash Dox imports photos you choose to scan them as documents.</string>
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>Flash Dox saves scanned images to your photo library when you ask it to.</string>
-		<key>GADApplicationIdentifier</key>
-		<string>ca-app-pub-3940256099942544~1458002511</string>
-		<key>SKAdNetworkItems</key>
-		<array>
-			<dict>
-				<key>SKAdNetworkIdentifier</key>
-				<string>cstr6suwn9.skadnetwork</string>
-			</dict>
-		</array>
 		<key>CFBundleDisplayName</key>
 		<string>Flash Dox</string>
 		<key>UIStatusBarHidden</key>

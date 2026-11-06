@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
-import 'package:flash_dox/app/theme/app_colors.dart';
 import 'package:flash_dox/app/theme/app_theme.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/constants/app_info.dart';
@@ -16,7 +15,9 @@ import 'package:go_router/go_router.dart';
 /// The Flutter half of a single splash (round 3, P1-1).
 ///
 /// Its first frame is identical to the native splash: the same 1152 px mark
-/// at 288 dp, dead centre on #0F1012. The native splash is only removed once
+/// at 288 dp, dead centre on the theme's `bg`. Colours follow the theme the
+/// user picked; the native splash follows the system (and, on Android 12+,
+/// the picked theme too: see `ThemeCubit`). The native splash is only removed once
 /// that image is decoded, so there's no blank frame in between. Then the
 /// wordmark fades in below the mark; the mark itself never moves.
 class SplashPage extends StatefulWidget {
@@ -68,7 +69,8 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     await Future.wait([minimum, work]);
     if (!mounted) return;
     context.go(Routes.home);
-    // Consent form (EEA/UK) + ads SDK, shown over Home; never blocks start-up.
+    // Ads SDK + consent when rewarded ads are on (a no-op in v1); never
+    // blocks start-up.
     unawaited(getIt<RewardGate>().initialize());
   }
 
@@ -80,7 +82,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
   @override
   Widget build(BuildContext context) {
-    const c = AppColors.dark;
+    final c = context.colors;
     final l = context.l10n;
     final still = MediaQuery.disableAnimationsOf(context);
     final words = still ? const AlwaysStoppedAnimation<double>(1) : CurvedAnimation(parent: _intro, curve: Curves.easeOutCubic);

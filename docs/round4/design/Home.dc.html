@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.bg}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; position: relative; overflow: hidden">
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 16px 12px 8px 20px">
+<div style="display: flex; align-items: center; gap: 10px">
+<div style="display: flex"><svg width="30" height="25" viewBox="4 8 39 32" aria-hidden="true"><path d="M5 20h13l7-3v14l-7-3H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1z" fill="#FFC233"></path><rect x="7" y="23" width="5" height="2" rx="1" fill="{{c.bg}}"></rect><path d="M26 8H38L43 13V39a1 1 0 0 1-1 1H26a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" fill="#FFC233"></path><path d="M38 8V13H43z" fill="#B47F00"></path><g stroke="#1B1400" stroke-width="2" stroke-linecap="round"><line x1="29" y1="19" x2="39" y2="19"></line><line x1="29" y1="25" x2="39" y2="25"></line><line x1="29" y1="31" x2="36" y2="31"></line></g></svg></div>
+<div style="font-size: 20px; font-weight: 800; letter-spacing: 1px">FLASH DOX</div>
+</div>
+<button aria-label="Search documents" style="width: 44px; height: 44px; border: 0; border-radius: 22px; background: transparent; color: {{c.text}}; display: flex; align-items: center; justify-content: center">
+<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+</button>
+</div>
+
+<div style="padding: 8px 20px 0 20px; display: flex; flex-direction: column; gap: 6px">
+<div style="font-size: 26px; font-weight: 800; line-height: 1.2">What are we scanning today?</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 20px 20px 4px 20px">
+<button style="border: 1px solid {{c.border}}; background: {{c.surface}}; color: {{c.text}}; border-radius: 18px; padding: 14px 4px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 600">
+<span style="width: 40px; height: 40px; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="3" width="12" height="16" rx="1.5"></rect><path d="M5 7v12a2 2 0 0 0 2 2h9"></path></svg></span>Document</button>
+<button style="border: 1px solid {{c.border}}; background: {{c.surface}}; color: {{c.text}}; border-radius: 18px; padding: 14px 4px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 600">
+<span style="width: 40px; height: 40px; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><circle cx="9" cy="11" r="2"></circle><path d="M6 16c.6-1.5 1.8-2 3-2s2.4.5 3 2M14 10h4M14 13h3"></path></svg></span>ID Card</button>
+<button style="border: 1px solid {{c.border}}; background: {{c.surface}}; color: {{c.text}}; border-radius: 18px; padding: 14px 4px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 600">
+<span style="width: 40px; height: 40px; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"></rect><circle cx="12" cy="10" r="3"></circle><path d="M9 17h6"></path></svg></span>Passport</button>
+<button style="border: 1px solid {{c.border}}; background: {{c.surface}}; color: {{c.text}}; border-radius: 18px; padding: 14px 4px 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: inherit; font-size: 13px; font-weight: 600">
+<span style="width: 40px; height: 40px; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg></span>Import</button>
+</div>
+
+<div style="padding: 16px 20px 0 20px; display: flex; flex-direction: column; gap: 10px">
+<div style="font-size: 17px; font-weight: 700">Tools</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<a href="PassportPhoto.dc.html" style="min-height: 52px; border: 1px solid {{c.border}}; background: {{c.surface}}; border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-decoration: none; color: {{c.text}}; font-size: 14px; font-weight: 700"><span style="width: 32px; height: 32px; border-radius: 10px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"></rect><circle cx="12" cy="10" r="3"></circle><path d="M7.5 18c.8-2 2.4-3 4.5-3s3.7 1 4.5 3"></path></svg></span>Passport photo</a>
+<a href="SignaturePlace.dc.html" style="min-height: 52px; border: 1px solid {{c.border}}; background: {{c.surface}}; border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-decoration: none; color: {{c.text}}; font-size: 14px; font-weight: 700"><span style="width: 32px; height: 32px; border-radius: 10px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16c2.5-.5 3.5-6 6-6 1.8 0 1 5 3 5 1.6 0 2-3 3.6-3 1.3 0 1.4 2 5.4 2"></path><path d="M3 21h18"></path></svg></span>Sign document</a>
+<a href="FileSize.dc.html" style="min-height: 52px; border: 1px solid {{c.border}}; background: {{c.surface}}; border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-decoration: none; color: {{c.text}}; font-size: 14px; font-weight: 700"><span style="width: 32px; height: 32px; border-radius: 10px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"></path></svg></span>Shrink PDF</a>
+<a href="TextUrdu.dc.html" style="min-height: 52px; border: 1px solid {{c.border}}; background: {{c.surface}}; border-radius: 14px; display: flex; align-items: center; gap: 10px; padding: 0 10px; text-decoration: none; color: {{c.text}}; font-size: 14px; font-weight: 700"><span style="width: 32px; height: 32px; border-radius: 10px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7V5h16v2M9 19h6M12 5v14"></path></svg></span>Extract text</a>
+</div>
+</div>
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 14px 12px 4px 20px">
+<div style="font-size: 17px; font-weight: 700">Recent activity</div>
+<button style="height: 44px; border: 0; background: transparent; color: {{c.muted}}; font-family: inherit; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; padding: 0 8px">Latest
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></button>
+</div>
+
+<div style="display: flex; gap: 8px; padding: 2px 20px 8px 20px; overflow: hidden; flex-shrink: 0">
+<sc-for list="{{folders}}" as="f" hint-placeholder-count="5">
+<button style="height: 36px; flex-shrink: 0; border: {{f.border}}; border-radius: 18px; background: {{f.bgc}}; color: {{f.color}}; font-family: inherit; font-size: 13px; font-weight: 700; padding: 0 14px; display: flex; align-items: center; gap: 6px">{{f.label}}<span style="font-size: 12px; font-weight: 600; color: {{f.countColor}}">{{f.count}}</span></button>
+</sc-for>
+</div>
+
+<div style="display: flex; flex-direction: column; padding: 0 8px 0 20px; flex: 1; overflow: hidden">
+<sc-for list="{{docs}}" as="d" hint-placeholder-count="5">
+<div style="display: flex; align-items: center; gap: 14px; padding: 10px 0; border-bottom: 1px solid {{c.border}}">
+<sc-if value="{{d.isId}}" hint-placeholder-val="{{ false }}">
+<div style="width: 52px; height: 64px; border-radius: 10px; background: {{c.surface2}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<div style="width: 42px; height: 27px; border-radius: 4px; background: #FFFFFF; border: 1px solid #D5D7DB; display: flex; align-items: center; gap: 4px; padding: 0 4px; box-sizing: border-box">
+<div style="width: 9px; height: 11px; border-radius: 2px; background: #C9CCD1"></div>
+<div style="display: flex; flex-direction: column; gap: 3px; flex: 1"><div style="height: 2px; background: #C9CCD1"></div><div style="height: 2px; width: 70%; background: #C9CCD1"></div></div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{d.isPage}}" hint-placeholder-val="{{ true }}">
+<div style="width: 52px; height: 64px; border-radius: 10px; background: {{c.surface2}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<div style="width: 36px; height: 48px; border-radius: 3px; background: #FFFFFF; border: 1px solid #D5D7DB; box-sizing: border-box; padding: 6px 5px; display: flex; flex-direction: column; gap: 4px">
+<div style="height: 3px; width: 60%; background: #9FA3AA"></div><div style="height: 2px; background: #C9CCD1"></div><div style="height: 2px; background: #C9CCD1"></div><div style="height: 2px; width: 80%; background: #C9CCD1"></div><div style="height: 2px; background: #C9CCD1"></div>
+</div>
+</div>
+</sc-if>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+<div style="font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{d.title}}</div>
+<div style="font-size: 12px; color: {{c.muted}}">{{d.meta}}</div>
+<div style="font-size: 12px; font-weight: 600; color: {{c.accentText}}; display: flex; align-items: center; gap: 5px">
+<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>{{d.activity}}</div>
+</div>
+<button aria-label="More options" style="width: 44px; height: 44px; border: 0; background: transparent; color: {{c.muted}}; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="12" cy="19" r="1.8"></circle></svg>
+</button>
+</div>
+</sc-for>
+</div>
+
+<div style="height: 76px; flex-shrink: 0; background: {{c.surface}}; border-top: 1px solid {{c.border}}; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: center; position: relative">
+<a href="Home.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: {{c.text}}; font-size: 12px; font-weight: 700">
+<span style="width: 56px; height: 30px; border-radius: 15px; background: {{c.accentSoft}}; color: {{c.accentText}}; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"></path></svg></span>Home</a>
+<div style="display: flex; justify-content: center">
+<a href="Camera.dc.html" aria-label="Scan with camera" style="width: 64px; height: 64px; border-radius: 32px; background: {{c.accent}}; color: {{c.onAccent}}; display: flex; align-items: center; justify-content: center; margin-top: -40px; border: 5px solid {{c.bg}}">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"></path><circle cx="12" cy="13.5" r="3.5"></circle></svg></a>
+</div>
+<a href="Settings.dc.html" style="display: flex; flex-direction: column; align-items: center; gap: 4px; text-decoration: none; color: {{c.muted}}; font-size: 12px; font-weight: 600">
+<span style="width: 56px; height: 30px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="2"></circle><circle cx="9" cy="12" r="2"></circle><circle cx="17" cy="18" r="2"></circle></svg></span>Settings</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { bg: '#0F1012', surface: '#1A1C20', surface2: '#24272D', border: '#2E3239', text: '#F3F3F1', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)', inv: '#0F1012' };
+const light = { bg: '#F5F5F2', surface: '#FFFFFF', surface2: '#EEEEEA', border: '#E1E1DC', text: '#15171A', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)', inv: '#FFFFFF' };
+const c = (this.props.theme ?? 'dark') === 'light' ? light : dark;
+const docs = [
+{ title: 'Electricity bill – Oct 2026', meta: 'Bills · 2 pages · 840 KB', activity: 'Shared as PDF · 12 min ago', isId: false, isPage: true },
+{ title: 'CNIC – front & back', meta: 'IDs · ID card · 2 sides', activity: 'Print layout, 4 copies · 1 h ago', isId: true, isPage: false },
+{ title: 'Lecture notes – Chapter 4', meta: 'Education · 6 pages · 3.1 MB', activity: 'Text copied · Yesterday', isId: false, isPage: true },
+{ title: 'Rent agreement', meta: 'Other · 4 pages · 1.9 MB', activity: 'Edited · Yesterday', isId: false, isPage: true },
+{ title: 'Passport copy', meta: 'IDs · Passport · 1 page', activity: 'Shared as JPG · Mon', isId: true, isPage: false }
+];
+const sel = { border: '0', bgc: c.text, color: c.inv, countColor: c.inv };
+const un = { border: '1px solid ' + c.border, bgc: 'transparent', color: c.text, countColor: c.muted };
+const folders = [['All', 24], ['Bills', 6], ['IDs', 3], ['Education', 9], ['Receipts', 4], ['Other', 2]]
+.map(([label, count], i) => Object.assign({ label, count }, i === 0 ? sel : un));
+return { c, docs, folders };
+}
+}
+</script>
+</body>
+</html>

@@ -119,6 +119,8 @@ The core of the app is an OpenCV pipeline of about 1,200 lines (`features/editor
 
 ## Monetisation and privacy
 
+> The first store release ships **without ads**: the AdMob gate below is swapped for a no-op one and every premium option is free (see `docs/release-checklist.md`). The design is kept for a later release.
+
 - **Rewarded video (AdMob)** unlocks premium export options for each export.
 - **Google UMP consent flow** for EEA/UK users runs before the ads SDK starts.
 - **Fail-open policy.** If the device is offline the user gets an "offline" result. If an ad fails to load or there is no fill, the feature is granted anyway. Closing the ad early cancels the unlock. The user is never stuck because of an ad problem.

@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Passport photo – crop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.bg}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 8px">
+<a href="Home.dc.html" aria-label="Back" style="width: 44px; height: 44px; color: {{c.text}}; display: flex; align-items: center; justify-content: center">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="font-size: 16px; font-weight: 700">Passport photo</div>
+<div style="font-size: 12px; color: {{c.muted}}">Step 1 of 2 · Crop</div>
+</div>
+<a href="PassportSheet.dc.html" style="height: 44px; padding: 0 12px; color: {{c.accentText}}; font-size: 15px; font-weight: 800; text-decoration: none; display: flex; align-items: center">Next</a>
+</div>
+
+<div style="flex: 1; background: #000000; position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center">
+<div style="position: absolute; inset: 0; background: #C9C3B6"></div>
+<svg width="390" height="470" viewBox="0 0 390 470" style="position: absolute; left: 0; top: 0" aria-hidden="true">
+<ellipse cx="195" cy="190" rx="62" ry="78" fill="#8C7A68"></ellipse>
+<path d="M60 470c8-110 70-150 135-150s127 40 135 150z" fill="#4E5866"></path>
+<rect x="170" y="255" width="50" height="70" rx="18" fill="#8C7A68"></rect>
+</svg>
+<div style="position: absolute; left: 0; right: 0; top: 0; height: 52px; background: rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; left: 0; top: 52px; width: 69px; bottom: 64px; background: rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; right: 0; top: 52px; width: 69px; bottom: 64px; background: rgba(0,0,0,0.55)"></div>
+<div style="position: absolute; left: 69px; top: 52px; width: 252px; height: 324px; border: 2px solid #FFC233; box-sizing: border-box">
+<div style="position: absolute; left: 50px; top: 46px; width: 148px; height: 188px; border: 2px dashed rgba(255,255,255,0.9); border-radius: 50%; box-sizing: border-box"></div>
+<div style="position: absolute; left: 0; right: 0; top: 46px; border-top: 1px solid rgba(255,255,255,0.75)"></div>
+<div style="position: absolute; left: 0; right: 0; top: 234px; border-top: 1px solid rgba(255,255,255,0.75)"></div>
+<div style="position: absolute; right: 6px; top: 30px; font-size: 10px; font-weight: 700; color: #FFFFFF">Top of head</div>
+<div style="position: absolute; right: 6px; top: 238px; font-size: 10px; font-weight: 700; color: #FFFFFF">Chin</div>
+<div style="position: absolute; left: -7px; top: -7px; width: 12px; height: 12px; border-radius: 6px; background: #FFC233"></div>
+<div style="position: absolute; right: -7px; top: -7px; width: 12px; height: 12px; border-radius: 6px; background: #FFC233"></div>
+<div style="position: absolute; left: -7px; bottom: -7px; width: 12px; height: 12px; border-radius: 6px; background: #FFC233"></div>
+<div style="position: absolute; right: -7px; bottom: -7px; width: 12px; height: 12px; border-radius: 6px; background: #FFC233"></div>
+</div>
+<div style="position: absolute; left: 0; right: 0; bottom: 18px; display: flex; justify-content: center">
+<div style="background: rgba(0,0,0,0.65); color: #FFFFFF; border-radius: 16px; padding: 7px 14px; font-size: 12px; font-weight: 600">Pinch to zoom · fit the face in the oval</div>
+</div>
+</div>
+
+<div style="padding: 14px 16px 18px 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">PHOTO SIZE</div>
+<div style="display: flex; gap: 8px">
+<button style="height: 44px; border: 2px solid {{c.accent}}; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 800; padding: 0 14px">35 × 45 mm</button>
+<button style="height: 44px; border: 1px solid {{c.border}}; border-radius: 12px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px">2 × 2 in</button>
+<button style="height: 44px; border: 1px solid {{c.border}}; border-radius: 12px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px">Custom</button>
+</div>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">BACKGROUND</div>
+<div style="display: flex; gap: 8px">
+<button style="height: 44px; border: 2px solid {{c.accent}}; border-radius: 12px; background: {{c.accentSoft}}; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 800; padding: 0 14px">Original</button>
+<button style="height: 44px; border: 1px solid {{c.border}}; border-radius: 12px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px; display: flex; align-items: center; gap: 8px"><span style="width: 16px; height: 16px; border-radius: 4px; background: #FFFFFF; border: 1px solid {{c.border}}"></span>White</button>
+<button style="height: 44px; border: 1px solid {{c.border}}; border-radius: 12px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px; display: flex; align-items: center; gap: 8px"><span style="width: 16px; height: 16px; border-radius: 4px; background: #CFE3F5; border: 1px solid {{c.border}}"></span>Light blue</button>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 4px">
+<button style="height: 50px; border: 1px solid {{c.border}}; border-radius: 25px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 15px; font-weight: 700">Retake</button>
+<a href="PassportSheet.dc.html" style="height: 50px; border-radius: 25px; background: {{c.accent}}; color: {{c.onAccent}}; text-decoration: none; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center">Make print sheet</a>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { bg: '#0F1012', surface: '#1A1C20', border: '#3A3E46', text: '#F3F3F1', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)' };
+const light = { bg: '#F5F5F2', surface: '#FFFFFF', border: '#D6D6D0', text: '#15171A', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)' };
+return { c: (this.props.theme ?? 'dark') === 'light' ? light : dark };
+}
+}
+</script>
+</body>
+</html>

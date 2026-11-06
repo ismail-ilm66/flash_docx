@@ -8,6 +8,7 @@ import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
 import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layout.dart';
+import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
@@ -45,13 +46,13 @@ class PrintLayoutState extends Equatable {
     this.output = PrintOutput.pdfDoubleSided,
     this.copies = 1,
     this.status = const PrintIdle(),
-    this.moreCopiesUnlocked = false,
+    this.moreCopiesUnlocked = !rewardedAdsEnabled,
     this.failure,
     this.cutGuides = true,
     this.swapSides = false,
     this.sheet = 0,
     this.quality = ExportQuality.standard,
-    this.highQualityUnlocked = false,
+    this.highQualityUnlocked = !rewardedAdsEnabled,
   });
 
   final ScanDocument? document;

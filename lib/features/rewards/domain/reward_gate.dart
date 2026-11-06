@@ -2,6 +2,15 @@ enum PremiumFeature { highQualityExport, pngExport, allPagesText, moreCopies }
 
 enum RewardResult { granted, cancelled, offline }
 
+/// Rewarded ads are off for the first release: every [PremiumFeature] is
+/// free and no unlock UI appears. To bring ads back, restore
+/// `AdMobRewardGate` (see docs/release-checklist.md) and set this to true.
+const bool rewardedAdsEnabled = false;
+
+/// Features available before any video is watched.
+const Set<PremiumFeature> unlockedByDefault =
+    rewardedAdsEnabled ? <PremiumFeature>{} : {...PremiumFeature.values};
+
 abstract interface class RewardGate {
   /// Consent (UMP) + SDK init. Called once at start-up; safe to call again.
   Future<void> initialize();

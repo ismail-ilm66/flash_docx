@@ -31,7 +31,6 @@ dependencies:
   share_plus: ^13.3.1
   gal: ^2.3.3
   google_mlkit_text_recognition: ^0.16.0
-  google_mobile_ads: ^9.2.0
   opencv_dart: ^2.2.2
   pdf: ^3.12.0
   path_provider: ^2.1.6
@@ -39,7 +38,6 @@ dependencies:
   flutter_svg: ^2.3.0
   uuid: ^4.6.0
   equatable: ^3.0.0
-  connectivity_plus: ^7.3.2
   flutter_native_splash: ^2.4.7
   bloc_concurrency: ^0.3.0
   url_launcher: ^6.3.2
@@ -87,12 +85,15 @@ flutter:
 
 # P1-1: one splash. The 1152 px mark (treated as 4x = 288 dp) fits Android
 # 12's round icon area; the Flutter splash's first frame draws the same
-# image at the same size and centre (see SplashPage).
+# image at the same size and centre (see SplashPage). Backgrounds are the
+# light / dark theme `bg` tokens; the mark is transparent, so it suits both.
 flutter_native_splash:
-  color: "#0F1012"
+  color: "#F5F5F2"
+  color_dark: "#0F1012"
   image: assets/splash/splash_mark_1152.png
   android_12:
-    color: "#0F1012"
+    color: "#F5F5F2"
+    color_dark: "#0F1012"
     image: assets/splash/splash_mark_1152.png
   ios: true
   android: true

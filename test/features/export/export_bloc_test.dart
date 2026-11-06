@@ -40,13 +40,20 @@ void main() {
     expect(bloc.state.requiredUnlock, isNull);
   });
 
-  test('premium options require an unlock until granted', () {
+  test('premium options are free while rewarded ads are off', () async {
+    final bloc = ExportBloc(export, prefs, doc);
+    bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(quality: ExportQuality.high, format: ExportFormat.png)));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.requiredUnlock, isNull);
+  }, skip: rewardedAdsEnabled);
+
+  test('premium options require an unlock until granted', skip: !rewardedAdsEnabled, () {
     final bloc = ExportBloc(export, prefs, doc);
     bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(quality: ExportQuality.high)));
     expect(bloc.stream, emitsThrough(predicate<ExportState>((s) => s.requiredUnlock == PremiumFeature.highQualityExport)));
   });
 
-  test('unlocked feature clears the requirement', () async {
+  test('unlocked feature clears the requirement', skip: !rewardedAdsEnabled, () async {
     final bloc = ExportBloc(export, prefs, doc);
     bloc
       ..add(ExportOptionsChanged(bloc.state.options.copyWith(format: ExportFormat.png)))

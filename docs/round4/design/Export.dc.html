@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Share sheet</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.stage}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; position: relative; overflow: hidden">
+
+<div style="position: absolute; left: 55px; top: 90px; width: 280px; height: 396px; background: #FFFFFF; border-radius: 4px"></div>
+<div style="position: absolute; inset: 0; background: {{c.scrim}}"></div>
+
+<div style="position: absolute; left: 0; right: 0; bottom: 0; background: {{c.surface}}; border-radius: 28px 28px 0 0; padding: 10px 20px 22px 20px; display: flex; flex-direction: column; gap: 14px">
+<div style="display: flex; justify-content: center"><span style="width: 40px; height: 4px; border-radius: 2px; background: {{c.border}}"></span></div>
+<div style="display: flex; flex-direction: column; gap: 2px">
+<div style="font-size: 20px; font-weight: 800">Share</div>
+<div style="font-size: 13px; color: {{c.muted}}">Electricity bill – October · 3 pages</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">FORMAT</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<button style="height: 64px; border: 2px solid {{c.accent}}; border-radius: 14px; background: {{c.accentSoft}}; color: {{c.text}}; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+<span style="font-size: 15px; font-weight: 800">PDF</span><span style="font-size: 11px; color: {{c.muted}}">1 file</span></button>
+<button style="height: 64px; border: 1px solid {{c.border}}; border-radius: 14px; background: transparent; color: {{c.text}}; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+<span style="font-size: 15px; font-weight: 800">JPG</span><span style="font-size: 11px; color: {{c.muted}}">3 images</span></button>
+<button style="height: 64px; border: 1px solid {{c.border}}; border-radius: 14px; background: transparent; color: {{c.text}}; font-family: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+<span style="font-size: 15px; font-weight: 800; display: flex; align-items: center; gap: 4px">PNG
+<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="{{c.accentText}}" stroke-width="2.2" stroke-linejoin="round" role="img" aria-label="Unlock with a short video"><rect x="2" y="5" width="20" height="14" rx="3"></rect><path d="M10 9l5 3-5 3z" fill="{{c.accentText}}"></path></svg></span><span style="font-size: 11px; color: {{c.muted}}">3 images</span></button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">PAGE SIZE</div>
+<div style="display: flex; gap: 8px">
+<button style="height: 40px; border: 0; border-radius: 20px; background: {{c.text}}; color: {{c.bgInvText}}; font-family: inherit; font-size: 13px; font-weight: 700; padding: 0 18px">A4</button>
+<button style="height: 40px; border: 1px solid {{c.border}}; border-radius: 20px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 13px; font-weight: 600; padding: 0 18px">Letter</button>
+<button style="height: 40px; border: 1px solid {{c.border}}; border-radius: 20px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 13px; font-weight: 600; padding: 0 18px">Fit to image</button>
+</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">QUALITY</div>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<button style="height: 56px; border: 2px solid {{c.accent}}; border-radius: 14px; background: {{c.accentSoft}}; color: {{c.text}}; font-family: inherit; text-align: left; padding: 0 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px">
+<span style="font-size: 14px; font-weight: 800">Standard</span><span style="font-size: 11px; color: {{c.muted}}">Smaller file · for sharing</span></button>
+<a href="Unlock.dc.html" style="height: 56px; border: 1px solid {{c.border}}; border-radius: 14px; color: {{c.text}}; text-decoration: none; padding: 0 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px; box-sizing: border-box">
+<span style="font-size: 14px; font-weight: 800; display: flex; align-items: center; gap: 6px">High
+<span style="height: 18px; border-radius: 9px; background: {{c.accentSoft}}; color: {{c.accentText}}; font-size: 10px; font-weight: 800; padding: 0 7px; display: flex; align-items: center; gap: 3px">
+<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg>VIDEO</span></span>
+<span style="font-size: 11px; color: {{c.muted}}">Best for printing</span></a>
+</div>
+</div>
+
+<a href="FileSize.dc.html" style="min-height: 56px; border: 1px solid {{c.border}}; border-radius: 14px; color: {{c.text}}; text-decoration: none; padding: 0 12px 0 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; box-sizing: border-box">
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><span style="font-size: 14px; font-weight: 800">Max file size</span><span style="font-size: 11px; color: {{c.muted}}">For upload limits on forms and portals</span></span>
+<span style="display: flex; align-items: center; gap: 4px; font-size: 14px; font-weight: 700; color: {{c.accentText}}; flex-shrink: 0">Under 500 KB
+<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 18l6-6-6-6"></path></svg></span></a>
+
+<div style="display: flex; flex-direction: column; gap: 6px">
+<label for="fname" style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">FILE NAME</label>
+<input id="fname" value="Electricity bill – October.pdf" style="height: 48px; border: 1px solid {{c.border}}; border-radius: 12px; background: {{c.surface2}}; color: {{c.text}}; font-family: inherit; font-size: 14px; font-weight: 600; padding: 0 14px; box-sizing: border-box; width: 100%">
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding-top: 4px">
+<button style="height: 52px; border: 1px solid {{c.border}}; border-radius: 26px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"></path></svg>Save to phone</button>
+<button style="height: 52px; border: 0; border-radius: 26px; background: {{c.accent}}; color: {{c.onAccent}}; font-family: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"></path></svg>Share PDF</button>
+</div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { stage: '#1A1C20', scrim: 'rgba(0,0,0,0.62)', surface: '#1A1C20', surface2: '#24272D', border: '#3A3E46', text: '#F3F3F1', bgInvText: '#0F1012', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)' };
+const light = { stage: '#E8E8E3', scrim: 'rgba(15,16,18,0.45)', surface: '#FFFFFF', surface2: '#F5F5F2', border: '#D6D6D0', text: '#15171A', bgInvText: '#FFFFFF', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)' };
+const c = (this.props.theme ?? 'dark') === 'light' ? light : dark;
+return { c };
+}
+}
+</script>
+</body>
+</html>

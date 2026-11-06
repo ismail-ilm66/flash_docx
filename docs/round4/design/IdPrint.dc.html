@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ID card print layout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; background: {{c.bg}}; color: {{c.text}}; font-family: Manrope, system-ui, sans-serif; display: flex; flex-direction: column; overflow: hidden">
+
+<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 8px">
+<a href="Viewer.dc.html" aria-label="Back" style="width: 44px; height: 44px; color: {{c.text}}; display: flex; align-items: center; justify-content: center">
+<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></a>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 2px">
+<div style="font-size: 16px; font-weight: 700">Print layout</div>
+<div style="font-size: 12px; color: {{c.muted}}">CNIC – front &amp; back</div>
+</div>
+<div style="width: 44px"></div>
+</div>
+
+<div style="padding: 0 16px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); background: {{c.surface2}}; border-radius: 14px; padding: 4px; gap: 4px">
+<button style="height: 44px; border: 0; border-radius: 10px; background: transparent; color: {{c.muted}}; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1.2">Image</button>
+<button style="height: 44px; border: 0; border-radius: 10px; background: {{c.surface}}; color: {{c.text}}; font-family: inherit; font-size: 12px; font-weight: 800; line-height: 1.2">PDF<br>double-sided</button>
+<button style="height: 44px; border: 0; border-radius: 10px; background: transparent; color: {{c.muted}}; font-family: inherit; font-size: 12px; font-weight: 600; line-height: 1.2">PDF<br>one page</button>
+</div>
+</div>
+
+<div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; background: {{c.stage}}; margin-top: 12px">
+<div style="display: flex; gap: 6px">
+<button style="height: 32px; border: 0; border-radius: 16px; background: {{c.text}}; color: {{c.invText}}; font-family: inherit; font-size: 12px; font-weight: 800; padding: 0 14px">Sheet 1 · Fronts</button>
+<button style="height: 32px; border: 1px solid {{c.border}}; border-radius: 16px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 12px; font-weight: 600; padding: 0 14px">Sheet 2 · Backs</button>
+</div>
+<div style="width: 230px; height: 325px; background: #FFFFFF; box-shadow: 0 6px 22px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<sc-for list="{{cards}}" as="k" hint-placeholder-count="4">
+<div style="width: 94px; height: 59px; border-radius: 4px; background: #E9EEF2; border: 1px solid #C9D1D8; box-sizing: border-box; display: flex; align-items: center; gap: 6px; padding: 0 7px">
+<div style="width: 20px; height: 26px; border-radius: 2px; background: #B8C2CC"></div>
+<div style="flex: 1; display: flex; flex-direction: column; gap: 4px"><div style="height: 3px; background: #9AA6B2"></div><div style="height: 3px; width: 75%; background: #B8C2CC"></div><div style="height: 3px; width: 55%; background: #B8C2CC"></div></div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="font-size: 11px; color: {{c.muted}}">A4 · cards at real size, 85.6 × 54 mm</div>
+</div>
+
+<div style="padding: 14px 16px 0 16px; display: flex; flex-direction: column; gap: 8px">
+<div style="font-size: 12px; font-weight: 700; color: {{c.muted}}; letter-spacing: 0.5px">COPIES PER SHEET</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{copies}}" as="n" hint-placeholder-count="5">
+<button style="height: 44px; border: {{n.border}}; border-radius: 12px; background: {{n.bgc}}; color: {{c.text}}; font-family: inherit; font-size: 15px; font-weight: 800; position: relative">{{n.n}}
+<sc-if value="{{n.locked}}" hint-placeholder-val="{{ false }}">
+<span style="position: absolute; right: -4px; top: -6px; width: 18px; height: 18px; border-radius: 9px; background: {{c.accent}}; color: {{c.onAccent}}; display: flex; align-items: center; justify-content: center">
+<svg width="9" height="9" viewBox="0 0 24 24" fill="currentColor" role="img" aria-label="Unlock with a short video"><path d="M7 4l13 8-13 8z"></path></svg></span>
+</sc-if>
+</button>
+</sc-for>
+</div>
+</div>
+
+<div style="margin: 12px 16px 0 16px; border-radius: 12px; background: {{c.accentSoft}}; padding: 10px 12px; display: flex; gap: 10px; align-items: flex-start">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{c.accentText}}" stroke-width="2" stroke-linejoin="round" aria-hidden="true" style="flex-shrink: 0; margin-top: 1px"><path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"></path><rect x="6" y="14" width="12" height="7"></rect></svg>
+<div style="font-size: 12px; line-height: 1.45">Print double-sided, <b>flip on long edge</b>, at <b>100% / Actual size</b>. Each back lands behind its front.</div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; padding: 14px 16px 18px 16px">
+<button style="height: 52px; border: 1px solid {{c.border}}; border-radius: 26px; background: transparent; color: {{c.text}}; font-family: inherit; font-size: 15px; font-weight: 700">Save to phone</button>
+<button style="height: 52px; border: 0; border-radius: 26px; background: {{c.accent}}; color: {{c.onAccent}}; font-family: inherit; font-size: 15px; font-weight: 800">Share PDF</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"theme":{"editor":"enum","options":["dark","light"],"default":"dark"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+renderVals() {
+const dark = { bg: '#0F1012', stage: '#1A1C20', surface: '#2E3239', surface2: '#1A1C20', border: '#3A3E46', text: '#F3F3F1', invText: '#0F1012', muted: '#A6AAB2', accent: '#FFC233', onAccent: '#1B1400', accentText: '#FFC233', accentSoft: 'rgba(255,194,51,0.14)', chipOn: 'rgba(255,194,51,0.14)' };
+const light = { bg: '#F5F5F2', stage: '#E8E8E3', surface: '#FFFFFF', surface2: '#EAEAE5', border: '#D6D6D0', text: '#15171A', invText: '#FFFFFF', muted: '#5C6169', accent: '#FFC233', onAccent: '#1B1400', accentText: '#8A5A00', accentSoft: 'rgba(255,194,51,0.22)', chipOn: 'rgba(255,194,51,0.22)' };
+const c = (this.props.theme ?? 'dark') === 'light' ? light : dark;
+const copies = [1, 2, 4, 6, 8].map((n) => ({
+n,
+locked: n >= 4,
+border: n === 4 ? '2px solid #FFC233' : '1px solid ' + c.border,
+bgc: n === 4 ? c.chipOn : 'transparent'
+}));
+const cards = [1, 2, 3, 4].map((i) => ({ i }));
+return { c, copies, cards };
+}
+}
+</script>
+</body>
+</html>
