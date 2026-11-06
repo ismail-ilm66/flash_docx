@@ -376,12 +376,6 @@ abstract class AppLocalizations {
   /// **'Contrast'**
   String get enhanceContrast;
 
-  /// No description provided for @enhanceApplyAll.
-  ///
-  /// In en, this message translates to:
-  /// **'Apply to all pages'**
-  String get enhanceApplyAll;
-
   /// No description provided for @enhanceAppliedAll.
   ///
   /// In en, this message translates to:
@@ -1150,12 +1144,6 @@ abstract class AppLocalizations {
   /// **'Page {n} of {total}'**
   String pageOfTotal(int n, int total);
 
-  /// No description provided for @enhanceApplyAllHint.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{Same filter and sliders on 1 page} other{Same filter and sliders on {count} pages}}'**
-  String enhanceApplyAllHint(int count);
-
   /// No description provided for @viewerCounter.
   ///
   /// In en, this message translates to:
@@ -1521,6 +1509,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Card looks blurry'**
   String get cameraCardBlurry;
+
+  /// No description provided for @enhanceAdjust.
+  ///
+  /// In en, this message translates to:
+  /// **'Adjust'**
+  String get enhanceAdjust;
+
+  /// No description provided for @enhanceAllPages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page} other{All {count} pages}}'**
+  String enhanceAllPages(int count);
+
+  /// No description provided for @enhanceZoomIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom in'**
+  String get enhanceZoomIn;
+
+  /// No description provided for @enhanceZoomOut.
+  ///
+  /// In en, this message translates to:
+  /// **'Zoom out'**
+  String get enhanceZoomOut;
 }
 
 class _AppLocalizationsDelegate

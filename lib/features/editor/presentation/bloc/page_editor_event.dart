@@ -52,8 +52,15 @@ class EditorLookReset extends PageEditorEvent {
   const EditorLookReset();
 }
 
-class EditorApplyLookToAll extends PageEditorEvent {
-  const EditorApplyLookToAll();
+/// The "All N pages" switch on Enhance (P1-1).
+class EditorApplyAllToggled extends PageEditorEvent {
+  const EditorApplyAllToggled(this.on);
+  final bool on;
+}
+
+/// Render the six real filter thumbnails for the current page (P0-4 / P1-1).
+class EditorFilterThumbsRequested extends PageEditorEvent {
+  const EditorFilterThumbsRequested();
 }
 
 /// Draft pages appended to the current session (the strip's "+" tile).

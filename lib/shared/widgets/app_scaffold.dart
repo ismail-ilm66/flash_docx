@@ -1,17 +1,15 @@
-import 'package:flash_dox/app/theme/app_theme.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Base scaffold. `forceDark` wraps the screen in the dark theme regardless
-/// of the user's setting (Camera, Adjust edges, Enhance).
+/// Base scaffold. The always-dark screens (Camera, Adjust edges, Enhance) get
+/// their theme from the router.
 class AppScaffold extends StatelessWidget {
   const AppScaffold({
     required this.body,
     super.key,
     this.topBar,
     this.bottomBar,
-    this.forceDark = false,
     this.backgroundColor,
     this.resizeToAvoidBottomInset,
     this.extendBodyBehindAppBar = false,
@@ -20,14 +18,13 @@ class AppScaffold extends StatelessWidget {
   final Widget body;
   final PreferredSizeWidget? topBar;
   final Widget? bottomBar;
-  final bool forceDark;
   final Color? backgroundColor;
   final bool? resizeToAvoidBottomInset;
   final bool extendBodyBehindAppBar;
 
   @override
   Widget build(BuildContext context) {
-    Widget child = Builder(
+    return Builder(
       builder: (context) => AnnotatedRegion<SystemUiOverlayStyle>(
         value: context.isDark
             ? SystemUiOverlayStyle.light
@@ -42,7 +39,5 @@ class AppScaffold extends StatelessWidget {
         ),
       ),
     );
-    if (forceDark) child = Theme(data: AppTheme.dark, child: child);
-    return child;
   }
 }

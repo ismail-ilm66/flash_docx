@@ -40,9 +40,20 @@ abstract interface class ImageProcessor {
     CancelToken? cancel,
   });
 
+  /// All six filter thumbnails for one page in one job (160 px, P0-4).
+  Future<void> renderFilterStrip(
+    String originalPath,
+    PageEdits edits, {
+    required Map<FilterType, String> outputs,
+  });
+
   /// The fast placeholder (P0-4): crop + rotate only, 600 px, no filter,
   /// interactive lane. Never the uncropped photo.
-  Future<String> renderQuick(String originalPath, PageEdits edits, {required String outputPath});
+  Future<String> renderQuick(
+    String originalPath,
+    PageEdits edits, {
+    required String outputPath,
+  });
 
   /// Processed preview + thumbnail for the viewer, from one decode.
   Future<void> renderPageCaches(
@@ -84,7 +95,10 @@ abstract interface class ImageProcessor {
 
   /// Candidate lines and corners for magnetic crop handles (P1-3), from the
   /// editor's base preview.
-  Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint});
+  Future<SnapCandidates> snapCandidates(
+    String previewPath, {
+    double? aspectHint,
+  });
 
   /// Pixel size of an image without decoding it fully.
   Future<({int width, int height})> imageSize(String imagePath);

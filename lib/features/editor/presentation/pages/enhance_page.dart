@@ -6,12 +6,15 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
+import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
-/// Filters + brightness/contrast. Shares the [PageEditorBloc] created by
-/// Adjust edges, so edits on both screens are one in-memory session.
+/// Enhance (round 4, P1-1, artboard *Enhance*): a big zoomable preview with
+/// page dots, the zoom pill and Hold to compare; below it the six filter
+/// thumbnails and Adjust · Reset · All N pages. Shares the [PageEditorBloc]
+/// created by Adjust edges, so both screens are one in-memory session.
 class EnhancePage extends StatelessWidget {
   const EnhancePage({required this.bloc, super.key});
 
@@ -20,7 +23,9 @@ class EnhancePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
-      value: bloc..add(const EditorPreviewRequested(forEnhance: true)),
+      value: bloc
+        ..add(const EditorPreviewRequested(forEnhance: true))
+        ..add(const EditorFilterThumbsRequested()),
       child: const _EnhanceView(),
     );
   }
@@ -35,20 +40,32 @@ class _EnhanceView extends StatefulWidget {
 
 class _EnhanceViewState extends State<_EnhanceView> {
   bool _comparing = false;
+  bool _adjustOpen = false;
+  late int _shownIndex = context.read<PageEditorBloc>().state.index;
+  final ZoomController _zoom = ZoomController();
+  late final PageController _pages = PageController(
+    initialPage: context.read<PageEditorBloc>().state.index,
+  );
 
-  /// "Apply to all pages" switch. While on, every look change is copied to
-  /// the other pages (an in-memory edit, cheap).
-  bool _applyAll = false;
-
-  // Local slider values so the thumb follows the finger at 60 fps while the
-  // bloc debounces the actual render.
+  // Local slider values so the thumb follows the finger at 60 fps; the
+  // preview applies them live on the GPU.
   double? _brightness;
   double? _contrast;
 
+  static const _stage = Color(0xFF16181B);
+  static const _bar = Color(0xFF1A1C20);
+  static const _outline = Color(0xFF3A3E46);
+
+  @override
+  void dispose() {
+    _zoom.dispose();
+    _pages.dispose();
+    super.dispose();
+  }
+
   void _onSaved(BuildContext context, PageEditorState s) {
     final id = s.savedDocumentId!;
-    final args = s.args;
-    if (args.isNewDocument) {
+    if (s.args.isNewDocument) {
       context.go(Routes.home);
       context.push(Routes.viewer(id));
     } else {
@@ -70,22 +87,77 @@ class _EnhanceViewState extends State<_EnhanceView> {
         if (s.status == EditorStatus.failed && s.failure != null) {
           context.showSnack(failureMessage(context, s.failure), error: true);
         }
-        setState(() {
-          _brightness = null;
-          _contrast = null;
-        });
+        if (_shownIndex != s.index) {
+          // Swiped to another page: its own thumbnails and slider values.
+          _shownIndex = s.index;
+          context.read<PageEditorBloc>().add(
+            const EditorFilterThumbsRequested(),
+          );
+          setState(() {
+            _brightness = null;
+            _contrast = null;
+          });
+        }
       },
       builder: (context, s) {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
         final edits = s.edits;
-        // P0-4: never the uncropped photo. Compare = same crop, no filter.
-        final preview = _comparing ? (s.comparePreview ?? s.shownPreview) : s.shownPreview;
         final multi = s.pages.length > 1;
         final saving = s.status == EditorStatus.saving;
+        final live = edits.copyWith(
+          brightness: _brightness ?? edits.brightness,
+          contrast: _contrast ?? edits.contrast,
+        );
 
-        void changed() {
-          if (_applyAll && multi) bloc.add(const EditorApplyLookToAll());
+        Widget pageImage(BuildContext context, int i) {
+          final p = s.pages[i];
+          final isCurrent = i == s.index;
+          final path = isCurrent && _comparing
+              ? (s.comparePreview ?? s.previewFor(p))
+              : s.previewFor(p);
+          if (path == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final image = Image.file(
+            File(path),
+            gaplessPlayback: true,
+            fit: BoxFit.contain,
+          );
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Space.x6,
+              Space.x8,
+              Space.x6,
+              64,
+            ),
+            child: Center(
+              child: DecoratedBox(
+                decoration: const BoxDecoration(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Color(0x80000000),
+                      blurRadius: 28,
+                      offset: Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: isCurrent && _comparing
+                      ? image
+                      // Sliders run on the GPU with the export's own a·x + b
+                      // mapping: no re-render per move.
+                      : ColorFiltered(
+                          colorFilter: sliderColorFilter(
+                            isCurrent ? live : p.edits,
+                          ),
+                          child: image,
+                        ),
+                ),
+              ),
+            ),
+          );
         }
 
         return DiscardScanGuard(
@@ -98,41 +170,17 @@ class _EnhanceViewState extends State<_EnhanceView> {
               ..pop();
           },
           child: AppScaffold(
-            forceDark: true,
             topBar: AppTopBar(
               title: l.enhanceTitle,
               subtitle: multi && page != null
                   ? l.pageOfTotal(s.index + 1, s.pages.length)
                   : null,
               actions: [
-                TextButton(
-                  onPressed: page == null || saving
-                      ? null
-                      : () {
-                          setState(() {
-                            _brightness = null;
-                            _contrast = null;
-                          });
-                          bloc.add(const EditorLookReset());
-                          changed();
-                        },
-                  style: TextButton.styleFrom(
-                    foregroundColor: c.muted,
-                    minimumSize: const Size(Sizes.tap, Sizes.tap),
-                    padding: const EdgeInsets.symmetric(horizontal: Space.x2),
-                    textStyle: context.text.labelLarge?.copyWith(fontSize: 15),
-                  ),
-                  child: Text(l.enhanceReset),
-                ),
                 TopBarTextAction(
                   label: l.enhanceDone,
-                  loading: saving,
-                  onPressed: page == null
+                  onPressed: page == null || saving
                       ? null
-                      : () {
-                          changed();
-                          bloc.add(const EditorSaveRequested());
-                        },
+                      : () => bloc.add(const EditorSaveRequested()),
                 ),
               ],
             ),
@@ -140,227 +188,207 @@ class _EnhanceViewState extends State<_EnhanceView> {
               children: [
                 Column(
                   children: [
+                    // ---- preview ----
                     Expanded(
-                      child: Stack(
-                        children: [
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                Space.x10,
-                                Space.x2,
-                                Space.x10,
-                                64,
-                              ),
-                              child: Center(
-                                child: preview == null
-                                    ? const CircularProgressIndicator()
-                                    : GestureDetector(
-                                        onLongPressStart: (_) =>
-                                            setState(() => _comparing = true),
-                                        onLongPressEnd: (_) =>
-                                            setState(() => _comparing = false),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            boxShadow: const [
-                                              BoxShadow(
-                                                color: Color(0x80000000),
-                                                blurRadius: 28,
-                                                offset: Offset(0, 8),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(
-                                              4,
-                                            ),
-                                            child: _comparing
-                                                ? Image.file(
-                                                    File(preview),
-                                                    gaplessPlayback: true,
-                                                  )
-                                                : ColorFiltered(
-                                                    // Sliders run on the GPU
-                                                    // with the export's own
-                                                    // a·x + b mapping: no
-                                                    // re-render per move.
-                                                    colorFilter: sliderColorFilter(
-                                                      edits.copyWith(
-                                                        brightness: _brightness ?? edits.brightness,
-                                                        contrast: _contrast ?? edits.contrast,
-                                                      ),
-                                                    ),
-                                                    child: Image.file(
-                                                      File(preview),
-                                                      key: ValueKey(preview),
-                                                      gaplessPlayback: true,
-                                                      filterQuality: FilterQuality.medium,
-                                                    ),
-                                                  ),
-                                          ),
-                                        ),
-                                      ),
+                      child: ColoredBox(
+                        color: _stage,
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: ZoomablePages(
+                                controller: _pages,
+                                zoom: _zoom,
+                                itemCount: s.pages.length,
+                                onPageChanged: (i) =>
+                                    bloc.add(EditorPageSelected(i)),
+                                itemBuilder: pageImage,
                               ),
                             ),
-                          ),
-                          if (s.rendering && !_comparing)
-                            Positioned(
-                              top: Space.x2,
-                              right: Space.x5,
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: c.accent,
+                            if (_adjustOpen)
+                              Positioned.fill(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: () =>
+                                      setState(() => _adjustOpen = false),
                                 ),
                               ),
-                            ),
-                          if (multi)
+                            if (multi)
+                              Positioned(
+                                top: 10,
+                                left: 0,
+                                right: 0,
+                                child: IgnorePointer(
+                                  child: _PageDots(
+                                    count: s.pages.length,
+                                    index: s.index,
+                                  ),
+                                ),
+                              ),
+                            if (s.rendering && !_comparing)
+                              Positioned(
+                                top: Space.x2,
+                                right: Space.x4,
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: c.accent,
+                                  ),
+                                ),
+                              ),
                             Positioned(
-                              left: Space.x3,
-                              bottom: Space.x2,
-                              child: PageDots(
-                                count: s.pages.length,
-                                index: s.index,
-                                onSelect: (i) =>
-                                    bloc.add(EditorPageSelected(i)),
+                              left: 12,
+                              bottom: 12,
+                              child: _ZoomPill(zoom: _zoom),
+                            ),
+                            Positioned(
+                              right: 12,
+                              bottom: 12,
+                              child: _CompareButton(
+                                comparing: _comparing,
+                                onChanged: (v) =>
+                                    setState(() => _comparing = v),
                               ),
                             ),
-                          Positioned(
-                            right: Space.x5,
-                            bottom: Space.x4,
-                            child: _CompareButton(
-                              comparing: _comparing,
-                              onChanged: (v) => setState(() => _comparing = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: c.surface,
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(Radii.xl),
+                          ],
                         ),
                       ),
-                      padding: const EdgeInsets.only(top: Space.x4, bottom: 18),
+                    ),
+                    // ---- Adjust panel (above the bar) ----
+                    AnimatedSize(
+                      duration: Motion.normal,
+                      curve: Curves.easeOutCubic,
+                      child: !_adjustOpen
+                          ? const SizedBox(width: double.infinity)
+                          : ColoredBox(
+                              color: _bar,
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  Space.x4,
+                                  Space.x3,
+                                  Space.x4,
+                                  0,
+                                ),
+                                child: Column(
+                                  children: [
+                                    LabeledSlider(
+                                      label: l.enhanceBrightness,
+                                      value: _brightness ?? edits.brightness,
+                                      onChanged: (v) {
+                                        setState(() => _brightness = v);
+                                        bloc.add(EditorBrightnessChanged(v));
+                                      },
+                                      onChangeEnd: (_) =>
+                                          setState(() => _brightness = null),
+                                    ),
+                                    LabeledSlider(
+                                      label: l.enhanceContrast,
+                                      value: _contrast ?? edits.contrast,
+                                      onChanged: (v) {
+                                        setState(() => _contrast = v);
+                                        bloc.add(EditorContrastChanged(v));
+                                      },
+                                      onChangeEnd: (_) =>
+                                          setState(() => _contrast = null),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                    ),
+                    // ---- bottom bar ----
+                    ColoredBox(
+                      color: _bar,
                       child: SafeArea(
                         top: false,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            SizedBox(
-                              height: 98,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: Space.x4,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 12, bottom: 14),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                height: 64 + 5 + 28,
+                                child: ListView.separated(
+                                  scrollDirection: Axis.horizontal,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
+                                  itemCount: FilterType.values.length,
+                                  separatorBuilder: (_, __) =>
+                                      const SizedBox(width: Space.x2),
+                                  itemBuilder: (context, i) {
+                                    final f = FilterType.values[i];
+                                    return _FilterSwatch(
+                                      filter: f,
+                                      label: filterLabel(context, f),
+                                      selected: edits.filter == f,
+                                      thumb: page == null
+                                          ? null
+                                          : s.filterThumbs[page.id]?[f],
+                                      onTap: () =>
+                                          bloc.add(EditorFilterChanged(f)),
+                                    );
+                                  },
                                 ),
-                                itemCount: FilterType.values.length,
-                                separatorBuilder: (_, __) =>
-                                    const SizedBox(width: 10),
-                                itemBuilder: (context, i) {
-                                  final f = FilterType.values[i];
-                                  return _FilterSwatch(
-                                    filter: f,
-                                    label: filterLabel(context, f),
-                                    selected: edits.filter == f,
-                                    onTap: () {
-                                      bloc.add(EditorFilterChanged(f));
-                                      changed();
-                                    },
-                                  );
-                                },
                               ),
-                            ),
-                            const SizedBox(height: Space.x4),
-                            Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: Space.x5,
-                              ),
-                              child: Column(
-                                children: [
-                                  LabeledSlider(
-                                    label: l.enhanceBrightness,
-                                    value: _brightness ?? edits.brightness,
-                                    onChanged: (v) {
-                                      setState(() => _brightness = v);
-                                      bloc.add(EditorBrightnessChanged(v));
-                                    },
-                                    onChangeEnd: (_) {
-                                      setState(() => _brightness = null);
-                                      changed();
-                                    },
-                                  ),
-                                  const SizedBox(height: Space.x2),
-                                  LabeledSlider(
-                                    label: l.enhanceContrast,
-                                    value: _contrast ?? edits.contrast,
-                                    onChanged: (v) {
-                                      setState(() => _contrast = v);
-                                      bloc.add(EditorContrastChanged(v));
-                                    },
-                                    onChangeEnd: (_) {
-                                      setState(() => _contrast = null);
-                                      changed();
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (multi) ...[
-                              const SizedBox(height: Space.x3),
-                              MergeSemantics(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(
-                                    left: Space.x5,
-                                    right: Space.x4,
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              l.enhanceApplyAll,
-                                              style: context.text.labelLarge,
-                                            ),
-                                            const SizedBox(height: 2),
-                                            Text(
-                                              l.enhanceApplyAllHint(
-                                                s.pages.length,
-                                              ),
-                                              style: context.text.bodySmall
-                                                  ?.copyWith(color: c.muted),
-                                            ),
-                                          ],
+                              const SizedBox(height: 12),
+                              Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Expanded(
+                                      flex: 10,
+                                      child: _BarButton(
+                                        icon: AppIcons.edit,
+                                        label: l.enhanceAdjust,
+                                        active: _adjustOpen,
+                                        onTap: () => setState(
+                                          () => _adjustOpen = !_adjustOpen,
                                         ),
                                       ),
-                                      Switch(
-                                        value: _applyAll,
-                                        onChanged: saving
-                                            ? null
-                                            : (v) {
-                                                setState(() => _applyAll = v);
-                                                if (v) {
-                                                  bloc.add(
-                                                    const EditorApplyLookToAll(),
-                                                  );
-                                                }
-                                              },
+                                    ),
+                                    const SizedBox(width: Space.x2),
+                                    Expanded(
+                                      flex: 10,
+                                      child: _BarButton(
+                                        icon: AppIcons.reset,
+                                        label: l.enhanceReset,
+                                        onTap: s.canReset && !saving
+                                            ? () {
+                                                setState(() {
+                                                  _brightness = null;
+                                                  _contrast = null;
+                                                });
+                                                bloc.add(
+                                                  const EditorLookReset(),
+                                                );
+                                              }
+                                            : null,
+                                      ),
+                                    ),
+                                    if (multi) ...[
+                                      const SizedBox(width: Space.x2),
+                                      Expanded(
+                                        flex: 16,
+                                        child: _AllPagesSwitch(
+                                          label: l.enhanceAllPages(
+                                            s.pages.length,
+                                          ),
+                                          on: s.applyAll,
+                                          onChanged: (v) => bloc.add(
+                                            EditorApplyAllToggled(v),
+                                          ),
+                                        ),
                                       ),
                                     ],
-                                  ),
+                                  ],
                                 ),
                               ),
                             ],
-                          ],
+                          ),
                         ),
                       ),
                     ),
@@ -376,7 +404,221 @@ class _EnhanceViewState extends State<_EnhanceView> {
   }
 }
 
-/// "Hold to compare" pill: shows the original while pressed.
+/// Page dots: the current page is a wide amber pill.
+class _PageDots extends StatelessWidget {
+  const _PageDots({required this.count, required this.index});
+  final int count;
+  final int index;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++) ...[
+          if (i > 0) const SizedBox(width: 6),
+          AnimatedContainer(
+            duration: Motion.fast,
+            width: i == index ? 18 : 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: i == index ? c.accent : const Color(0xFF4A4E56),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// − / 100 % / + driving the shared [ZoomController].
+class _ZoomPill extends StatelessWidget {
+  const _ZoomPill({required this.zoom});
+  final ZoomController zoom;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    return ListenableBuilder(
+      listenable: zoom,
+      builder: (context, _) => Container(
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.65),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              tooltip: l.enhanceZoomOut,
+              onPressed: zoom.scale > 1.01 ? zoom.zoomOut : null,
+              icon: Icon(Icons.remove_rounded, size: 18, color: c.text),
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              padding: EdgeInsets.zero,
+            ),
+            SizedBox(
+              width: 44,
+              child: Text(
+                '${(zoom.scale * 100).round()}%',
+                textAlign: TextAlign.center,
+                style: context.text.labelMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: c.text,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: l.enhanceZoomIn,
+              onPressed: zoom.scale < ZoomablePages.maxScale - 0.01
+                  ? zoom.zoomIn
+                  : null,
+              icon: Icon(Icons.add_rounded, size: 18, color: c.text),
+              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Outlined pill button in the bottom bar (Adjust, Reset).
+class _BarButton extends StatelessWidget {
+  const _BarButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
+  final AppIcons icon;
+  final String label;
+  final VoidCallback? onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final enabled = onTap != null;
+    final fg = !enabled
+        ? c.muted.withValues(alpha: 0.5)
+        : (active ? c.accentText : c.text);
+    return Material(
+      color: active ? c.accentSoft : Colors.transparent,
+      shape: StadiumBorder(
+        side: BorderSide(color: active ? c.accent : _EnhanceViewState._outline),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 44,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AppIcon(icon, size: 16, color: fg),
+              const SizedBox(width: 6),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    style: context.text.labelLarge?.copyWith(
+                      fontSize: 13,
+                      color: fg,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "All N pages" with a switch, on an amber-tinted pill.
+class _AllPagesSwitch extends StatelessWidget {
+  const _AllPagesSwitch({
+    required this.label,
+    required this.on,
+    required this.onChanged,
+  });
+  final String label;
+  final bool on;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      toggled: on,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: on ? c.accentSoft : Colors.transparent,
+        shape: StadiumBorder(
+          side: BorderSide(
+            color: on ? Colors.transparent : _EnhanceViewState._outline,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => onChanged(!on),
+          child: SizedBox(
+            height: 44,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 14, right: 6),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      style: context.text.labelLarge?.copyWith(
+                        fontSize: 13,
+                        height: 1.1,
+                        color: c.text,
+                      ),
+                    ),
+                  ),
+                  AnimatedContainer(
+                    duration: Motion.fast,
+                    width: 44,
+                    height: 28,
+                    padding: const EdgeInsets.all(3),
+                    alignment: on
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    decoration: BoxDecoration(
+                      color: on ? c.accent : const Color(0xFF3A3E46),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: on ? c.onAccent : c.muted,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _CompareButton extends StatelessWidget {
   const _CompareButton({required this.comparing, required this.onChanged});
 
@@ -429,12 +671,17 @@ class _FilterSwatch extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
+    this.thumb,
   });
 
   final FilterType filter;
   final String label;
   final bool selected;
   final VoidCallback onTap;
+
+  /// Real 160 px render of this filter on the page; the drawn swatch shows
+  /// until it is ready.
+  final String? thumb;
 
   static (Color paper, Color ink) _tone(FilterType f) => switch (f) {
     FilterType.original => (const Color(0xFFE9E3D8), const Color(0xFF8E9196)),
@@ -463,13 +710,13 @@ class _FilterSwatch extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: SizedBox(
-          width: 64,
+          width: 56,
           child: Column(
             children: [
               AnimatedContainer(
                 duration: Motion.fast,
-                width: 60,
-                height: 76,
+                width: 52,
+                height: 64,
                 padding: const EdgeInsets.all(Space.x1),
                 decoration: BoxDecoration(
                   borderRadius: Radii.smR,
@@ -478,33 +725,46 @@ class _FilterSwatch extends StatelessWidget {
                     width: 2,
                   ),
                 ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: paper,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: Space.x2,
-                  ),
-                  alignment: Alignment.topLeft,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      line(22, 4),
-                      line(36, 2),
-                      line(36, 2),
-                      line(27, 2),
-                    ],
-                  ),
-                ),
+                child: thumb != null
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: Image.file(
+                          File(thumb!),
+                          fit: BoxFit.cover,
+                          cacheWidth: 160,
+                          gaplessPlayback: true,
+                        ),
+                      )
+                    : Container(
+                        decoration: BoxDecoration(
+                          color: paper,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: Space.x2,
+                        ),
+                        alignment: Alignment.topLeft,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            line(22, 4),
+                            line(36, 2),
+                            line(36, 2),
+                            line(27, 2),
+                          ],
+                        ),
+                      ),
               ),
               const SizedBox(height: 6),
               Text(
                 label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+                softWrap: true,
+                textAlign: TextAlign.center,
                 style: context.text.labelSmall?.copyWith(
+                  fontSize: 10.5,
+                  height: 1.15,
                   fontWeight: FontWeight.w700,
                   color: selected ? c.accentText : c.muted,
                 ),
@@ -522,10 +782,52 @@ class _FilterSwatch extends StatelessWidget {
 /// results are clamped just like `convertTo` on export.
 ColorFilter sliderColorFilter(PageEdits edits) {
   if (!edits.hasSliders) {
-    return const ColorFilter.matrix([1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0]);
+    return const ColorFilter.matrix([
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]);
   }
   final t = edits.sliderTransform;
   final a = t.alpha;
   final b = t.beta;
-  return ColorFilter.matrix([a, 0, 0, 0, b, 0, a, 0, 0, b, 0, 0, a, 0, b, 0, 0, 0, 1, 0]);
+  return ColorFilter.matrix([
+    a,
+    0,
+    0,
+    0,
+    b,
+    0,
+    a,
+    0,
+    0,
+    b,
+    0,
+    0,
+    a,
+    0,
+    b,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ]);
 }

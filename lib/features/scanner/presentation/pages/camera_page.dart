@@ -106,7 +106,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// Portrait aspect (width / height) of the capture, or 3:4 until known.
   double get _photoAspect {
     final c = _controller;
-    if (c == null || !c.value.isInitialized) return PreviewGeometry.defaultPhotoAspect;
+    if (c == null || !c.value.isInitialized)
+      return PreviewGeometry.defaultPhotoAspect;
     return 1 / c.value.aspectRatio;
   }
 
@@ -182,7 +183,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Future<void> _onPreviewTap(Offset screen) async {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-    final photo = PreviewGeometry.viewportToPhoto(screen, photoAspect: _photoAspect, viewport: MediaQuery.sizeOf(context));
+    final photo = PreviewGeometry.viewportToPhoto(
+      screen,
+      photoAspect: _photoAspect,
+      viewport: MediaQuery.sizeOf(context),
+    );
     setState(() => _focusPoint = screen);
     _focusedAt = DateTime.now();
     _focusRingTimer?.cancel();
@@ -200,7 +205,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Future<void> _waitForTapFocus() async {
     final at = _focusedAt;
     if (at == null) return;
-    final left = const Duration(milliseconds: 300) - DateTime.now().difference(at);
+    final left =
+        const Duration(milliseconds: 300) - DateTime.now().difference(at);
     if (left > Duration.zero) await Future<void>.delayed(left);
   }
 
@@ -208,7 +214,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   void _captureFeedback() {
     unawaited(HapticFeedback.mediumImpact());
     if (getIt<PrefsService>().shutterSound) {
-      unawaited(_shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9));
+      unawaited(
+        _shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9),
+      );
     }
     setState(() => _flashTick++);
   }
@@ -251,7 +259,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
     );
     final pts = q.points;
-    return Offset(pts.map((p) => p.x).reduce((a, b) => a + b) / 4, pts.map((p) => p.y).reduce((a, b) => a + b) / 4);
+    return Offset(
+      pts.map((p) => p.x).reduce((a, b) => a + b) / 4,
+      pts.map((p) => p.y).reduce((a, b) => a + b) / 4,
+    );
   }
 
   Future<void> _applyFlash(bool on) async {
@@ -358,36 +369,55 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (n != null) {
       return switch (n.kind) {
         NoticeKind.blurryCard => _NoticeBanner(
-            text: l.cameraCardBlurry,
-            icon: AppIcons.warning,
-            actions: [
-              (l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId))),
-              (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
-            ],
-          ),
+          text: l.cameraCardBlurry,
+          icon: AppIcons.warning,
+          actions: [
+            (
+              l.cameraRetake,
+              () => bloc.add(SessionRetakeRequested(n.captureId)),
+            ),
+            (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
+          ],
+        ),
         NoticeKind.blurry => _NoticeBanner(
-            text: l.cameraBlurryTitle,
-            icon: AppIcons.warning,
-            actions: [
-              (l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId))),
-              (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
-            ],
-          ),
+          text: l.cameraBlurryTitle,
+          icon: AppIcons.warning,
+          actions: [
+            (
+              l.cameraRetake,
+              () => bloc.add(SessionRetakeRequested(n.captureId)),
+            ),
+            (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
+          ],
+        ),
         NoticeKind.unreadable => _NoticeBanner(
-            text: l.cameraUnreadable,
-            icon: AppIcons.warning,
-            actions: [(l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId)))],
-          ),
+          text: l.cameraUnreadable,
+          icon: AppIcons.warning,
+          actions: [
+            (
+              l.cameraRetake,
+              () => bloc.add(SessionRetakeRequested(n.captureId)),
+            ),
+          ],
+        ),
         NoticeKind.dark => _NoticeBanner(
-            text: l.cameraDark,
-            icon: AppIcons.flashOn,
-            actions: [(l.commonOk, () => bloc.add(const SessionNoticeDismissed()))],
-          ),
+          text: l.cameraDark,
+          icon: AppIcons.flashOn,
+          actions: [
+            (l.commonOk, () => bloc.add(const SessionNoticeDismissed())),
+          ],
+        ),
       };
     }
     return switch (_storage) {
-      StorageLevel.critical => _NoticeBanner(text: l.cameraStorageFull, icon: AppIcons.storage),
-      StorageLevel.low => _NoticeBanner(text: l.cameraStorageLow, icon: AppIcons.storage),
+      StorageLevel.critical => _NoticeBanner(
+        text: l.cameraStorageFull,
+        icon: AppIcons.storage,
+      ),
+      StorageLevel.low => _NoticeBanner(
+        text: l.cameraStorageLow,
+        icon: AppIcons.storage,
+      ),
       StorageLevel.ok => null,
     };
   }
@@ -432,7 +462,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final l = context.l10n;
     return BlocConsumer<ScanSessionBloc, ScanSessionState>(
-      listenWhen: (a, b) => a.status != b.status || a.flashOn != b.flashOn || a.mode != b.mode,
+      listenWhen: (a, b) =>
+          a.status != b.status || a.flashOn != b.flashOn || a.mode != b.mode,
       listener: (context, s) {
         if (s.status == SessionStatus.ready) _onReady(context, s);
         if (s.status == SessionStatus.failed) {
@@ -447,10 +478,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         final title = side != null
             ? '${modeLabel(context, s.mode)} · ${side == CardSide.back ? l.cameraGuideBack : l.cameraGuideFront}'
             : widget.args.retake
-                ? l.adjustRetake
-                : s.count == 0
-                    ? modeLabel(context, s.mode)
-                    : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
+            ? l.adjustRetake
+            : s.count == 0
+            ? modeLabel(context, s.mode)
+            : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
         final guard =
             !widget.args.retake &&
             s.count > 0 &&
@@ -463,7 +494,6 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
             context.pop();
           },
           child: AppScaffold(
-            forceDark: true,
             backgroundColor: Colors.black,
             body: Stack(
               fit: StackFit.expand,
@@ -476,13 +506,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   flashOn: s.flashOn,
                   captureCount: s.count,
                   // The 1200 px preview once processed; a placeholder before.
-                  lastCapturePath: s.captures.lastOrNull?.thumbPath(getIt<FileStore>()),
+                  lastCapturePath: s.captures.lastOrNull?.thumbPath(
+                    getIt<FileStore>(),
+                  ),
                   canFinish: s.canFinish && !widget.args.retake,
                   showModes:
                       !widget.args.retake &&
                       !widget.args.returnPages &&
                       widget.args.addToDocumentId == null,
-                  capturing: _capturing ||
+                  capturing:
+                      _capturing ||
                       s.status == SessionStatus.preparing ||
                       _storage == StorageLevel.critical,
                   onClose: () => Navigator.of(context).maybePop(),
@@ -514,7 +547,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                     label: s.waitingForQueue && s.count > 0
                         ? l.cameraPreparingProgress(s.processed, s.count)
                         : l.sharePreparing,
-                    progress: s.waitingForQueue && s.count > 0 ? s.processed / s.count : null,
+                    progress: s.waitingForQueue && s.count > 0
+                        ? s.processed / s.count
+                        : null,
                   ),
               ],
             ),
@@ -527,8 +562,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   String _guideText(AppLocalizations l, ScanSessionState s) {
     // A retake shows the label of the side being replaced (P0-3).
     return switch (s.guide) {
-        GuideLabel.documentPage => l.cameraHintDocument,
-        GuideLabel.front || GuideLabel.back || GuideLabel.passport => l.cameraHintCard,
+      GuideLabel.documentPage => l.cameraHintDocument,
+      GuideLabel.front ||
+      GuideLabel.back ||
+      GuideLabel.passport => l.cameraHintCard,
     };
   }
 
@@ -569,7 +606,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
 /// Storage, blur and low-light notices above the camera controls.
 class _NoticeBanner extends StatelessWidget {
-  const _NoticeBanner({required this.text, required this.icon, this.actions = const []});
+  const _NoticeBanner({
+    required this.text,
+    required this.icon,
+    this.actions = const [],
+  });
 
   final String text;
   final AppIcons icon;
@@ -582,18 +623,32 @@ class _NoticeBanner extends StatelessWidget {
       color: const Color(0xE6202226),
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(Space.x3, Space.x2, Space.x1, Space.x2),
+        padding: const EdgeInsets.fromLTRB(
+          Space.x3,
+          Space.x2,
+          Space.x1,
+          Space.x2,
+        ),
         child: Row(
           children: [
             AppIcon(icon, size: 20, color: c.accent),
             const SizedBox(width: Space.x2),
             Expanded(
-              child: Text(text, style: context.text.bodySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+              child: Text(
+                text,
+                style: context.text.bodySmall?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             for (final (label, onTap) in actions)
               TextButton(
                 onPressed: onTap,
-                style: TextButton.styleFrom(foregroundColor: c.accent, minimumSize: const Size(Sizes.tap, Sizes.tap)),
+                style: TextButton.styleFrom(
+                  foregroundColor: c.accent,
+                  minimumSize: const Size(Sizes.tap, Sizes.tap),
+                ),
                 child: Text(label),
               ),
           ],
@@ -608,8 +663,8 @@ class _NoticeBanner extends StatelessWidget {
 /// `landscapeLeft` is the phone turned 90° counter-clockwise, so world-up
 /// is towards the photo's right edge and it needs 3 clockwise turns.
 int deviceTurns(DeviceOrientation o) => switch (o) {
-      DeviceOrientation.portraitUp => 0,
-      DeviceOrientation.landscapeRight => 1,
-      DeviceOrientation.portraitDown => 2,
-      DeviceOrientation.landscapeLeft => 3,
-    };
+  DeviceOrientation.portraitUp => 0,
+  DeviceOrientation.landscapeRight => 1,
+  DeviceOrientation.portraitDown => 2,
+  DeviceOrientation.landscapeLeft => 3,
+};

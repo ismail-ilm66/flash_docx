@@ -41,10 +41,16 @@ class _AdjustView extends StatelessWidget {
     final page = bloc.state.current;
     final shot = await context.push<RetakeShot>(
       Routes.camera,
-      extra: CameraArgs(retake: true, mode: bloc.state.args.mode, retakeSide: page?.side),
+      extra: CameraArgs(
+        retake: true,
+        mode: bloc.state.args.mode,
+        retakeSide: page?.side,
+      ),
     );
     if (shot != null && context.mounted) {
-      bloc.add(EditorPageRetaken(shot.path, guide: shot.guide, turns: shot.turns));
+      bloc.add(
+        EditorPageRetaken(shot.path, guide: shot.guide, turns: shot.turns),
+      );
     }
   }
 
@@ -77,7 +83,10 @@ class _AdjustView extends StatelessWidget {
         const showStrip = true;
         // P1-3: candidates are computed once per page, on demand.
         final magnetic = getIt<PrefsService>().magneticEdges;
-        if (magnetic && page != null && base != null && !s.snaps.containsKey(page.id)) {
+        if (magnetic &&
+            page != null &&
+            base != null &&
+            !s.snaps.containsKey(page.id)) {
           bloc.add(const EditorSnapsRequested());
         }
         final notFound = page != null && !page.edgesDetected;
@@ -89,7 +98,6 @@ class _AdjustView extends StatelessWidget {
             context.pop();
           },
           child: AppScaffold(
-            forceDark: true,
             topBar: AppTopBar(
               title: l.adjustTitle,
               subtitle: notFound

@@ -162,9 +162,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enhanceContrast => 'Contrast';
 
   @override
-  String get enhanceApplyAll => 'Apply to all pages';
-
-  @override
   String get enhanceAppliedAll => 'Applied to all pages';
 
   @override
@@ -570,17 +567,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String enhanceApplyAllHint(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'Same filter and sliders on $count pages',
-      one: 'Same filter and sliders on 1 page',
-    );
-    return '$_temp0';
-  }
-
-  @override
   String viewerCounter(int n, int total) {
     return '$n / $total';
   }
@@ -814,4 +800,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraCardBlurry => 'Card looks blurry';
+
+  @override
+  String get enhanceAdjust => 'Adjust';
+
+  @override
+  String enhanceAllPages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'All $count pages',
+      one: '1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get enhanceZoomIn => 'Zoom in';
+
+  @override
+  String get enhanceZoomOut => 'Zoom out';
 }

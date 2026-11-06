@@ -36,7 +36,8 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
   final Directory root;
   @override
-  Future<String?> getApplicationDocumentsPath() async => p.join(root.path, 'docs');
+  Future<String?> getApplicationDocumentsPath() async =>
+      p.join(root.path, 'docs');
   @override
   Future<String?> getTemporaryPath() async => p.join(root.path, 'tmp');
 }
@@ -69,11 +70,29 @@ void main() {
       edits: PageEdits(crop: Quad.full(inset: 0.1)),
       order: 0,
     );
-    when(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority')))
-        .thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
-    when(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')))
-        .thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
-    when(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath'))).thenAnswer((inv) async {
+    when(
+      () => proc.render(
+        any(),
+        any(),
+        size: any(named: 'size'),
+        outputPath: any(named: 'outputPath'),
+        jpegQuality: any(named: 'jpegQuality'),
+        priority: any(named: 'priority'),
+      ),
+    ).thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
+    when(
+      () => proc.renderLook(
+        any(),
+        any(),
+        workPath: any(named: 'workPath'),
+        outputPath: any(named: 'outputPath'),
+        cancel: any(named: 'cancel'),
+      ),
+    ).thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
+    when(
+      () =>
+          proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath')),
+    ).thenAnswer((inv) async {
       final out = inv.namedArguments[#outputPath] as String;
       File(out).writeAsBytesSync([1]);
       return out;
@@ -84,48 +103,103 @@ void main() {
 
   PageEditorBloc build() {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), args)..add(EditorStarted(args));
+    return PageEditorBloc(
+      proc,
+      files,
+      _Create(),
+      _Add(),
+      _Update(),
+      _Log(),
+      _Render(),
+      _Prepare(),
+      PreviewCache(proc, files),
+      args,
+    )..add(EditorStarted(args));
   }
 
-  Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 200));
+  Future<void> settle() =>
+      Future<void>.delayed(const Duration(milliseconds: 200));
 
-  test('reuses the base preview written by ingest instead of rendering it', () async {
-    final base = files.basePreviewPath(page.id, page.originalPath);
-    File(base).writeAsBytesSync([1]);
-    final bloc = build();
-    await settle();
-    expect(bloc.state.basePreview, base);
-    verifyNever(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority')));
-    await bloc.close();
-  });
+  test(
+    'reuses the base preview written by ingest instead of rendering it',
+    () async {
+      final base = files.basePreviewPath(page.id, page.originalPath);
+      File(base).writeAsBytesSync([1]);
+      final bloc = build();
+      await settle();
+      expect(bloc.state.basePreview, base);
+      verifyNever(
+        () => proc.render(
+          any(),
+          any(),
+          size: any(named: 'size'),
+          outputPath: any(named: 'outputPath'),
+          jpegQuality: any(named: 'jpegQuality'),
+          priority: any(named: 'priority'),
+        ),
+      );
+      await bloc.close();
+    },
+  );
 
   test('renders the base preview when it is missing', () async {
     final bloc = build();
     await settle();
-    expect(bloc.state.basePreview, files.basePreviewPath(page.id, page.originalPath));
-    verify(() => proc.render(any(), any(), size: RenderSize.preview, outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority'))).called(1);
+    expect(
+      bloc.state.basePreview,
+      files.basePreviewPath(page.id, page.originalPath),
+    );
+    verify(
+      () => proc.render(
+        any(),
+        any(),
+        size: RenderSize.preview,
+        outputPath: any(named: 'outputPath'),
+        jpegQuality: any(named: 'jpegQuality'),
+        priority: any(named: 'priority'),
+      ),
+    ).called(1);
     await bloc.close();
   });
 
-  test('sliders update edits without any new render; a filter change renders once', () async {
-    final bloc = build();
-    await settle();
-    clearInteractions(proc);
-    for (var v = 1; v <= 20; v++) {
-      bloc
-        ..add(EditorBrightnessChanged(v * 3.0))
-        ..add(EditorContrastChanged(-v * 2.0));
-    }
-    await settle();
-    expect(bloc.state.edits.brightness, 60);
-    expect(bloc.state.edits.contrast, -40);
-    verifyNever(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')));
+  test(
+    'sliders update edits without any new render; a filter change renders once',
+    () async {
+      final bloc = build();
+      await settle();
+      clearInteractions(proc);
+      for (var v = 1; v <= 20; v++) {
+        bloc
+          ..add(EditorBrightnessChanged(v * 3.0))
+          ..add(EditorContrastChanged(-v * 2.0));
+      }
+      await settle();
+      expect(bloc.state.edits.brightness, 60);
+      expect(bloc.state.edits.contrast, -40);
+      verifyNever(
+        () => proc.renderLook(
+          any(),
+          any(),
+          workPath: any(named: 'workPath'),
+          outputPath: any(named: 'outputPath'),
+          cancel: any(named: 'cancel'),
+        ),
+      );
 
-    bloc.add(const EditorFilterChanged(FilterType.bwPrint));
-    await settle();
-    verify(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel'))).called(1);
-    await bloc.close();
-  });
+      bloc.add(const EditorFilterChanged(FilterType.bwPrint));
+      await settle();
+      verify(
+        () => proc.renderLook(
+          any(),
+          any(),
+          workPath: any(named: 'workPath'),
+          outputPath: any(named: 'outputPath'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).called(1);
+      await bloc.close();
+    },
+  );
 
   test('a corner drag that would bend the crop is rejected', () async {
     final bloc = build();
@@ -142,91 +216,256 @@ void main() {
     await bloc.close();
   });
 
-  test('P0-3: retaking page 2 of an ID scan keeps its side, place, card shape and look', () async {
-    final prepare = _Prepare();
-    final front = page.copyWith(id: 'front', side: CardSide.front, order: 0);
-    final back = page.copyWith(
-      id: 'back',
-      side: CardSide.back,
-      order: 1,
-      edits: const PageEdits(filter: FilterType.bwPrint, brightness: 12, outputAspect: 85.6 / 54),
-    );
-    const args = EditorArgs(pages: [], mode: ScanMode.idCard);
-    final bloc = PageEditorBloc(
-      proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), prepare, PreviewCache(proc, files),
-      EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
-    );
-    const guide = Quad(tl: Pt(0.1, 0.3), tr: Pt(0.9, 0.3), br: Pt(0.9, 0.6), bl: Pt(0.1, 0.6));
-    final shot = files.newCapturePath('retake_raw');
-    File(shot).writeAsBytesSync([1]);
-    final fresh = files.newCapturePath('back_new');
-    File(fresh).writeAsBytesSync([1]);
-    when(
-      () => prepare(
-        any(),
-        mode: any(named: 'mode'),
-        sides: any(named: 'sides'),
-        fallbacks: any(named: 'fallbacks'),
-        turns: any(named: 'turns'),
-        ids: any(named: 'ids'),
-        copySource: any(named: 'copySource'),
-        onPrepared: any(named: 'onPrepared'),
-      ),
-    ).thenAnswer(
-      (inv) async => Right([
-        ScanPage(
-          id: (inv.namedArguments[#ids] as List<String>).single,
-          documentId: '',
-          originalPath: fresh,
-          edits: const PageEdits(crop: guide, filter: FilterType.idColor, outputAspect: 85.6 / 54, quarterTurns: 2),
-          order: 0,
-          side: (inv.namedArguments[#sides] as List<CardSide?>).single,
+  test(
+    'P0-3: retaking page 2 of an ID scan keeps its side, place, card shape and look',
+    () async {
+      final prepare = _Prepare();
+      final front = page.copyWith(id: 'front', side: CardSide.front, order: 0);
+      final back = page.copyWith(
+        id: 'back',
+        side: CardSide.back,
+        order: 1,
+        edits: const PageEdits(
+          filter: FilterType.bwPrint,
+          brightness: 12,
+          outputAspect: 85.6 / 54,
         ),
-      ]),
+      );
+      const args = EditorArgs(pages: [], mode: ScanMode.idCard);
+      final bloc = PageEditorBloc(
+        proc,
+        files,
+        _Create(),
+        _Add(),
+        _Update(),
+        _Log(),
+        _Render(),
+        prepare,
+        PreviewCache(proc, files),
+        EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
+      );
+      const guide = Quad(
+        tl: Pt(0.1, 0.3),
+        tr: Pt(0.9, 0.3),
+        br: Pt(0.9, 0.6),
+        bl: Pt(0.1, 0.6),
+      );
+      final shot = files.newCapturePath('retake_raw');
+      File(shot).writeAsBytesSync([1]);
+      final fresh = files.newCapturePath('back_new');
+      File(fresh).writeAsBytesSync([1]);
+      when(
+        () => prepare(
+          any(),
+          mode: any(named: 'mode'),
+          sides: any(named: 'sides'),
+          fallbacks: any(named: 'fallbacks'),
+          turns: any(named: 'turns'),
+          ids: any(named: 'ids'),
+          copySource: any(named: 'copySource'),
+          onPrepared: any(named: 'onPrepared'),
+        ),
+      ).thenAnswer(
+        (inv) async => Right([
+          ScanPage(
+            id: (inv.namedArguments[#ids] as List<String>).single,
+            documentId: '',
+            originalPath: fresh,
+            edits: const PageEdits(
+              crop: guide,
+              filter: FilterType.idColor,
+              outputAspect: 85.6 / 54,
+              quarterTurns: 2,
+            ),
+            order: 0,
+            side: (inv.namedArguments[#sides] as List<CardSide?>).single,
+          ),
+        ]),
+      );
+
+      bloc.add(const EditorPageRetaken('placeholder', guide: guide, turns: 3));
+      await settle();
+      // The event carries the raw shot; use a real file for the call check.
+      final call = verify(
+        () => prepare(
+          captureAny(),
+          mode: captureAny(named: 'mode'),
+          sides: captureAny(named: 'sides'),
+          fallbacks: captureAny(named: 'fallbacks'),
+          turns: captureAny(named: 'turns'),
+          ids: captureAny(named: 'ids'),
+          copySource: any(named: 'copySource'),
+          onPrepared: any(named: 'onPrepared'),
+        ),
+      )..called(1);
+      expect(call.captured[1], ScanMode.idCard, reason: 'same mode');
+      expect(call.captured[2], [CardSide.back], reason: 'same side');
+      expect(call.captured[3], [guide], reason: 'guide fallback passed on');
+      expect(call.captured[4], [3], reason: 'phone orientation passed on');
+      expect(call.captured[5], ['back'], reason: 'same page id');
+
+      expect(bloc.state.index, 1);
+      final p2 = bloc.state.pages[1];
+      expect(p2.id, 'back');
+      expect(p2.side, CardSide.back);
+      expect(p2.originalPath, fresh);
+      expect(
+        p2.edits.outputAspect,
+        closeTo(85.6 / 54, 1e-9),
+        reason: 'card shape',
+      );
+      expect(
+        p2.edits.quarterTurns,
+        2,
+        reason: 'auto-orientation of the new photo',
+      );
+      expect(p2.edits.filter, FilterType.bwPrint, reason: 'look kept');
+      expect(p2.edits.brightness, 12);
+      expect(bloc.state.pages[0].id, 'front', reason: 'other page untouched');
+      await bloc.close();
+    },
+  );
+
+  test(
+    'P0-4: Enhance shows the crop-only placeholder, never the uncropped photo',
+    () async {
+      final bloc = build();
+      await settle();
+      final shown = bloc.state.shownPreview;
+      expect(shown, isNotNull);
+      expect(
+        shown,
+        isNot(bloc.state.basePreview),
+        reason: 'base preview is the uncropped photo',
+      );
+      expect(shown, isNot(page.originalPath));
+      expect(
+        bloc.state.comparePreview,
+        files.quickPath(page.id, page.originalPath, page.edits),
+      );
+      await bloc.close();
+    },
+  );
+
+  group('P1-1 Enhance', () {
+    PageEditorBloc buildTwo({String? documentId}) {
+      final args = EditorArgs(
+        pages: [
+          page.copyWith(edits: page.edits.copyWith(filter: FilterType.auto)),
+          page.copyWith(
+            id: 'p2',
+            order: 1,
+            edits: page.edits.copyWith(filter: FilterType.auto),
+          ),
+        ],
+        mode: ScanMode.document,
+        documentId: documentId,
+      );
+      return PageEditorBloc(
+        proc,
+        files,
+        _Create(),
+        _Add(),
+        _Update(),
+        _Log(),
+        _Render(),
+        _Prepare(),
+        PreviewCache(proc, files),
+        args,
+      )..add(EditorStarted(args));
+    }
+
+    test(
+      'a new scan starts with "All N pages" on: a filter goes to every page; Reset brings all back to Auto',
+      () async {
+        final bloc = buildTwo();
+        await settle();
+        expect(bloc.state.applyAll, isTrue);
+        expect(bloc.state.canReset, isFalse, reason: 'already at the default');
+
+        bloc
+          ..add(const EditorFilterChanged(FilterType.bwPrint))
+          ..add(const EditorBrightnessChanged(20));
+        await settle();
+        expect(bloc.state.pages.map((p) => p.edits.filter), [
+          FilterType.bwPrint,
+          FilterType.bwPrint,
+        ]);
+        expect(bloc.state.pages.map((p) => p.edits.brightness), [20, 20]);
+        expect(bloc.state.canReset, isTrue);
+
+        bloc.add(const EditorLookReset());
+        await settle();
+        expect(bloc.state.pages.map((p) => p.edits.filter), [
+          FilterType.auto,
+          FilterType.auto,
+        ]);
+        expect(bloc.state.pages.map((p) => p.edits.brightness), [0, 0]);
+        expect(
+          bloc.state.pages.first.edits.crop,
+          page.edits.crop,
+          reason: 'Reset never touches the crop',
+        );
+        expect(bloc.state.canReset, isFalse);
+        await bloc.close();
+      },
     );
 
-    bloc.add(const EditorPageRetaken('placeholder', guide: guide, turns: 3));
-    await settle();
-    // The event carries the raw shot; use a real file for the call check.
-    final call = verify(
-      () => prepare(
-        captureAny(),
-        mode: captureAny(named: 'mode'),
-        sides: captureAny(named: 'sides'),
-        fallbacks: captureAny(named: 'fallbacks'),
-        turns: captureAny(named: 'turns'),
-        ids: captureAny(named: 'ids'),
-        copySource: any(named: 'copySource'),
-        onPrepared: any(named: 'onPrepared'),
-      ),
-    )..called(1);
-    expect(call.captured[1], ScanMode.idCard, reason: 'same mode');
-    expect(call.captured[2], [CardSide.back], reason: 'same side');
-    expect(call.captured[3], [guide], reason: 'guide fallback passed on');
-    expect(call.captured[4], [3], reason: 'phone orientation passed on');
-    expect(call.captured[5], ['back'], reason: 'same page id');
+    test(
+      'editing a saved document starts with the switch off and changes only the current page',
+      () async {
+        final bloc = buildTwo(documentId: 'doc');
+        await settle();
+        expect(bloc.state.applyAll, isFalse);
+        bloc.add(const EditorFilterChanged(FilterType.grayscale));
+        await settle();
+        expect(bloc.state.pages.map((p) => p.edits.filter), [
+          FilterType.grayscale,
+          FilterType.auto,
+        ]);
 
-    expect(bloc.state.index, 1);
-    final p2 = bloc.state.pages[1];
-    expect(p2.id, 'back');
-    expect(p2.side, CardSide.back);
-    expect(p2.originalPath, fresh);
-    expect(p2.edits.outputAspect, closeTo(85.6 / 54, 1e-9), reason: 'card shape');
-    expect(p2.edits.quarterTurns, 2, reason: 'auto-orientation of the new photo');
-    expect(p2.edits.filter, FilterType.bwPrint, reason: 'look kept');
-    expect(p2.edits.brightness, 12);
-    expect(bloc.state.pages[0].id, 'front', reason: 'other page untouched');
-    await bloc.close();
-  });
+        // Turning the switch on spreads the current look.
+        bloc.add(const EditorApplyAllToggled(true));
+        await settle();
+        expect(bloc.state.pages.map((p) => p.edits.filter), [
+          FilterType.grayscale,
+          FilterType.grayscale,
+        ]);
+        await bloc.close();
+      },
+    );
 
-  test('P0-4: Enhance shows the crop-only placeholder, never the uncropped photo', () async {
-    final bloc = build();
-    await settle();
-    final shown = bloc.state.shownPreview;
-    expect(shown, isNotNull);
-    expect(shown, isNot(bloc.state.basePreview), reason: 'base preview is the uncropped photo');
-    expect(shown, isNot(page.originalPath));
-    expect(bloc.state.comparePreview, files.quickPath(page.id, page.originalPath, page.edits));
-    await bloc.close();
+    test('filter thumbnails render once per page look', () async {
+      when(
+        () => proc.renderFilterStrip(
+          any(),
+          any(),
+          outputs: any(named: 'outputs'),
+        ),
+      ).thenAnswer((inv) async {
+        for (final out
+            in (inv.namedArguments[#outputs] as Map<FilterType, String>)
+                .values) {
+          File(out).writeAsBytesSync([1]);
+        }
+      });
+      final bloc = build();
+      await settle();
+      bloc.add(const EditorFilterThumbsRequested());
+      await settle();
+      bloc.add(const EditorFilterThumbsRequested());
+      await settle();
+      final thumbs = bloc.state.filterThumbs[page.id]!;
+      expect(thumbs.keys, FilterType.values);
+      expect(thumbs.values.toSet().length, FilterType.values.length);
+      verify(
+        () => proc.renderFilterStrip(
+          any(),
+          any(),
+          outputs: any(named: 'outputs'),
+        ),
+      ).called(1);
+      await bloc.close();
+    });
   });
 }

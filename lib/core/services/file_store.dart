@@ -38,7 +38,8 @@ class FileStore {
     ]);
   }
 
-  Directory docDir(String docId) => Directory(p.join(_root.path, 'docs', docId));
+  Directory docDir(String docId) =>
+      Directory(p.join(_root.path, 'docs', docId));
 
   String originalPath(String docId, String pageId) =>
       p.join(docDir(docId).path, 'original', '$pageId.jpg');
@@ -52,11 +53,17 @@ class FileStore {
       p.join(docDir(docId).path, 'processed', '${pageId}_ocr_$cropKey.jpg');
 
   /// Removes stale OCR images for [pageId] other than [keep].
-  Future<void> pruneOcrImages(String docId, String pageId, {String? keep}) async {
+  Future<void> pruneOcrImages(
+    String docId,
+    String pageId, {
+    String? keep,
+  }) async {
     final dir = Directory(p.join(docDir(docId).path, 'processed'));
     if (!dir.existsSync()) return;
     await for (final f in dir.list()) {
-      if (f is File && p.basename(f.path).startsWith('${pageId}_ocr_') && f.path != keep) {
+      if (f is File &&
+          p.basename(f.path).startsWith('${pageId}_ocr_') &&
+          f.path != keep) {
         await f.delete();
       }
     }
@@ -68,38 +75,67 @@ class FileStore {
       p.join(_captureTemp.path, 'base_${pageId}_${_stamp(originalPath)}.jpg');
 
   /// Cropped + rotated page at preview size, reused while switching filters.
-  String workPath(String pageId, String originalPath, PageEdits edits) => p.join(
-        _captureTemp.path,
-        'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.jpg',
-      );
+  String workPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.jpg',
+  );
 
   /// Enhance preview for one filter (sliders are applied live, not baked).
-  String lookPath(String pageId, String originalPath, PageEdits edits) => p.join(
-        _captureTemp.path,
-        'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.filter)}.jpg',
-      );
+  String lookPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.filter)}.jpg',
+  );
 
   /// The fast crop-only placeholder (P0-4) for one crop / rotation.
-  String quickPath(String pageId, String originalPath, PageEdits edits) => p.join(
-        _captureTemp.path,
-        'quick_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
-      );
+  String quickPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'quick_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
+  );
+
+  /// One 160 px filter thumbnail for Enhance's filter strip.
+  String stripPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+    FilterType filter,
+  ) => p.join(
+    _captureTemp.path,
+    'strip_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}_${filter.name}.jpg',
+  );
 
   /// Identifies one version of an original: its path plus modification time,
   /// so a retake saved over the same path still gets fresh previews.
   int _stamp(String originalPath) {
     final f = File(originalPath);
-    final mtime = f.existsSync() ? f.lastModifiedSync().microsecondsSinceEpoch : 0;
+    final mtime = f.existsSync()
+        ? f.lastModifiedSync().microsecondsSinceEpoch
+        : 0;
     return Object.hash(originalPath, mtime);
   }
 
   /// True when [path] already lives inside the document's folder.
-  bool isInDoc(String docId, String path) => p.isWithin(docDir(docId).path, path);
+  bool isInDoc(String docId, String path) =>
+      p.isWithin(docDir(docId).path, path);
 
   /// New, never-before-used file names for a page's viewer caches. A fresh
   /// name means Flutter's image cache can never show a stale render, so
   /// nothing has to be evicted. Old versions are removed by [pruneCaches].
-  ({String processed, String thumb}) newCachePaths(String docId, String pageId) {
+  ({String processed, String thumb}) newCachePaths(
+    String docId,
+    String pageId,
+  ) {
     final v = DateTime.now().microsecondsSinceEpoch;
     return (
       processed: p.join(docDir(docId).path, 'processed', '${pageId}_v$v.jpg'),
@@ -108,7 +144,11 @@ class FileStore {
   }
 
   /// Deletes a page's cache files except [keep] (legacy fixed names too).
-  Future<void> pruneCaches(String docId, String pageId, {Set<String> keep = const {}}) async {
+  Future<void> pruneCaches(
+    String docId,
+    String pageId, {
+    Set<String> keep = const {},
+  }) async {
     for (final sub in ['processed', 'thumb']) {
       final dir = Directory(p.join(docDir(docId).path, sub));
       if (!dir.existsSync()) continue;

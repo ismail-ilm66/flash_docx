@@ -61,7 +61,6 @@
   "enhanceTitle": "Enhance",
   "enhanceBrightness": "Brightness",
   "enhanceContrast": "Contrast",
-  "enhanceApplyAll": "Apply to all pages",
   "enhanceAppliedAll": "Applied to all pages",
   "enhanceHoldToCompare": "Hold to compare",
   "enhanceDone": "Done",
@@ -238,14 +237,6 @@
       }
     }
   },
-  "enhanceApplyAllHint": "{count, plural, =1{Same filter and sliders on 1 page} other{Same filter and sliders on {count} pages}}",
-  "@enhanceApplyAllHint": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "viewerCounter": "{n} / {total}",
   "@viewerCounter": {
     "placeholders": {
@@ -362,22 +353,36 @@
   "unlockNeedsInternet": "Needs internet for the video",
   "settingsChoose": "Choose",
   "addFromCamera": "Camera",
-
   "backLeaveTitle": "Leave Flash Dox?",
   "backLeave": "Leave",
   "backStay": "Stay",
   "discardScanTitle": "Discard this scan?",
   "discardScanBody": "{count, plural, =1{1 page will be lost.} other{{count} pages will be lost.}}",
-  "@discardScanBody": {"placeholders": {"count": {"type": "int"}}},
+  "@discardScanBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "discardScan": "Discard",
   "keepScanning": "Keep scanning",
-  "adjustEdgesNotFound": "Couldn't find the edges \u2014 drag the corners",
+  "adjustEdgesNotFound": "Couldn't find the edges — drag the corners",
   "settingsShutterSound": "Shutter sound",
   "settingsDefaultQuality": "Default quality",
   "printCutGuides": "Cut guides",
   "printSwapSides": "Swap front/back",
   "printSheetOf": "Sheet {n} of {total}",
-  "@printSheetOf": {"placeholders": {"n": {"type": "int"}, "total": {"type": "int"}}},
+  "@printSheetOf": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "shareLayout": "Layout",
   "shareLayoutOneImage": "One image (front + back)",
   "shareLayoutSeparate": "Separate images",
@@ -385,16 +390,36 @@
   "cameraBlurryTitle": "Photo looks blurry",
   "cameraRetake": "Retake",
   "cameraKeep": "Keep",
-  "cameraDark": "It's dark \u2014 turn on the flash for a sharper scan.",
+  "cameraDark": "It's dark — turn on the flash for a sharper scan.",
   "cameraUnreadable": "That photo couldn't be read. Please take it again.",
-  "cameraStorageLow": "Your phone storage is almost full \u2014 scans may be slow.",
+  "cameraStorageLow": "Your phone storage is almost full — scans may be slow.",
   "cameraStorageFull": "Not enough storage to save scans. Free up space and try again.",
-  "cameraPreparingProgress": "Preparing {done} of {total}\u2026",
-  "@cameraPreparingProgress": {"placeholders": {"done": {"type": "int"}, "total": {"type": "int"}}},
+  "cameraPreparingProgress": "Preparing {done} of {total}…",
+  "@cameraPreparingProgress": {
+    "placeholders": {
+      "done": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "settingsMagneticEdges": "Magnetic edges",
-  "printQualityStandard": "Standard \u00b7 300 DPI",
-  "printQualityHigh": "High \u00b7 600 DPI",
-  "cameraHintDocument": "Hold steady \u00b7 edges are found automatically",
-  "cameraHintCard": "Fit the card in the frame \u00b7 move back if it's blurry",
-  "cameraCardBlurry": "Card looks blurry"
+  "printQualityStandard": "Standard · 300 DPI",
+  "printQualityHigh": "High · 600 DPI",
+  "cameraHintDocument": "Hold steady · edges are found automatically",
+  "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
+  "cameraCardBlurry": "Card looks blurry",
+  "enhanceAdjust": "Adjust",
+  "enhanceAllPages": "{count, plural, =1{1 page} other{All {count} pages}}",
+  "@enhanceAllPages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "enhanceZoomIn": "Zoom in",
+  "enhanceZoomOut": "Zoom out"
 }

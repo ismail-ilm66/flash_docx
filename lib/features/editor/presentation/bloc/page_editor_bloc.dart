@@ -39,7 +39,13 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._prepare,
     this._previews,
     @factoryParam EditorArgs args,
-  ) : super(PageEditorState(args: args, pages: args.pages, index: args.initialIndex)) {
+  ) : super(
+        PageEditorState(
+          args: args,
+          pages: args.pages,
+          index: args.initialIndex,
+        ),
+      ) {
     on<EditorStarted>(_onStarted);
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
@@ -50,7 +56,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorBrightnessChanged>(_onBrightness);
     on<EditorContrastChanged>(_onContrast);
     on<EditorLookReset>(_onLookReset);
-    on<EditorApplyLookToAll>(_onApplyToAll);
     on<EditorPagesAdded>(_onPagesAdded);
     on<EditorPageDeleted>(_onPageDeleted);
     on<EditorPageRetaken>(_onRetaken);
@@ -64,6 +69,11 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     );
     on<EditorSaveRequested>(_onSave);
     on<EditorCropChanged>(_onCropChanged);
+    on<EditorApplyAllToggled>((e, emit) {
+      emit(state.copyWith(applyAll: e.on));
+      if (e.on) _spreadLook(emit);
+    });
+    on<EditorFilterThumbsRequested>(_onFilterThumbs);
     on<EditorSnapsRequested>(_onSnapsRequested);
   }
 
@@ -81,19 +91,23 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   /// editor screens pop without asking again.
   bool popAllowed = false;
 
-  bool get holdsUnsavedScan => state.args.isNewDocument || state.args.addingPages;
+  bool get holdsUnsavedScan =>
+      state.args.isNewDocument || state.args.addingPages;
   bool get guardBack => holdsUnsavedScan && !popAllowed;
 
   static EventTransformer<E> _debounceRestartable<E>(Duration d) {
     return (events, mapper) => restartable<E>()(
-          events.transform(_DebounceTransformer<E>(d)),
-          mapper,
-        );
+      events.transform(_DebounceTransformer<E>(d)),
+      mapper,
+    );
   }
 
   // ---------- lifecycle ----------
 
-  Future<void> _onStarted(EditorStarted e, Emitter<PageEditorState> emit) async {
+  Future<void> _onStarted(
+    EditorStarted e,
+    Emitter<PageEditorState> emit,
+  ) async {
     emit(state.copyWith(status: EditorStatus.loading, clearFailure: true));
     try {
       // Base previews: upright original, downscaled, no crop/filter. New
@@ -169,7 +183,10 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     _updateCurrent(
       emit,
       (ed) {
-        final q = (ed.crop ?? Quad.full()).withPoint(e.corner, e.point.clamp01());
+        final q = (ed.crop ?? Quad.full()).withPoint(
+          e.corner,
+          e.point.clamp01(),
+        );
         // A bent or self-crossing shape is rejected: the corner stays put.
         if (!q.isConvex || q.area < 0.01) return ed;
         return ed.copyWith(crop: q);
@@ -187,12 +204,22 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
 
   final Set<String> _snapsInFlight = {};
 
-  Future<void> _onSnapsRequested(EditorSnapsRequested e, Emitter<PageEditorState> emit) async {
+  Future<void> _onSnapsRequested(
+    EditorSnapsRequested e,
+    Emitter<PageEditorState> emit,
+  ) async {
     final cur = state.current;
     final base = state.basePreview;
-    if (cur == null || base == null || state.snaps.containsKey(cur.id) || !_snapsInFlight.add(cur.id)) return;
+    if (cur == null ||
+        base == null ||
+        state.snaps.containsKey(cur.id) ||
+        !_snapsInFlight.add(cur.id))
+      return;
     try {
-      final c = await _processor.snapCandidates(base, aspectHint: ScanModeRules.of(state.args.mode).aspectRatio);
+      final c = await _processor.snapCandidates(
+        base,
+        aspectHint: ScanModeRules.of(state.args.mode).aspectRatio,
+      );
       if (!isClosed) emit(state.copyWith(snaps: {...state.snaps, cur.id: c}));
     } catch (err) {
       debugPrint('snap candidates failed: $err');
@@ -201,8 +228,48 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     }
   }
 
+  final Set<String> _thumbsInFlight = {};
+
+  Future<void> _onFilterThumbs(
+    EditorFilterThumbsRequested e,
+    Emitter<PageEditorState> emit,
+  ) async {
+    final cur = state.current;
+    if (cur == null) return;
+    final outputs = {
+      for (final f in FilterType.values)
+        f: _files.stripPath(cur.id, cur.originalPath, cur.edits, f),
+    };
+    final key = outputs[FilterType.original]!;
+    if (state.filterThumbs[cur.id]?[FilterType.original] == key ||
+        !_thumbsInFlight.add(key))
+      return;
+    try {
+      if (!outputs.values.every((p) => File(p).existsSync())) {
+        await _processor.renderFilterStrip(
+          cur.originalPath,
+          cur.edits,
+          outputs: outputs,
+        );
+      }
+      if (!isClosed)
+        emit(
+          state.copyWith(
+            filterThumbs: {...state.filterThumbs, cur.id: outputs},
+          ),
+        );
+    } catch (err) {
+      debugPrint('filter strip failed: $err');
+    } finally {
+      _thumbsInFlight.remove(key);
+    }
+  }
+
   void _onRotated(EditorRotated e, Emitter<PageEditorState> emit) {
-    _updateCurrent(emit, (ed) => e.clockwise ? ed.rotateRight() : ed.rotateLeft());
+    _updateCurrent(
+      emit,
+      (ed) => e.clockwise ? ed.rotateRight() : ed.rotateLeft(),
+    );
   }
 
   Future<void> _onAutoEdges(
@@ -221,36 +288,66 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     final pages = [...state.pages];
     pages[state.index] = cur.copyWith(edgesDetected: quad != null);
     emit(state.copyWith(pages: pages));
-    _updateCurrent(emit, (ed) => ed.copyWith(crop: quad ?? Quad.full(inset: 0.05)));
+    _updateCurrent(
+      emit,
+      (ed) => ed.copyWith(crop: quad ?? Quad.full(inset: 0.05)),
+    );
   }
 
   void _onFilter(EditorFilterChanged e, Emitter<PageEditorState> emit) {
     _updateCurrent(emit, (ed) => ed.copyWith(filter: e.filter));
+    _spreadLook(emit);
+  }
+
+  /// With "All N pages" on, the current page's look goes to every page.
+  void _spreadLook(Emitter<PageEditorState> emit) {
+    final cur = state.current;
+    if (!state.applyAll || cur == null || state.pages.length < 2) return;
+    final pages = [
+      for (final pg in state.pages)
+        pg.id == cur.id ||
+                (pg.edits.filter == cur.edits.filter &&
+                    pg.edits.brightness == cur.edits.brightness &&
+                    pg.edits.contrast == cur.edits.contrast)
+            ? pg
+            : pg.withEdits(pg.edits.applyLook(cur.edits)),
+    ];
+    emit(state.copyWith(pages: pages));
   }
 
   void _onBrightness(EditorBrightnessChanged e, Emitter<PageEditorState> emit) {
-    _updateCurrent(emit, (ed) => ed.copyWith(brightness: e.value), preview: false);
+    _updateCurrent(
+      emit,
+      (ed) => ed.copyWith(brightness: e.value),
+      preview: false,
+    );
+    _spreadLook(emit);
   }
 
   void _onContrast(EditorContrastChanged e, Emitter<PageEditorState> emit) {
-    _updateCurrent(emit, (ed) => ed.copyWith(contrast: e.value), preview: false);
-  }
-
-  void _onLookReset(EditorLookReset e, Emitter<PageEditorState> emit) {
     _updateCurrent(
       emit,
-      (ed) => ed.copyWith(filter: FilterType.auto, brightness: 0, contrast: 0),
+      (ed) => ed.copyWith(contrast: e.value),
+      preview: false,
     );
+    _spreadLook(emit);
   }
 
-  void _onApplyToAll(EditorApplyLookToAll e, Emitter<PageEditorState> emit) {
-    final cur = state.current;
-    if (cur == null) return;
-    final pages = [
-      for (final pg in state.pages)
-        pg.id == cur.id ? pg : pg.withEdits(pg.edits.applyLook(cur.edits)),
-    ];
-    emit(state.copyWith(pages: pages, appliedToAllTick: state.appliedToAllTick + 1));
+  /// Reset (P1-1): filter and sliders back to the mode default; the crop is
+  /// left alone. With "All N pages" on, every page.
+  void _onLookReset(EditorLookReset e, Emitter<PageEditorState> emit) {
+    PageEdits reset(PageEdits ed) =>
+        ed.copyWith(filter: state.defaultFilter, brightness: 0, contrast: 0);
+    if (state.applyAll) {
+      final pages = [
+        for (final pg in state.pages)
+          pg.edits == reset(pg.edits) ? pg : pg.withEdits(reset(pg.edits)),
+      ];
+      emit(state.copyWith(pages: pages));
+      add(const EditorPreviewRequested());
+    } else {
+      _updateCurrent(emit, reset);
+    }
   }
 
   void _onPagesAdded(EditorPagesAdded e, Emitter<PageEditorState> emit) {
@@ -268,11 +365,19 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   void _onPageDeleted(EditorPageDeleted e, Emitter<PageEditorState> emit) {
     if (state.pages.isEmpty) return;
     final pages = [...state.pages]..removeAt(state.index);
-    emit(state.copyWith(pages: pages, index: state.index.clamp(0, pages.isEmpty ? 0 : pages.length - 1)));
+    emit(
+      state.copyWith(
+        pages: pages,
+        index: state.index.clamp(0, pages.isEmpty ? 0 : pages.length - 1),
+      ),
+    );
     if (pages.isNotEmpty) add(const EditorPreviewRequested());
   }
 
-  Future<void> _onRetaken(EditorPageRetaken e, Emitter<PageEditorState> emit) async {
+  Future<void> _onRetaken(
+    EditorPageRetaken e,
+    Emitter<PageEditorState> emit,
+  ) async {
     final cur = state.current;
     if (cur == null) return;
     emit(state.copyWith(status: EditorStatus.loading));
@@ -289,9 +394,15 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         ids: [cur.id],
         copySource: false,
       );
-      final fresh = r.fold((f) => throw StateError('$f'), (pages) => pages.single);
+      final fresh = r.fold(
+        (f) => throw StateError('$f'),
+        (pages) => pages.single,
+      );
       final replaced = cur
-          .copyWith(originalPath: fresh.originalPath, edgesDetected: fresh.edgesDetected)
+          .copyWith(
+            originalPath: fresh.originalPath,
+            edgesDetected: fresh.edgesDetected,
+          )
           .withEdits(
             fresh.edits.copyWith(
               filter: cur.edits.filter,
@@ -302,10 +413,21 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       final pages = [...state.pages];
       pages[state.index] = replaced;
       final base = Map<String, String>.from(state.basePreviews)..remove(cur.id);
-      emit(state.copyWith(pages: pages, basePreviews: base, status: EditorStatus.idle));
+      emit(
+        state.copyWith(
+          pages: pages,
+          basePreviews: base,
+          status: EditorStatus.idle,
+        ),
+      );
       add(EditorStarted(state.args));
     } catch (err) {
-      emit(state.copyWith(status: EditorStatus.failed, failure: ImageProcessingFailure(err.toString())));
+      emit(
+        state.copyWith(
+          status: EditorStatus.failed,
+          failure: ImageProcessingFailure(err.toString()),
+        ),
+      );
     }
   }
 
@@ -325,14 +447,20 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(rendering: true));
     // 1. A crop-only placeholder first, if nothing better is on screen.
     final quickKey = cur.id;
-    final hasQuick = state.quickPreviews[quickKey] != null &&
-        _files.quickPath(cur.id, cur.originalPath, cur.edits) == state.quickPreviews[quickKey];
+    final hasQuick =
+        state.quickPreviews[quickKey] != null &&
+        _files.quickPath(cur.id, cur.originalPath, cur.edits) ==
+            state.quickPreviews[quickKey];
     if (!hasQuick) {
       try {
         final q = await _previews.quick(cur);
         if (isClosed) return;
-        emit(state.copyWith(quickPreviews: {...state.quickPreviews, quickKey: q}));
-        debugPrint('[perf] enhance first image in ${sw.elapsedMilliseconds} ms');
+        emit(
+          state.copyWith(quickPreviews: {...state.quickPreviews, quickKey: q}),
+        );
+        debugPrint(
+          '[perf] enhance first image in ${sw.elapsedMilliseconds} ms',
+        );
       } catch (_) {}
     }
     // 2. The filtered preview; a newer request cancels this one if it hasn't
@@ -354,19 +482,29 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       map[key] = out;
       _previews.remember(cur.id, out);
       emit(state.copyWith(enhancePreviews: map, rendering: false));
-      debugPrint('[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMilliseconds} ms');
+      debugPrint(
+        '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMilliseconds} ms',
+      );
     } on JobCancelled {
       // Superseded by a newer request; it will set `rendering` itself.
     } catch (err) {
       if (!isClosed) {
-        emit(state.copyWith(rendering: false, failure: ImageProcessingFailure(err.toString())));
+        emit(
+          state.copyWith(
+            rendering: false,
+            failure: ImageProcessingFailure(err.toString()),
+          ),
+        );
       }
     }
   }
 
   // ---------- save ----------
 
-  Future<void> _onSave(EditorSaveRequested e, Emitter<PageEditorState> emit) async {
+  Future<void> _onSave(
+    EditorSaveRequested e,
+    Emitter<PageEditorState> emit,
+  ) async {
     if (state.pages.isEmpty) return;
     emit(state.copyWith(status: EditorStatus.saving, clearFailure: true));
     final args = state.args;
@@ -391,30 +529,40 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
                   ),
         ];
       } catch (err) {
-        emit(state.copyWith(status: EditorStatus.failed, failure: StorageFailure(err.toString())));
+        emit(
+          state.copyWith(
+            status: EditorStatus.failed,
+            failure: StorageFailure(err.toString()),
+          ),
+        );
         return;
       }
     }
     final result = args.isNewDocument
         ? await _createDocument(mode: args.mode, pages: pages)
         : args.addingPages
-            ? (await _addPages(args.documentId!, pages)).map((_) => null)
-            : (await _updatePages(pages)).map((_) => null);
+        ? (await _addPages(args.documentId!, pages)).map((_) => null)
+        : (await _updatePages(pages)).map((_) => null);
 
     await result.fold(
-      (f) async => emit(state.copyWith(status: EditorStatus.failed, failure: f)),
+      (f) async =>
+          emit(state.copyWith(status: EditorStatus.failed, failure: f)),
       (doc) async {
         final docId = doc?.id ?? args.documentId!;
         if (!args.isNewDocument && !args.addingPages) {
           await _logActivity(docId, ActivityType.edited);
         }
         popAllowed = true;
-        emit(state.copyWith(status: EditorStatus.saved, savedDocumentId: docId));
+        emit(
+          state.copyWith(status: EditorStatus.saved, savedDocumentId: docId),
+        );
         // Warm caches in the background; the viewer shows originals until then.
         unawaited(
-          _renderService.ensureCachesFor(docId).catchError(
-            (Object e) => debugPrint('cache warm failed: $e'),
-          ),
+          _renderService
+              .ensureCachesFor(docId)
+              .catchError(
+                (Object e) => debugPrint('cache warm failed: $e'),
+              ),
         );
       },
     );

@@ -52,7 +52,11 @@ class OpenCvImageProcessor implements ImageProcessor {
     );
     debugPrint('[ingest] ${r.log}');
     return AutoEditsResult(
-      edits: PageEdits(crop: r.quad ?? pipe.fallbackQuad(guide: guide), filter: filter, outputAspect: outputAspect),
+      edits: PageEdits(
+        crop: r.quad ?? pipe.fallbackQuad(guide: guide),
+        filter: filter,
+        outputAspect: outputAspect,
+      ),
       detected: r.quad != null,
       sharpness: r.sharpness,
       cardSharpness: r.cardSharpness,
@@ -81,10 +85,34 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
-  Future<String> renderQuick(String originalPath, PageEdits edits, {required String outputPath}) {
+  Future<void> renderFilterStrip(
+    String originalPath,
+    PageEdits edits, {
+    required Map<FilterType, String> outputs,
+  }) {
+    return _runner.run(
+      stripInIsolate,
+      StripMsg(originalPath, edits, outputs),
+      debugLabel: 'strip',
+      priority: JobPriority.interactive,
+    );
+  }
+
+  @override
+  Future<String> renderQuick(
+    String originalPath,
+    PageEdits edits, {
+    required String outputPath,
+  }) {
     return _runner.run(
       renderInIsolate,
-      RenderMsg(originalPath, edits.copyWith(filter: FilterType.original, brightness: 0, contrast: 0), 600, outputPath, 80),
+      RenderMsg(
+        originalPath,
+        edits.copyWith(filter: FilterType.original, brightness: 0, contrast: 0),
+        600,
+        outputPath,
+        80,
+      ),
       debugLabel: 'quick',
       priority: JobPriority.interactive,
     );
@@ -151,8 +179,15 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
-  Future<SnapCandidates> snapCandidates(String previewPath, {double? aspectHint}) async {
-    final r = await _runner.run(snapInIsolate, DetectMsg(previewPath, aspectHint), debugLabel: 'snap');
+  Future<SnapCandidates> snapCandidates(
+    String previewPath, {
+    double? aspectHint,
+  }) async {
+    final r = await _runner.run(
+      snapInIsolate,
+      DetectMsg(previewPath, aspectHint),
+      debugLabel: 'snap',
+    );
     return SnapCandidates(lines: r.lines, corners: r.corners);
   }
 
@@ -189,7 +224,13 @@ class RenderMsg {
 }
 
 class IngestMsg {
-  const IngestMsg(this.src, this.previewOut, this.snapAspect, this.guide, [this.extraTurns = 0]);
+  const IngestMsg(
+    this.src,
+    this.previewOut,
+    this.snapAspect,
+    this.guide, [
+    this.extraTurns = 0,
+  ]);
   final String src;
   final String previewOut;
   final double? snapAspect;
@@ -261,7 +302,8 @@ IngestResult ingestInIsolate(IngestMsg m) {
     brightness: r.brightness,
     width: r.width,
     height: r.height,
-    log: '${r.width}×${r.height} (${(r.width * r.height / 1e6).toStringAsFixed(1)} MP, '
+    log:
+        '${r.width}×${r.height} (${(r.width * r.height / 1e6).toStringAsFixed(1)} MP, '
         '${mb.toStringAsFixed(1)} MB) decode 1/${r.decodeScale}; ${r.detection}; '
         'sharpness ${r.sharpness.toStringAsFixed(0)}${r.cardSharpness == null ? '' : ' card ${r.cardSharpness!.toStringAsFixed(0)}'} brightness ${r.brightness.toStringAsFixed(0)}; '
         'total ${sw.elapsedMilliseconds} ms',
@@ -315,7 +357,14 @@ DetectResult detectInIsolate(DetectMsg m) {
 }
 
 class CardMsg {
-  const CardMsg(this.path, this.edits, this.widthMm, this.heightMm, this.dpi, this.out);
+  const CardMsg(
+    this.path,
+    this.edits,
+    this.widthMm,
+    this.heightMm,
+    this.dpi,
+    this.out,
+  );
   final String path;
   final PageEdits edits;
   final double widthMm;
@@ -325,7 +374,13 @@ class CardMsg {
 }
 
 String cardInIsolate(CardMsg m) {
-  final card = pipe.renderCard(m.path, m.edits, widthMm: m.widthMm, heightMm: m.heightMm, dpi: m.dpi);
+  final card = pipe.renderCard(
+    m.path,
+    m.edits,
+    widthMm: m.widthMm,
+    heightMm: m.heightMm,
+    dpi: m.dpi,
+  );
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(card, m.out, quality: 95);
@@ -338,8 +393,35 @@ String cardInIsolate(CardMsg m) {
 /// Renders an export. If the full-resolution render fails (out of memory on
 /// a low-end phone), retries at A4 300 DPI (3508 px) and then 2000 px
 /// instead of failing the export (P0-C).
+class StripMsg {
+  const StripMsg(this.path, this.edits, this.outputs);
+  final String path;
+  final PageEdits edits;
+  final Map<FilterType, String> outputs;
+}
+
+void stripInIsolate(StripMsg m) {
+  final img = pipe.readUprightAtMost(m.path, 640);
+  final small = pipe.cropAndRotate(img, m.edits, maxLongEdge: 160);
+  pipe.disposeUnless(img, small);
+  try {
+    for (final MapEntry(key: f, value: out) in m.outputs.entries) {
+      final r = pipe.applyFilter(small, f);
+      File(out).parent.createSync(recursive: true);
+      pipe.writeJpeg(r, out, quality: 80);
+      r.dispose();
+    }
+  } finally {
+    small.dispose();
+  }
+}
+
 String renderInIsolate(RenderMsg m) {
-  final sizes = <int?>[m.longEdge, if (m.longEdge == null || m.longEdge! > 3508) 3508, if (m.longEdge == null || m.longEdge! > 2000) 2000];
+  final sizes = <int?>[
+    m.longEdge,
+    if (m.longEdge == null || m.longEdge! > 3508) 3508,
+    if (m.longEdge == null || m.longEdge! > 2000) 2000,
+  ];
   Object? lastError;
   for (final size in sizes) {
     try {
@@ -374,11 +456,16 @@ String renderOcrInIsolate(RenderMsg m) {
 }
 
 ({int width, int height}) sizeInIsolate(String path) {
-  final img = cv.imread(path, flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION);
+  final img = cv.imread(
+    path,
+    flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION,
+  );
   try {
     final w = math.max(1, img.cols * 8);
     final h = math.max(1, img.rows * 8);
-    return orientationSwapsAxes(readJpegOrientation(path)) ? (width: h, height: w) : (width: w, height: h);
+    return orientationSwapsAxes(readJpegOrientation(path))
+        ? (width: h, height: w)
+        : (width: w, height: h);
   } finally {
     img.dispose();
   }

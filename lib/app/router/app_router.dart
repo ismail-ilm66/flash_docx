@@ -1,4 +1,5 @@
 import 'package:flash_dox/app/router/routes.dart';
+import 'package:flash_dox/app/theme/app_theme.dart';
 import 'package:flash_dox/features/documents/presentation/pages/home_page.dart';
 import 'package:flash_dox/features/documents/presentation/pages/viewer_page.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
@@ -62,7 +63,7 @@ GoRouter buildRouter() {
         path: Routes.camera,
         pageBuilder: (_, state) => _fade(
           state,
-          CameraPage(args: state.extra as CameraArgs?),
+          _dark(CameraPage(args: state.extra as CameraArgs?)),
         ),
       ),
       GoRoute(
@@ -70,7 +71,7 @@ GoRouter buildRouter() {
         path: Routes.adjust,
         pageBuilder: (_, state) => _fade(
           state,
-          AdjustEdgesPage(args: state.extra! as EditorArgs),
+          _dark(AdjustEdgesPage(args: state.extra! as EditorArgs)),
         ),
       ),
       GoRoute(
@@ -78,7 +79,7 @@ GoRouter buildRouter() {
         path: Routes.enhance,
         pageBuilder: (_, state) => _fade(
           state,
-          EnhancePage(bloc: state.extra! as PageEditorBloc),
+          _dark(EnhancePage(bloc: state.extra! as PageEditorBloc)),
         ),
       ),
       GoRoute(
@@ -115,3 +116,8 @@ CustomTransitionPage<void> _fade(GoRouterState state, Widget child) {
         FadeTransition(opacity: anim, child: child),
   );
 }
+
+/// Camera, Adjust edges and Enhance are always dark, whatever the user's
+/// theme. Applied at route level so everything on the screen, not only the
+/// scaffold, reads the dark tokens.
+Widget _dark(Widget child) => Theme(data: AppTheme.dark, child: child);
