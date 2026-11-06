@@ -10,6 +10,8 @@ import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.da
 import 'package:flash_dox/features/print_layout/presentation/pages/print_layout_page.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/settings/presentation/pages/settings_page.dart';
+import 'package:flash_dox/features/signature/presentation/pages/my_signature_page.dart';
+import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/features/splash/presentation/splash_page.dart';
 import 'package:flash_dox/shared/widgets/app_shell.dart';
 import 'package:flutter/material.dart';
@@ -17,10 +19,11 @@ import 'package:go_router/go_router.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
-GoRouter buildRouter() {
+/// [initialLocation] is for tests; the app always starts at the splash.
+GoRouter buildRouter({String initialLocation = Routes.splash}) {
   return GoRouter(
     navigatorKey: rootNavigatorKey,
-    initialLocation: Routes.splash,
+    initialLocation: initialLocation,
     routes: [
       GoRoute(
         path: Routes.splash,
@@ -84,6 +87,11 @@ GoRouter buildRouter() {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
+        path: Routes.signature,
+        builder: (_, _) => const MySignaturePage(),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
         path: Routes.viewerPattern,
         builder: (_, state) =>
             ViewerPage(documentId: state.pathParameters['docId']!),
@@ -91,6 +99,13 @@ GoRouter buildRouter() {
           GoRoute(
             path: 'text',
             builder: (_, state) => ExtractedTextPage(
+              documentId: state.pathParameters['docId']!,
+              initialPageId: state.uri.queryParameters['page'],
+            ),
+          ),
+          GoRoute(
+            path: 'sign',
+            builder: (_, state) => SignDocumentPage(
               documentId: state.pathParameters['docId']!,
               initialPageId: state.uri.queryParameters['page'],
             ),

@@ -21,6 +21,9 @@ import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.da
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
+import 'package:flash_dox/features/signature/data/signature_store.dart';
+import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
+import 'package:flash_dox/features/signature/presentation/widgets/draw_pad.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -29,6 +32,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
@@ -145,9 +149,15 @@ void main() {
     expect(cut, isEmpty, reason: '$screen: labels cut off at 2× font');
   }
 
-  Future<GoRouter> pumpApp(WidgetTester tester, {ThemeMode mode = ThemeMode.light}) async {
+  Future<GoRouter> pumpApp(WidgetTester tester, {ThemeMode mode = ThemeMode.light, String location = Routes.home}) async {
     await setUpView(tester);
-    final router = buildRouter();
+    // "Share to Flash Dox" has no platform side in tests.
+    tester.binding.defaultBinaryMessenger.setMockStreamHandler(
+      const EventChannel('com.flashdox.app/share_in/events'),
+      MockStreamHandler.inline(onListen: (_, _) {}),
+    );
+    // Not the splash: it clears the temp folders the tests set up.
+    final router = buildRouter(initialLocation: location);
     await tester.pumpWidget(
       BlocProvider.value(
         value: getIt<ThemeCubit>(),
@@ -162,6 +172,15 @@ void main() {
       ),
     );
     return router;
+  }
+
+  /// File reads, image decoding and encoding are real async work: let each
+  /// step of a chain finish, then rebuild.
+  Future<void> real(WidgetTester tester) async {
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 30)));
+      await tester.pump(const Duration(milliseconds: 20));
+    }
   }
 
   Future<void> close(WidgetTester tester) async {
@@ -269,6 +288,66 @@ void main() {
       await close(tester);
     });
   }
+
+  testWidgets('Sign a document: add, move, save (feature 4)', (tester) async {
+    final page = doc.sortedPages.first;
+    await tester.runAsync(() async {
+      final files = getIt<FileStore>();
+      // The page without overlays (normally rendered on open).
+      await File('test/fixtures/edges/box_colors_photo.jpg').copy(files.signBasePath(page.id, page.originalPath, page.edits));
+      final sig = cv.Mat.zeros(60, 200, cv.MatType.CV_8UC4);
+      cv.rectangle(sig, cv.Rect(10, 25, 180, 10), cv.Scalar(0, 0, 0, 255), thickness: -1);
+      final (_, png) = cv.imencode('.png', sig);
+      sig.dispose();
+      await getIt<SignatureStore>().save(png, ink: InkColor.blue);
+    });
+    await pumpApp(tester, location: Routes.sign(doc.id));
+    await real(tester);
+    expect(find.text(l.signAddSignature), findsOneWidget);
+    expectNothingCutOff(tester, 'Sign document');
+
+    await tester.tap(find.text(l.signAddSignature));
+    await real(tester);
+    expect(find.byType(OverlayBox), findsOneWidget);
+    final before = tester.widget<OverlayBox>(find.byType(OverlayBox)).overlay;
+    await tester.drag(find.byType(OverlayBox), const Offset(30, -60));
+    await tester.pump();
+    final after = tester.widget<OverlayBox>(find.byType(OverlayBox)).overlay;
+    expect(after.left, greaterThan(before.left));
+    expect(after.top, lessThan(before.top));
+
+    await tester.tap(find.text(l.signAddDate));
+    await real(tester);
+    expect(find.byType(OverlayBox), findsNWidgets(2));
+    expectNothingCutOff(tester, 'Sign document with overlays');
+
+    await tester.tap(find.text(l.enhanceDone));
+    await real(tester);
+    final saved = (await tester.runAsync(() => getIt<DocumentRepository>().get(doc.id)))!.getOrElse((f) => throw StateError('$f'));
+    final overlays = saved.sortedPages.first.edits.overlays;
+    expect(overlays.map((o) => o.kind), [OverlayKind.signature, OverlayKind.date]);
+    expect(overlays.first.left, closeTo(after.left, 1e-9));
+    expect(saved.lastActivity?.type, ActivityType.signed);
+    expect(File(overlays.first.imagePath).existsSync(), isTrue);
+    await close(tester);
+  });
+
+  testWidgets('My signature: draw and save', (tester) async {
+    final router = await pumpApp(tester);
+    router.go(Routes.signature);
+    await settle(tester);
+    expectNothingCutOff(tester, 'My signature');
+    await tester.tap(find.text(l.mySignatureDraw));
+    await settle(tester);
+    final pad = find.byType(DrawPad);
+    await tester.dragFrom(tester.getCenter(pad) - const Offset(80, 0), const Offset(160, 20));
+    await tester.pump();
+    await tester.tap(find.text(l.mySignatureSave));
+    await real(tester);
+    expect(getIt<SignatureStore>().saved.value, isTrue);
+    expect(File(getIt<SignatureStore>().path).lengthSync(), greaterThan(100));
+    await close(tester);
+  });
 
   for (final mode in [ScanMode.document, ScanMode.idCard]) {
     testWidgets('Camera overlay (${mode.name})', (tester) async {

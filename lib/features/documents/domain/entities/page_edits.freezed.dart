@@ -20,7 +20,8 @@ mixin _$PageEdits {
  double get brightness;/// -100..100
  double get contrast;/// ID card / passport: the warp is forced to this width / height (real
 /// card shape, landscape), as in the reference `warp()`. null = free.
- double? get outputAspect;
+ double? get outputAspect;/// Signatures and date stamps (feature 4), drawn over the finished page.
+ List<PageOverlay> get overlays;
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -33,16 +34,16 @@ $PageEditsCopyWith<PageEdits> get copyWith => _$PageEditsCopyWithImpl<PageEdits>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other.overlays, overlays));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(overlays));
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays)';
 }
 
 
@@ -53,7 +54,7 @@ abstract mixin class $PageEditsCopyWith<$Res>  {
   factory $PageEditsCopyWith(PageEdits value, $Res Function(PageEdits) _then) = _$PageEditsCopyWithImpl;
 @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays
 });
 
 
@@ -70,7 +71,7 @@ class _$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,}) {
   return _then(_self.copyWith(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
@@ -78,7 +79,8 @@ as int,filter: null == filter ? _self.filter : filter // ignore: cast_nullable_t
 as FilterType,brightness: null == brightness ? _self.brightness : brightness // ignore: cast_nullable_to_non_nullable
 as double,contrast: null == contrast ? _self.contrast : contrast // ignore: cast_nullable_to_non_nullable
 as double,outputAspect: freezed == outputAspect ? _self.outputAspect : outputAspect // ignore: cast_nullable_to_non_nullable
-as double?,
+as double?,overlays: null == overlays ? _self.overlays : overlays // ignore: cast_nullable_to_non_nullable
+as List<PageOverlay>,
   ));
 }
 /// Create a copy of PageEdits
@@ -102,7 +104,7 @@ $QuadCopyWith<$Res>? get crop {
 @JsonSerializable()
 
 class _PageEdits extends PageEdits {
-  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect}): super._();
+  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect, final  List<PageOverlay> overlays = const <PageOverlay>[]}): _overlays = overlays,super._();
   factory _PageEdits.fromJson(Map<String, dynamic> json) => _$PageEditsFromJson(json);
 
 /// null = full image.
@@ -116,6 +118,15 @@ class _PageEdits extends PageEdits {
 /// ID card / passport: the warp is forced to this width / height (real
 /// card shape, landscape), as in the reference `warp()`. null = free.
 @override final  double? outputAspect;
+/// Signatures and date stamps (feature 4), drawn over the finished page.
+ final  List<PageOverlay> _overlays;
+/// Signatures and date stamps (feature 4), drawn over the finished page.
+@override@JsonKey() List<PageOverlay> get overlays {
+  if (_overlays is EqualUnmodifiableListView) return _overlays;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_overlays);
+}
+
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
@@ -130,16 +141,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other._overlays, _overlays));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(_overlays));
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays)';
 }
 
 
@@ -150,7 +161,7 @@ abstract mixin class _$PageEditsCopyWith<$Res> implements $PageEditsCopyWith<$Re
   factory _$PageEditsCopyWith(_PageEdits value, $Res Function(_PageEdits) _then) = __$PageEditsCopyWithImpl;
 @override @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays
 });
 
 
@@ -167,7 +178,7 @@ class __$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,}) {
   return _then(_PageEdits(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
@@ -175,7 +186,8 @@ as int,filter: null == filter ? _self.filter : filter // ignore: cast_nullable_t
 as FilterType,brightness: null == brightness ? _self.brightness : brightness // ignore: cast_nullable_to_non_nullable
 as double,contrast: null == contrast ? _self.contrast : contrast // ignore: cast_nullable_to_non_nullable
 as double,outputAspect: freezed == outputAspect ? _self.outputAspect : outputAspect // ignore: cast_nullable_to_non_nullable
-as double?,
+as double?,overlays: null == overlays ? _self._overlays : overlays // ignore: cast_nullable_to_non_nullable
+as List<PageOverlay>,
   ));
 }
 

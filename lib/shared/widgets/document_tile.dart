@@ -162,6 +162,7 @@ String activityLabel(BuildContext context, ActivityType t) {
     ActivityType.savedToPhone => l.activitySavedToPhone,
     ActivityType.textCopied => l.activityTextCopied,
     ActivityType.printLayout => l.activityPrintLayout,
+    ActivityType.signed => l.activitySigned,
   };
 }
 

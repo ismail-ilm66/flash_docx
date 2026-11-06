@@ -52,6 +52,11 @@ abstract interface class ImageProcessor {
     required List<String> outputs,
   });
 
+  /// Scan from paper (feature 4): a photo of a signature → transparent PNG
+  /// at [outputPath], turned by [turns] quarter turns first. Throws when no
+  /// ink is found.
+  Future<String> signatureFromPhoto(String photo, {required String outputPath, int turns = 0});
+
   /// All six filter thumbnails for one page in one job (160 px, P0-4).
   Future<void> renderFilterStrip(
     String originalPath,

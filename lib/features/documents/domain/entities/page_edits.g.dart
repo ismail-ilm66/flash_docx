@@ -17,6 +17,11 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
   brightness: (json['brightness'] as num?)?.toDouble() ?? 0,
   contrast: (json['contrast'] as num?)?.toDouble() ?? 0,
   outputAspect: (json['outputAspect'] as num?)?.toDouble(),
+  overlays:
+      (json['overlays'] as List<dynamic>?)
+          ?.map((e) => PageOverlay.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <PageOverlay>[],
 );
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
@@ -27,6 +32,7 @@ Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
       'brightness': instance.brightness,
       'contrast': instance.contrast,
       'outputAspect': instance.outputAspect,
+      'overlays': instance.overlays.map((e) => e.toJson()).toList(),
     };
 
 const _$FilterTypeEnumMap = {

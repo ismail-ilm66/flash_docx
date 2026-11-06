@@ -978,4 +978,107 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get activitySigned => 'Signed';
+
+  @override
+  String get viewerSign => 'Sign';
+
+  @override
+  String get signTitle => 'Sign document';
+
+  @override
+  String get signHint => 'Drag to move · drag the corner to resize';
+
+  @override
+  String get signInk => 'Ink';
+
+  @override
+  String get signChange => 'Change signature';
+
+  @override
+  String get signAddDate => 'Add date';
+
+  @override
+  String get signAddSignature => 'Add signature';
+
+  @override
+  String get signRemove => 'Remove';
+
+  @override
+  String get signPrevPage => 'Previous page';
+
+  @override
+  String get signNextPage => 'Next page';
+
+  @override
+  String get mySignatureTitle => 'My signature';
+
+  @override
+  String get mySignatureScan => 'Scan from paper';
+
+  @override
+  String get mySignatureDraw => 'Draw';
+
+  @override
+  String get mySignatureInk => 'Ink colour';
+
+  @override
+  String get inkBlack => 'Black';
+
+  @override
+  String get inkBlue => 'Blue';
+
+  @override
+  String get inkOriginal => 'Original';
+
+  @override
+  String get mySignatureScanTip =>
+      'Sign on white paper with a dark pen, then take a photo. Your signature is saved only on this phone.';
+
+  @override
+  String get mySignatureDrawTip =>
+      'Sign with your finger in the box. Your signature is saved only on this phone.';
+
+  @override
+  String get mySignatureTakePhoto => 'Take photo';
+
+  @override
+  String get mySignatureRetake => 'Retake';
+
+  @override
+  String get mySignatureSave => 'Save signature';
+
+  @override
+  String get mySignatureBgRemoved => 'Background removed';
+
+  @override
+  String get mySignatureNotFound =>
+      'Couldn\'t find a signature. Use white paper and a dark pen, and fill the frame.';
+
+  @override
+  String get mySignatureUndo => 'Undo';
+
+  @override
+  String get mySignatureClear => 'Clear';
+
+  @override
+  String get settingsSignature => 'Signature';
+
+  @override
+  String get settingsMySignature => 'My signature';
+
+  @override
+  String get settingsSignatureSaved => 'Saved';
+
+  @override
+  String get settingsSignatureNone => 'Not set';
+
+  @override
+  String get settingsSignatureDelete => 'Delete signature';
+
+  @override
+  String get settingsSignatureDeleteBody =>
+      'Pages you already signed keep their signature.';
 }

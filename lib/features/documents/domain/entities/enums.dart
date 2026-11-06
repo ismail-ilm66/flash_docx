@@ -14,6 +14,8 @@ enum ActivityType {
   savedToPhone,
   textCopied,
   printLayout,
+  // Append only: stored by index.
+  signed,
 }
 
 /// Home folders (round 4, feature 3). Stored by index: append only.

@@ -115,6 +115,13 @@ class FileStore {
     'strip_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}_${filter.name}.jpg',
   );
 
+  /// Sign a document (feature 4): the page without its overlays, which the
+  /// screen draws as movable boxes instead.
+  String signBasePath(String pageId, String originalPath, PageEdits edits) => p.join(
+    _captureTemp.path,
+    'sign_${pageId}_${Object.hash(_stamp(originalPath), edits.copyWith(overlays: const []))}.jpg',
+  );
+
   /// One page rendered for export at one size and JPEG quality (P0-4).
   /// Shared by every export of the same look, so a page-size or format change
   /// doesn't re-render.

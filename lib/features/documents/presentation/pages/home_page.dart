@@ -19,6 +19,7 @@ import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
+import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -147,6 +148,11 @@ class _HomeViewState extends State<_HomeView> {
   List<HomeTool> _tools(BuildContext context) {
     final l = context.l10n;
     return [
+      HomeTool(
+        icon: AppIcons.signature,
+        label: l.toolSign,
+        onTap: () => _withPickedDocument(context, l.toolSign, (d) => openSignFlow(context, d.id)),
+      ),
       HomeTool(
         icon: AppIcons.shrink,
         label: l.toolShrinkPdf,

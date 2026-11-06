@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flash_dox/app/di/injection.dart';
+import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/constants/app_info.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
@@ -9,9 +10,11 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/settings_cubit.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
+import 'package:flash_dox/features/signature/data/signature_store.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -170,6 +173,35 @@ class _SettingsView extends StatelessWidget {
                         },
                       ),
                     ],
+                  ),
+                ),
+                _Section(
+                  title: l.settingsSignature,
+                  child: ValueListenableBuilder<bool>(
+                    valueListenable: getIt<SignatureStore>().saved,
+                    builder: (context, saved, _) => _Group(
+                      rows: [
+                        _Row(
+                          label: l.settingsMySignature,
+                          value: saved ? l.settingsSignatureSaved : l.settingsSignatureNone,
+                          onTap: () => context.push(Routes.signature),
+                        ),
+                        if (saved)
+                          _Row(
+                            label: l.settingsSignatureDelete,
+                            onTap: () async {
+                              final ok = await AppDialog.confirm(
+                                context,
+                                title: l.settingsSignatureDelete,
+                                body: l.settingsSignatureDeleteBody,
+                                confirmLabel: l.commonDelete,
+                                destructive: true,
+                              );
+                              if (ok) await getIt<SignatureStore>().delete();
+                            },
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 _Section(

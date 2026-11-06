@@ -1,4 +1,5 @@
 import 'package:flash_dox/features/documents/domain/entities/enums.dart';
+import 'package:flash_dox/features/documents/domain/entities/page_overlay.dart';
 import 'package:flash_dox/features/documents/domain/entities/quad.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -21,6 +22,9 @@ abstract class PageEdits with _$PageEdits {
     /// ID card / passport: the warp is forced to this width / height (real
     /// card shape, landscape), as in the reference `warp()`. null = free.
     double? outputAspect,
+
+    /// Signatures and date stamps (feature 4), drawn over the finished page.
+    @Default(<PageOverlay>[]) List<PageOverlay> overlays,
   }) = _PageEdits;
   const PageEdits._();
 

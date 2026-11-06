@@ -101,6 +101,16 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<String> signatureFromPhoto(String photo, {required String outputPath, int turns = 0}) {
+    return _runner.run(
+      signatureInIsolate,
+      SignatureMsg(photo, outputPath, turns),
+      debugLabel: 'signature',
+      priority: JobPriority.interactive,
+    );
+  }
+
+  @override
   Future<void> renderFilterStrip(
     String originalPath,
     PageEdits edits, {
@@ -409,6 +419,19 @@ String cardInIsolate(CardMsg m) {
 /// Renders an export. If the full-resolution render fails (out of memory on
 /// a low-end phone), retries at A4 300 DPI (3508 px) and then 2000 px
 /// instead of failing the export (P0-C).
+class SignatureMsg {
+  const SignatureMsg(this.photo, this.out, this.turns);
+  final String photo;
+  final String out;
+  final int turns;
+}
+
+String signatureInIsolate(SignatureMsg m) {
+  if (m.turns % 4 != 0) pipe.bakeOrientation(m.photo, extraTurns: m.turns);
+  pipe.signatureFromPhoto(m.photo, m.out);
+  return m.out;
+}
+
 class ShrinkMsg {
   const ShrinkMsg(this.bases, this.target, this.overhead, this.grayscale, this.outputs);
   final List<String> bases;

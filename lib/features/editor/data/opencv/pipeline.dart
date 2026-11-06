@@ -1169,9 +1169,129 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   disposeUnless(img, cropped);
   final filtered = applyFilter(cropped, edits.filter);
   cropped.dispose();
-  final out = brightnessContrast(filtered, edits);
+  final adjusted = brightnessContrast(filtered, edits);
   filtered.dispose();
+  final out = withOverlays(adjusted, edits.overlays);
+  disposeUnless(adjusted, out);
   return out;
+}
+
+/// Ink colours (BGR): black #15171A, blue #1F3FAE.
+cv.Scalar? _inkBgr(InkColor ink) => switch (ink) {
+      InkColor.black => cv.Scalar(26, 23, 21),
+      InkColor.blue => cv.Scalar(174, 63, 31),
+      InkColor.original => null,
+    };
+
+/// Signatures and date stamps (feature 4): each transparent PNG is fitted
+/// into its rect (fractions of [page], aspect kept, centred) and alpha
+/// blended. Returns [page] itself when there's nothing to draw; a grayscale
+/// page becomes colour so blue ink stays blue.
+cv.Mat withOverlays(cv.Mat page, List<PageOverlay> overlays) {
+  if (overlays.isEmpty) return page;
+  final out = page.channels == 1 ? cv.cvtColor(page, cv.COLOR_GRAY2BGR) : page.clone();
+  for (final o in overlays) {
+    final png = cv.imread(o.imagePath, flags: cv.IMREAD_UNCHANGED);
+    if (png.isEmpty || png.channels != 4) {
+      png.dispose();
+      continue;
+    }
+    final boxW = o.width * out.cols;
+    final boxH = o.height * out.rows;
+    final s = math.min(boxW / png.cols, boxH / png.rows);
+    final w = math.max(1, (png.cols * s).round());
+    final h = math.max(1, (png.rows * s).round());
+    final x = (o.left * out.cols + (boxW - w) / 2).round().clamp(0, math.max(0, out.cols - w)).toInt();
+    final y = (o.top * out.rows + (boxH - h) / 2).round().clamp(0, math.max(0, out.rows - h)).toInt();
+    if (w > out.cols || h > out.rows) {
+      png.dispose();
+      continue;
+    }
+    final sized = cv.resize(png, (w, h), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
+    final ch = cv.split(sized);
+    final ink = _inkBgr(o.ink);
+    final color = ink == null
+        ? cv.merge(cv.VecMat.fromList([ch[0], ch[1], ch[2]]))
+        : cv.Mat.fromScalar(h, w, cv.MatType.CV_8UC3, ink);
+    final a = ch[3].convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
+    final a3 = cv.merge(cv.VecMat.fromList([a, a, a]));
+    final roi = out.region(cv.Rect(x, y, w, h));
+    final roiF = roi.convertTo(cv.MatType.CV_32FC3);
+    final colF = color.convertTo(cv.MatType.CV_32FC3);
+    final diff = cv.subtract(colF, roiF);
+    final scaled = cv.multiply(diff, a3);
+    final blended = cv.add(roiF, scaled);
+    final back = blended.convertTo(cv.MatType.CV_8UC3);
+    back.copyTo(roi);
+    for (final m in [png, sized, color, a, a3, roi, roiF, colF, diff, scaled, blended, back]) {
+      m.dispose();
+    }
+    for (final c in ch) {
+      c.dispose();
+    }
+  }
+  return out;
+}
+
+/// "Scan from paper" (feature 4): a photo of a signature on white paper →
+/// transparent PNG at [out]. Grey → background normalised → Otsu → specks
+/// removed → lightly smoothed alpha → trimmed to the ink with a margin. The
+/// colour channels keep the photo's ink (for the Original ink option).
+/// Throws [StateError] when no ink is found.
+void signatureFromPhoto(String src, String out, {int maxLongEdge = 1600}) {
+  final img = readUprightAtMost(src, maxLongEdge);
+  final bgr = fitLongEdge(img, maxLongEdge);
+  disposeUnless(img, bgr);
+  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
+  final norm = _normalizeIllumination(gray, scale: 255);
+  final (_, ink) = cv.threshold(norm, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+  final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3));
+  final clean = cv.morphologyEx(ink, cv.MORPH_OPEN, k);
+  final alpha = cv.gaussianBlur(clean, (3, 3), 0);
+  try {
+    // Bounding box of the ink.
+    final w = clean.cols;
+    final h = clean.rows;
+    final data = clean.data;
+    var x0 = w;
+    var y0 = h;
+    var x1 = -1;
+    var y1 = -1;
+    var count = 0;
+    for (var y = 0; y < h; y++) {
+      final row = y * w;
+      for (var x = 0; x < w; x++) {
+        if (data[row + x] != 0) {
+          count++;
+          if (x < x0) x0 = x;
+          if (x > x1) x1 = x;
+          if (y < y0) y0 = y;
+          if (y > y1) y1 = y;
+        }
+      }
+    }
+    // Ink must be a small part of the photo, else it's not a signature on
+    // paper (a dark table, a blank page that thresholded into noise).
+    final share = count / (w * h);
+    if (x1 < 0 || count < 150 || share > 0.25) throw StateError('no signature found');
+    final margin = (math.max(x1 - x0, y1 - y0) * 0.04).round() + 2;
+    final rx = math.max(0, x0 - margin);
+    final ry = math.max(0, y0 - margin);
+    final rect = cv.Rect(rx, ry, math.min(w, x1 + margin + 1) - rx, math.min(h, y1 + margin + 1) - ry);
+    final colorRoi = bgr.region(rect);
+    final alphaRoi = alpha.region(rect);
+    final ch = cv.split(colorRoi);
+    final bgra = cv.merge(cv.VecMat.fromList([ch[0], ch[1], ch[2], alphaRoi]));
+    File(out).parent.createSync(recursive: true);
+    if (!cv.imwrite(out, bgra)) throw StateError('Could not write $out');
+    for (final m in [colorRoi, alphaRoi, bgra, ...ch]) {
+      m.dispose();
+    }
+  } finally {
+    for (final m in [bgr, gray, norm, ink, k, clean, alpha]) {
+      m.dispose();
+    }
+  }
 }
 
 /// One card side for print (P1-9): from the original, cropped and warped to

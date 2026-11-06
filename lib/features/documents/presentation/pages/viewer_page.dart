@@ -14,6 +14,7 @@ import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
+import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
 import 'package:flutter/material.dart';
@@ -80,6 +81,12 @@ class _ViewerViewState extends State<_ViewerView> {
               leading: const AppIcon(AppIcons.files),
               onTap: () => Navigator.of(ctx).pop(_ViewerAction.moveToFolder),
             ),
+            if (doc.mode.supportsPrintLayout)
+              SheetAction(
+                label: l.viewerSign,
+                leading: const AppIcon(AppIcons.signature),
+                onTap: () => Navigator.of(ctx).pop(_ViewerAction.sign),
+              ),
             if (doc.pages.length > 1)
               SheetAction(
                 label: l.viewerDeletePage,
@@ -102,6 +109,8 @@ class _ViewerViewState extends State<_ViewerView> {
         await renameDocumentFlow(context, doc, cubit.rename);
       case _ViewerAction.moveToFolder:
         await moveToFolderFlow(context, doc, cubit.moveTo);
+      case _ViewerAction.sign:
+        await openSignFlow(context, doc.id, pageId: s.current?.id);
       case _ViewerAction.deletePage:
         final ok = await AppDialog.confirm(
           context,
@@ -365,6 +374,17 @@ class _ViewerViewState extends State<_ViewerView> {
                               onPressed: () =>
                                   context.push(Routes.print(doc.id)),
                             ),
+                          )
+                        else
+                          // Feature 4; ID docs have Sign in ⋮ instead.
+                          Expanded(
+                            flex: 10,
+                            child: ToolbarAction(
+                              icon: AppIcons.signature,
+                              label: l.viewerSign,
+                              iconSize: 22,
+                              onPressed: cur == null ? null : () => openSignFlow(context, doc.id, pageId: cur.id),
+                            ),
                           ),
                         const SizedBox(width: 6),
                         Expanded(
@@ -517,4 +537,4 @@ class _WithSuggestion extends StatelessWidget {
   }
 }
 
-enum _ViewerAction { rename, moveToFolder, deletePage, delete }
+enum _ViewerAction { rename, moveToFolder, sign, deletePage, delete }

@@ -17,6 +17,7 @@ class PrefsService {
   static const _shutterSound = 'camera_shutter_sound';
   static const _magneticEdges = 'crop_magnetic_edges';
   static const _defaultQuality = 'default_export_quality';
+  static const _signatureInk = 'signature_ink';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -43,6 +44,9 @@ class PrefsService {
 
   String? get defaultQuality => _prefs.getString(_defaultQuality);
   Future<void> setDefaultQuality(String v) => _prefs.setString(_defaultQuality, v);
+
+  String? get signatureInk => _prefs.getString(_signatureInk);
+  Future<void> setSignatureInk(String v) => _prefs.setString(_signatureInk, v);
 
   bool get consentDone => _prefs.getBool(_consentDone) ?? false;
   Future<void> setConsentDone(bool v) => _prefs.setBool(_consentDone, v);

@@ -1797,6 +1797,204 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, =1{1 side} other{{count} sides}}'**
   String sidesCount(int count);
+
+  /// No description provided for @activitySigned.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed'**
+  String get activitySigned;
+
+  /// No description provided for @viewerSign.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign'**
+  String get viewerSign;
+
+  /// No description provided for @signTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign document'**
+  String get signTitle;
+
+  /// No description provided for @signHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to move · drag the corner to resize'**
+  String get signHint;
+
+  /// No description provided for @signInk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink'**
+  String get signInk;
+
+  /// No description provided for @signChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change signature'**
+  String get signChange;
+
+  /// No description provided for @signAddDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Add date'**
+  String get signAddDate;
+
+  /// No description provided for @signAddSignature.
+  ///
+  /// In en, this message translates to:
+  /// **'Add signature'**
+  String get signAddSignature;
+
+  /// No description provided for @signRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get signRemove;
+
+  /// No description provided for @signPrevPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous page'**
+  String get signPrevPage;
+
+  /// No description provided for @signNextPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Next page'**
+  String get signNextPage;
+
+  /// No description provided for @mySignatureTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'My signature'**
+  String get mySignatureTitle;
+
+  /// No description provided for @mySignatureScan.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan from paper'**
+  String get mySignatureScan;
+
+  /// No description provided for @mySignatureDraw.
+  ///
+  /// In en, this message translates to:
+  /// **'Draw'**
+  String get mySignatureDraw;
+
+  /// No description provided for @mySignatureInk.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink colour'**
+  String get mySignatureInk;
+
+  /// No description provided for @inkBlack.
+  ///
+  /// In en, this message translates to:
+  /// **'Black'**
+  String get inkBlack;
+
+  /// No description provided for @inkBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Blue'**
+  String get inkBlue;
+
+  /// No description provided for @inkOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get inkOriginal;
+
+  /// No description provided for @mySignatureScanTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign on white paper with a dark pen, then take a photo. Your signature is saved only on this phone.'**
+  String get mySignatureScanTip;
+
+  /// No description provided for @mySignatureDrawTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign with your finger in the box. Your signature is saved only on this phone.'**
+  String get mySignatureDrawTip;
+
+  /// No description provided for @mySignatureTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take photo'**
+  String get mySignatureTakePhoto;
+
+  /// No description provided for @mySignatureRetake.
+  ///
+  /// In en, this message translates to:
+  /// **'Retake'**
+  String get mySignatureRetake;
+
+  /// No description provided for @mySignatureSave.
+  ///
+  /// In en, this message translates to:
+  /// **'Save signature'**
+  String get mySignatureSave;
+
+  /// No description provided for @mySignatureBgRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Background removed'**
+  String get mySignatureBgRemoved;
+
+  /// No description provided for @mySignatureNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t find a signature. Use white paper and a dark pen, and fill the frame.'**
+  String get mySignatureNotFound;
+
+  /// No description provided for @mySignatureUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get mySignatureUndo;
+
+  /// No description provided for @mySignatureClear.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear'**
+  String get mySignatureClear;
+
+  /// No description provided for @settingsSignature.
+  ///
+  /// In en, this message translates to:
+  /// **'Signature'**
+  String get settingsSignature;
+
+  /// No description provided for @settingsMySignature.
+  ///
+  /// In en, this message translates to:
+  /// **'My signature'**
+  String get settingsMySignature;
+
+  /// No description provided for @settingsSignatureSaved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get settingsSignatureSaved;
+
+  /// No description provided for @settingsSignatureNone.
+  ///
+  /// In en, this message translates to:
+  /// **'Not set'**
+  String get settingsSignatureNone;
+
+  /// No description provided for @settingsSignatureDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete signature'**
+  String get settingsSignatureDelete;
+
+  /// No description provided for @settingsSignatureDeleteBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages you already signed keep their signature.'**
+  String get settingsSignatureDeleteBody;
 }
 
 class _AppLocalizationsDelegate

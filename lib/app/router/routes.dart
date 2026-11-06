@@ -7,10 +7,12 @@ abstract final class Routes {
   static const camera = '/camera';
   static const adjust = '/adjust';
   static const enhance = '/enhance';
+  static const signature = '/signature';
 
   static String viewer(String docId) => '/doc/$docId';
   static String text(String docId) => '/doc/$docId/text';
   static String print(String docId) => '/doc/$docId/print';
+  static String sign(String docId, {String? pageId}) => '/doc/$docId/sign${pageId == null ? '' : '?page=$pageId'}';
 
   static const viewerPattern = '/doc/:docId';
   static const textPattern = '/doc/:docId/text';

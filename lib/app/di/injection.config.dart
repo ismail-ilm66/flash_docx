@@ -83,6 +83,8 @@ import 'package:flash_dox/features/settings/presentation/cubit/settings_cubit.da
     as _i493;
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart'
     as _i242;
+import 'package:flash_dox/features/signature/data/signature_store.dart'
+    as _i302;
 import 'package:get_it/get_it.dart' as _i174;
 import 'package:image_picker/image_picker.dart' as _i183;
 import 'package:injectable/injectable.dart' as _i526;
@@ -197,6 +199,10 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.RenameDocument>(),
         gh<_i310.SetDocumentFolder>(),
       ),
+    );
+    gh.lazySingleton<_i302.SignatureStore>(
+      () =>
+          _i302.SignatureStore(gh<_i626.FileStore>(), gh<_i567.PrefsService>()),
     );
     gh.factory<_i60.BuildPrintLayout>(
       () => _i60.BuildPrintLayout(
