@@ -14,6 +14,7 @@ import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
+import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -143,7 +144,10 @@ class _ViewerViewState extends State<_ViewerView> {
                       : Column(
                           children: [
                             Expanded(
-                              child: PageView.builder(
+                              // P0-5: pinch / double-tap zoom that never fights
+                              // the page swipe; zoomed content clips only at
+                              // the edge of this area.
+                              child: ZoomablePages(
                                 controller: _pageCtrl,
                                 itemCount: pages.length,
                                 onPageChanged: cubit.select,
@@ -151,31 +155,28 @@ class _ViewerViewState extends State<_ViewerView> {
                                   final path = s.imageFor(pages[i]);
                                   return Padding(
                                     padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, Space.x3),
-                                    child: InteractiveViewer(
-                                      maxScale: 5,
-                                      child: Center(
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            borderRadius: BorderRadius.circular(4),
-                                            border: Border.all(color: c.border),
-                                            boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 6))],
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: path == null
-                                                ? const SizedBox(
-                                                    width: 240,
-                                                    height: 320,
-                                                    child: Center(child: CircularProgressIndicator()),
-                                                  )
-                                                : Image.file(
-                                                    File(path),
-                                                    key: ValueKey(path),
-                                                    gaplessPlayback: true,
-                                                    fit: BoxFit.contain,
-                                                    cacheWidth: RenderPx.previewLongEdge,
-                                                  ),
-                                          ),
+                                    child: Center(
+                                      child: DecoratedBox(
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(color: c.border),
+                                          boxShadow: const [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 6))],
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: path == null
+                                              ? const SizedBox(
+                                                  width: 240,
+                                                  height: 320,
+                                                  child: Center(child: CircularProgressIndicator()),
+                                                )
+                                              : Image.file(
+                                                  File(path),
+                                                  key: ValueKey(path),
+                                                  gaplessPlayback: true,
+                                                  fit: BoxFit.contain,
+                                                  cacheWidth: RenderPx.previewLongEdge,
+                                                ),
                                         ),
                                       ),
                                     ),
@@ -183,15 +184,20 @@ class _ViewerViewState extends State<_ViewerView> {
                                 },
                               ),
                             ),
-                            Container(
-                              height: 26,
-                              margin: const EdgeInsets.only(bottom: Space.x4),
-                              padding: const EdgeInsets.symmetric(horizontal: Space.x3),
-                              decoration: BoxDecoration(color: c.chip, borderRadius: Radii.pillR),
-                              alignment: Alignment.center,
-                              child: Text(
-                                l.viewerCounter(s.index + 1, pages.length),
-                                style: context.text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                            // P1-6: a small chip under the page, not a bar.
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: Space.x4),
+                              child: Container(
+                                height: 26,
+                                padding: const EdgeInsets.symmetric(horizontal: Space.x3),
+                                decoration: BoxDecoration(color: c.chip, borderRadius: Radii.pillR),
+                                child: Center(
+                                  widthFactor: 1,
+                                  child: Text(
+                                    l.viewerCounter(s.index + 1, pages.length),
+                                    style: context.text.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                ),
                               ),
                             ),
                           ],
