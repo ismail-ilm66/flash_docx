@@ -2,6 +2,11 @@
 
 **Flutter · Dart · OpenCV · Google ML Kit · Android & iOS**
 
+<p align="center">
+  <img src="docs/before_after.jpg" alt="A printed form lying at an angle on a wooden desk, and the same form after Flash Dox's edge detection, perspective correction and Auto filter" width="820">
+</p>
+<p align="center"><sub>Left: the photo as taken. Right: Flash Dox's output after automatic edge detection, perspective correction and the Auto filter.<br>Photo by <a href="https://unsplash.com/photos/a-wooden-table-topped-with-papers-and-a-pen-spScdgWY-_c">2H Media</a> on Unsplash.</sub></p>
+
 Flash Dox is a cross-platform mobile app that turns phone photos into clean, print-ready documents. You capture or import a page, the app finds the document's edges, corrects perspective and lighting, and exports the result as a PDF, JPG or PNG. Detection, enhancement, OCR and PDF generation all run on the device, with no server, no account and no network needed.
 
 ---
@@ -215,21 +220,6 @@ native build hook that the AOT builder compile does not support.
 
 Flavors are Dart entry points (`main_dev.dart` / `main_prod.dart`), not native
 product flavors, so no Xcode scheme work is needed.
-
-### Before a store release
-
-| Item | Where |
-|---|---|
-| App ID | `com.flashdox.app` (placeholder) in `android/app/build.gradle.kts`, `ios/Runner.xcodeproj`, `core/constants/app_info.dart` |
-| AdMob app IDs | `AndroidManifest.xml`, `ios/Runner/Info.plist` (currently Google test IDs) |
-| Rewarded unit IDs | `features/rewards/data/ad_ids.dart` (prod IDs still `XXXX`; dev + unset prod both use test units) |
-| Privacy / FAQ / store URLs | `core/constants/app_info.dart` |
-| Crashlytics | add `google-services.json` / `GoogleService-Info.plist`, `firebase_core` + `firebase_crashlytics`, hook in `app/bootstrap.dart` |
-| App icon | default Flutter icon still in place |
-| Design icons | done: the canvas's stroke set is in `assets/icons/`; entries still on Material fallbacks in `shared/widgets/app_icons.dart` have no `asset:` |
-| Splash | the in-app splash is drawn from `assets/images/brand_mark.svg`; `assets/splash/splash_icon.png` (native splash) is still a placeholder; replace it and rerun `dart run flutter_native_splash:create` |
-| Android signing | `buildTypes.release` still signs with the debug key |
-| iOS share-in | needs a Share Extension target in Xcode; Android share-in is done natively in `MainActivity.kt` |
 
 ### Engine notes (round 3, Nov 2026)
 
