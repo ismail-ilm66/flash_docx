@@ -8,18 +8,21 @@ import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flash_dox/shared/widgets/page_thumb.dart';
 import 'package:flutter/material.dart';
 
-/// Home / search row: thumb, title, meta, activity line, ⋮.
+/// Home / search row: thumb, title, meta, activity line, ⋮. [compact] (the
+/// "Pick a document" sheet) leaves out the activity line.
 class DocumentTile extends StatelessWidget {
   const DocumentTile({
     required this.document,
     required this.onTap,
     super.key,
     this.onMore,
+    this.compact = false,
   });
 
   final ScanDocument document;
   final VoidCallback onTap;
   final VoidCallback? onMore;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -84,23 +87,25 @@ class DocumentTile extends StatelessWidget {
                     meta,
                     style: context.text.bodySmall?.copyWith(color: c.muted),
                   ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      AppIcon(AppIcons.clock, size: 13, color: c.accentText),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: FitText(
-                          activityLine,
-                          textAlign: TextAlign.start,
-                          style: context.text.bodySmall?.copyWith(
-                            color: c.accentText,
-                            fontWeight: FontWeight.w600,
+                  if (!compact) ...[
+                    const SizedBox(height: 3),
+                    Row(
+                      children: [
+                        AppIcon(AppIcons.clock, size: 13, color: c.accentText),
+                        const SizedBox(width: 5),
+                        Expanded(
+                          child: FitText(
+                            activityLine,
+                            textAlign: TextAlign.start,
+                            style: context.text.bodySmall?.copyWith(
+                              color: c.accentText,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

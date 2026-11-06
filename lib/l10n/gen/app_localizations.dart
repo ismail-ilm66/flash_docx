@@ -1539,6 +1539,48 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preparing… {done}/{total} pages'**
   String sharePreparingPages(int done, int total);
+
+  /// No description provided for @homeTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get homeTools;
+
+  /// No description provided for @toolPassportPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Passport photo'**
+  String get toolPassportPhoto;
+
+  /// No description provided for @toolSign.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign document'**
+  String get toolSign;
+
+  /// No description provided for @toolShrinkPdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Shrink PDF'**
+  String get toolShrinkPdf;
+
+  /// No description provided for @toolExtractText.
+  ///
+  /// In en, this message translates to:
+  /// **'Extract text'**
+  String get toolExtractText;
+
+  /// No description provided for @pickDocumentTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a document'**
+  String get pickDocumentTitle;
+
+  /// No description provided for @pickDocumentEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No documents yet. Scan one first.'**
+  String get pickDocumentEmpty;
 }
 
 class _AppLocalizationsDelegate

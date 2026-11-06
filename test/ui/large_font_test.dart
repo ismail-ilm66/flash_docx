@@ -14,6 +14,7 @@ import 'package:flash_dox/features/documents/domain/usecases/document_usecases.d
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
@@ -165,12 +166,35 @@ void main() {
     final router = await pumpApp(tester);
     router.go(Routes.home);
     await settle(tester);
-    expect(find.textContaining(l.pagesCount(2)), findsOneWidget);
     expectNothingCutOff(tester, 'Home');
-    await tester.drag(find.byType(Scrollable).first, const Offset(0, -500));
+    final list = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.textContaining(l.pagesCount(2)), 200, scrollable: list);
     await settle(tester);
-    expect(find.text('Lease'), findsOneWidget);
+    expectNothingCutOff(tester, 'Home, Tools and first document');
+    await tester.scrollUntilVisible(find.text('Lease'), 200, scrollable: list);
+    await settle(tester);
     expectNothingCutOff(tester, 'Home, scrolled');
+    await close(tester);
+  });
+
+  testWidgets('Home › Tools › Pick a document', (tester) async {
+    final router = await pumpApp(tester);
+    router.go(Routes.home);
+    await settle(tester);
+    await tester.scrollUntilVisible(find.text(l.toolExtractText), 200, scrollable: find.byType(Scrollable).first);
+    expectNothingCutOff(tester, 'Tools');
+    await tester.tap(find.text(l.toolExtractText));
+    await settle(tester);
+    expect(find.text(l.pickDocumentTitle), findsOneWidget);
+    // Newest first.
+    final titles = tester.widgetList<DocumentTile>(find.byType(DocumentTile)).map((t) => t.document.title).toList();
+    expect(titles.take(2), ['ID card', 'Lease']);
+    expectNothingCutOff(tester, 'Pick a document');
+
+    await tester.tap(find.descendant(of: find.byType(AppBottomSheet), matching: find.text('Lease')));
+    await settle(tester);
+    expect(find.byType(AppBottomSheet), findsNothing);
+    expect(find.byType(ExtractedTextPage), findsOneWidget);
     await close(tester);
   });
 

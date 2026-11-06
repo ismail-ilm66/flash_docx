@@ -9,6 +9,8 @@ import 'package:flash_dox/core/services/share_in_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
@@ -137,6 +139,24 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
+  /// Home › Tools. Tiles appear as their features ship (round 4 plan):
+  /// Passport photo (5), Sign document (4), Shrink PDF (2), Extract text.
+  List<HomeTool> _tools(BuildContext context) {
+    final l = context.l10n;
+    return [
+      HomeTool(
+        icon: AppIcons.text,
+        label: l.toolExtractText,
+        onTap: () => _withPickedDocument(context, l.toolExtractText, (d) => context.push(Routes.text(d.id))),
+      ),
+    ];
+  }
+
+  Future<void> _withPickedDocument(BuildContext context, String title, void Function(ScanDocument) then) async {
+    final d = await showPickDocumentSheet(context, title: title);
+    if (d != null && context.mounted) then(d);
+  }
+
   void _scan(BuildContext context, ScanMode? mode) =>
       context.push(Routes.camera, extra: CameraArgs(mode: mode));
 
@@ -214,6 +234,8 @@ class _HomeViewState extends State<_HomeView> {
                                     ],
                                   ],
                                 ),
+                                const SizedBox(height: Space.x5),
+                                ToolsRow(tools: _tools(context)),
                               ],
                             ),
                           ),

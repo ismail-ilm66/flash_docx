@@ -825,4 +825,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String sharePreparingPages(int done, int total) {
     return 'Preparing… $done/$total pages';
   }
+
+  @override
+  String get homeTools => 'Tools';
+
+  @override
+  String get toolPassportPhoto => 'Passport photo';
+
+  @override
+  String get toolSign => 'Sign document';
+
+  @override
+  String get toolShrinkPdf => 'Shrink PDF';
+
+  @override
+  String get toolExtractText => 'Extract text';
+
+  @override
+  String get pickDocumentTitle => 'Pick a document';
+
+  @override
+  String get pickDocumentEmpty => 'No documents yet. Scan one first.';
 }

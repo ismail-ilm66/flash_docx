@@ -432,5 +432,12 @@
         "type": "int"
       }
     }
-  }
+  },
+  "homeTools": "Tools",
+  "toolPassportPhoto": "Passport photo",
+  "toolSign": "Sign document",
+  "toolShrinkPdf": "Shrink PDF",
+  "toolExtractText": "Extract text",
+  "pickDocumentTitle": "Pick a document",
+  "pickDocumentEmpty": "No documents yet. Scan one first."
 }

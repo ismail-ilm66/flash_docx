@@ -60,7 +60,10 @@ enum AppIcons {
   clock(Icons.schedule_rounded, asset: '$_dir/clock.svg'),
   bolt(Icons.bolt_rounded, asset: '$_dir/bolt.svg'),
   dragHandle(Icons.drag_handle_rounded),
-  pages(Icons.filter_none_rounded, asset: '$_dir/pages.svg');
+  pages(Icons.filter_none_rounded, asset: '$_dir/pages.svg'),
+  portrait(Icons.portrait_rounded, asset: '$_dir/portrait.svg'),
+  signature(Icons.draw_rounded, asset: '$_dir/signature.svg'),
+  shrink(Icons.compress_rounded, asset: '$_dir/shrink.svg');
 
   const AppIcons(this.fallback, {this.asset});
 
