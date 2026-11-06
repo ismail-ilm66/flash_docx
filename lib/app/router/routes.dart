@@ -8,10 +8,12 @@ abstract final class Routes {
   static const adjust = '/adjust';
   static const enhance = '/enhance';
   static const signature = '/signature';
+  static const photoCrop = '/photo';
 
   static String viewer(String docId) => '/doc/$docId';
   static String text(String docId) => '/doc/$docId/text';
   static String print(String docId) => '/doc/$docId/print';
+  static String photoSheet(String docId) => '/doc/$docId/photos';
   static String sign(String docId, {String? pageId}) => '/doc/$docId/sign${pageId == null ? '' : '?page=$pageId'}';
 
   static const viewerPattern = '/doc/:docId';

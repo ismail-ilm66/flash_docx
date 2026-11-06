@@ -7,6 +7,8 @@ import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/pages/adjust_edges_page.dart';
 import 'package:flash_dox/features/editor/presentation/pages/enhance_page.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
+import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
+import 'package:flash_dox/features/photo/presentation/photo_sheet_page.dart';
 import 'package:flash_dox/features/print_layout/presentation/pages/print_layout_page.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/settings/presentation/pages/settings_page.dart';
@@ -87,6 +89,11 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,
+        path: Routes.photoCrop,
+        builder: (_, state) => PhotoCropPage(args: state.extra! as PhotoCropArgs),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
         path: Routes.signature,
         builder: (_, _) => const MySignaturePage(),
       ),
@@ -102,6 +109,10 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
               documentId: state.pathParameters['docId']!,
               initialPageId: state.uri.queryParameters['page'],
             ),
+          ),
+          GoRoute(
+            path: 'photos',
+            builder: (_, state) => PhotoSheetPage(documentId: state.pathParameters['docId']!),
           ),
           GoRoute(
             path: 'sign',

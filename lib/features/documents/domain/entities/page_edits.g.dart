@@ -22,6 +22,8 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
           ?.map((e) => PageOverlay.fromJson(e as Map<String, dynamic>))
           .toList() ??
       const <PageOverlay>[],
+  photoWidthMm: (json['photoWidthMm'] as num?)?.toDouble(),
+  photoHeightMm: (json['photoHeightMm'] as num?)?.toDouble(),
 );
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
@@ -33,6 +35,8 @@ Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
       'contrast': instance.contrast,
       'outputAspect': instance.outputAspect,
       'overlays': instance.overlays.map((e) => e.toJson()).toList(),
+      'photoWidthMm': instance.photoWidthMm,
+      'photoHeightMm': instance.photoHeightMm,
     };
 
 const _$FilterTypeEnumMap = {

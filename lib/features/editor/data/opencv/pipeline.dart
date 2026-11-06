@@ -1319,6 +1319,19 @@ cv.Mat renderCard(
   return out;
 }
 
+/// A passport photo (feature 5) for print: the framed crop, filtered and
+/// shrunk to [widthMm] × [heightMm] at [dpi]. Never enlarged and never
+/// turned (unlike a card side).
+cv.Mat renderSized(String originalPath, PageEdits edits, {required double widthMm, required double heightMm, required int dpi}) {
+  final full = renderEdits(originalPath, edits);
+  final tw = (widthMm / 25.4 * dpi).round();
+  final th = (heightMm / 25.4 * dpi).round();
+  if (full.cols <= tw) return full;
+  final out = cv.resize(full, (tw, th), interpolation: cv.INTER_AREA);
+  full.dispose();
+  return out;
+}
+
 /// Dedicated OCR image: crop + rotate at full resolution, then the
 /// reference `ocr_image()`. Never the user's chosen filter.
 cv.Mat renderForOcr(String path, PageEdits edits) {

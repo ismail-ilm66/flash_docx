@@ -138,6 +138,7 @@ String documentMeta(BuildContext context, ScanDocument d) {
   final folder = folderLabel(context, d.folder);
   if (d.mode != ScanMode.document) {
     final n = d.pages.length;
+    if (d.mode == ScanMode.photo) return '$folder · ${modeLabel(context, d.mode)}';
     return '$folder · ${modeLabel(context, d.mode)} · ${d.mode == ScanMode.idCard ? l.sidesCount(n) : l.pagesCount(n)}';
   }
   return [folder, l.pagesCount(d.pages.length), if (d.sizeBytes > 0) formatBytes(d.sizeBytes)].join(' · ');
@@ -149,6 +150,7 @@ String modeLabel(BuildContext context, ScanMode m) {
     ScanMode.document => l.modeDocument,
     ScanMode.idCard => l.modeIdCard,
     ScanMode.passport => l.modePassport,
+    ScanMode.photo => l.modePhoto,
   };
 }
 
@@ -163,6 +165,7 @@ String activityLabel(BuildContext context, ActivityType t) {
     ActivityType.textCopied => l.activityTextCopied,
     ActivityType.printLayout => l.activityPrintLayout,
     ActivityType.signed => l.activitySigned,
+    ActivityType.photoSheet => l.activityPhotoSheet,
   };
 }
 

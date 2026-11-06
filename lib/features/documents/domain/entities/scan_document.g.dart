@@ -46,6 +46,7 @@ const _$ScanModeEnumMap = {
   ScanMode.document: 'document',
   ScanMode.idCard: 'idCard',
   ScanMode.passport: 'passport',
+  ScanMode.photo: 'photo',
 };
 
 const _$DocFolderEnumMap = {

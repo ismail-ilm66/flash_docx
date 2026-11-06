@@ -337,7 +337,7 @@ class _ModePills extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Space.x4),
       child: Row(
         children: [
-          for (final (i, m) in ScanMode.values.indexed) ...[
+          for (final (i, m) in ScanMode.values.where((m) => m.isCameraMode).indexed) ...[
             if (i > 0) const SizedBox(width: 6),
             Semantics(
               button: true,

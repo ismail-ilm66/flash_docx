@@ -1995,6 +1995,192 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pages you already signed keep their signature.'**
   String get settingsSignatureDeleteBody;
+
+  /// No description provided for @modePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Passport photo'**
+  String get modePhoto;
+
+  /// No description provided for @activityPhotoSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo sheet'**
+  String get activityPhotoSheet;
+
+  /// No description provided for @photoTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Passport photo'**
+  String get photoTitle;
+
+  /// No description provided for @photoSize35x45.
+  ///
+  /// In en, this message translates to:
+  /// **'35 × 45 mm'**
+  String get photoSize35x45;
+
+  /// No description provided for @photoSize2x2.
+  ///
+  /// In en, this message translates to:
+  /// **'2 × 2 in'**
+  String get photoSize2x2;
+
+  /// No description provided for @photoSizeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get photoSizeCustom;
+
+  /// No description provided for @photoCustomTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo size'**
+  String get photoCustomTitle;
+
+  /// No description provided for @photoWidthMm.
+  ///
+  /// In en, this message translates to:
+  /// **'Width (mm)'**
+  String get photoWidthMm;
+
+  /// No description provided for @photoHeightMm.
+  ///
+  /// In en, this message translates to:
+  /// **'Height (mm)'**
+  String get photoHeightMm;
+
+  /// No description provided for @photoHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinch to zoom · fit the face in the oval'**
+  String get photoHint;
+
+  /// No description provided for @photoTopOfHead.
+  ///
+  /// In en, this message translates to:
+  /// **'Top of head'**
+  String get photoTopOfHead;
+
+  /// No description provided for @photoChin.
+  ///
+  /// In en, this message translates to:
+  /// **'Chin'**
+  String get photoChin;
+
+  /// No description provided for @photoTakePhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo'**
+  String get photoTakePhoto;
+
+  /// No description provided for @photoFromGallery.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from gallery'**
+  String get photoFromGallery;
+
+  /// No description provided for @photoSheetTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Print sheet'**
+  String get photoSheetTitle;
+
+  /// No description provided for @photoPaperA4.
+  ///
+  /// In en, this message translates to:
+  /// **'A4'**
+  String get photoPaperA4;
+
+  /// No description provided for @photoPaper4x6.
+  ///
+  /// In en, this message translates to:
+  /// **'4 × 6 in photo paper'**
+  String get photoPaper4x6;
+
+  /// No description provided for @photoCopies.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos on sheet'**
+  String get photoCopies;
+
+  /// No description provided for @photoFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full ({count})'**
+  String photoFull(int count);
+
+  /// No description provided for @photoCutLines.
+  ///
+  /// In en, this message translates to:
+  /// **'Cut lines'**
+  String get photoCutLines;
+
+  /// No description provided for @photoPrintTip.
+  ///
+  /// In en, this message translates to:
+  /// **'Print at 100% / Actual size. Photo shops can print the 4 × 6 sheet on glossy photo paper.'**
+  String get photoPrintTip;
+
+  /// No description provided for @photoSharePdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Share PDF'**
+  String get photoSharePdf;
+
+  /// No description provided for @photoDefaultTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Passport photo - {date}'**
+  String photoDefaultTitle(String date);
+
+  /// No description provided for @photoStepCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Step 1 of 2 · Crop'**
+  String get photoStepCrop;
+
+  /// No description provided for @photoStepSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Step 2 of 2 · {size}'**
+  String photoStepSheet(String size);
+
+  /// No description provided for @photoSizeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo size'**
+  String get photoSizeLabel;
+
+  /// No description provided for @photoRetake.
+  ///
+  /// In en, this message translates to:
+  /// **'Retake'**
+  String get photoRetake;
+
+  /// No description provided for @photoMakeSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Make print sheet'**
+  String get photoMakeSheet;
+
+  /// No description provided for @photoUpTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to {count} photos'**
+  String photoUpTo(int count);
+
+  /// No description provided for @photoSheetCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'{paper} · {count} photos at real size · dashed = cut lines'**
+  String photoSheetCaption(String paper, int count);
+
+  /// No description provided for @photoPaperLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Paper'**
+  String get photoPaperLabel;
 }
 
 class _AppLocalizationsDelegate

@@ -1,6 +1,8 @@
-/// Stored in the database by index; v2 schema migrates the old
-/// `single, batch, idCard, passport` values (see AppDatabase.migration).
-enum ScanMode { document, idCard, passport }
+/// Stored in the database by index (append only); v2 schema migrates the
+/// old `single, batch, idCard, passport` values (see AppDatabase.migration).
+/// [photo] is a passport-size photo (feature 5), made from Tools, not the
+/// camera's mode chips.
+enum ScanMode { document, idCard, passport, photo }
 
 enum FilterType { original, auto, idColor, colorBoost, grayscale, bwPrint }
 
@@ -16,6 +18,7 @@ enum ActivityType {
   printLayout,
   // Append only: stored by index.
   signed,
+  photoSheet,
 }
 
 /// Home folders (round 4, feature 3). Stored by index: append only.
@@ -24,4 +27,7 @@ enum DocFolder { other, bills, ids, education, receipts }
 extension ScanModeX on ScanMode {
   bool get supportsPrintLayout =>
       this == ScanMode.idCard || this == ScanMode.passport;
+
+  /// Offered as a chip on the camera.
+  bool get isCameraMode => this != ScanMode.photo;
 }

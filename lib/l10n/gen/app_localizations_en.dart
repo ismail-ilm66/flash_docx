@@ -1081,4 +1081,108 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get settingsSignatureDeleteBody =>
       'Pages you already signed keep their signature.';
+
+  @override
+  String get modePhoto => 'Passport photo';
+
+  @override
+  String get activityPhotoSheet => 'Photo sheet';
+
+  @override
+  String get photoTitle => 'Passport photo';
+
+  @override
+  String get photoSize35x45 => '35 × 45 mm';
+
+  @override
+  String get photoSize2x2 => '2 × 2 in';
+
+  @override
+  String get photoSizeCustom => 'Custom';
+
+  @override
+  String get photoCustomTitle => 'Photo size';
+
+  @override
+  String get photoWidthMm => 'Width (mm)';
+
+  @override
+  String get photoHeightMm => 'Height (mm)';
+
+  @override
+  String get photoHint => 'Pinch to zoom · fit the face in the oval';
+
+  @override
+  String get photoTopOfHead => 'Top of head';
+
+  @override
+  String get photoChin => 'Chin';
+
+  @override
+  String get photoTakePhoto => 'Take a photo';
+
+  @override
+  String get photoFromGallery => 'Choose from gallery';
+
+  @override
+  String get photoSheetTitle => 'Print sheet';
+
+  @override
+  String get photoPaperA4 => 'A4';
+
+  @override
+  String get photoPaper4x6 => '4 × 6 in photo paper';
+
+  @override
+  String get photoCopies => 'Photos on sheet';
+
+  @override
+  String photoFull(int count) {
+    return 'Full ($count)';
+  }
+
+  @override
+  String get photoCutLines => 'Cut lines';
+
+  @override
+  String get photoPrintTip =>
+      'Print at 100% / Actual size. Photo shops can print the 4 × 6 sheet on glossy photo paper.';
+
+  @override
+  String get photoSharePdf => 'Share PDF';
+
+  @override
+  String photoDefaultTitle(String date) {
+    return 'Passport photo - $date';
+  }
+
+  @override
+  String get photoStepCrop => 'Step 1 of 2 · Crop';
+
+  @override
+  String photoStepSheet(String size) {
+    return 'Step 2 of 2 · $size';
+  }
+
+  @override
+  String get photoSizeLabel => 'Photo size';
+
+  @override
+  String get photoRetake => 'Retake';
+
+  @override
+  String get photoMakeSheet => 'Make print sheet';
+
+  @override
+  String photoUpTo(int count) {
+    return 'Up to $count photos';
+  }
+
+  @override
+  String photoSheetCaption(String paper, int count) {
+    return '$paper · $count photos at real size · dashed = cut lines';
+  }
+
+  @override
+  String get photoPaperLabel => 'Paper';
 }

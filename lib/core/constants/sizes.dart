@@ -4,6 +4,10 @@ abstract final class PaperMm {
   static const double a4Height = 297;
   static const double letterWidth = 215.9;
   static const double letterHeight = 279.4;
+
+  /// 4 × 6 in photo paper.
+  static const double photo4x6Width = 101.6;
+  static const double photo4x6Height = 152.4;
 }
 
 /// ISO/IEC 7810 card sizes in millimetres.

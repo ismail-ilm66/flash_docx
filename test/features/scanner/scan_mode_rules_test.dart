@@ -6,7 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('document takes one page or many and finishes with Done', () {
     final r = ScanModeRules.of(ScanMode.document);
-    expect(ScanMode.values, [ScanMode.document, ScanMode.idCard, ScanMode.passport]);
+    expect(ScanMode.values, [ScanMode.document, ScanMode.idCard, ScanMode.passport, ScanMode.photo]);
+    expect(ScanMode.values.where((m) => m.isCameraMode), [ScanMode.document, ScanMode.idCard, ScanMode.passport]);
     expect(r.isComplete(1), isFalse);
     expect(r.canFinishEarly, isTrue);
     expect(r.aspectRatio, isNull, reason: 'no frame guide in Document');

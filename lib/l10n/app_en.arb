@@ -567,5 +567,74 @@
   "settingsSignatureSaved": "Saved",
   "settingsSignatureNone": "Not set",
   "settingsSignatureDelete": "Delete signature",
-  "settingsSignatureDeleteBody": "Pages you already signed keep their signature."
+  "settingsSignatureDeleteBody": "Pages you already signed keep their signature.",
+  "modePhoto": "Passport photo",
+  "activityPhotoSheet": "Photo sheet",
+  "photoTitle": "Passport photo",
+  "photoSize35x45": "35 × 45 mm",
+  "photoSize2x2": "2 × 2 in",
+  "photoSizeCustom": "Custom",
+  "photoCustomTitle": "Photo size",
+  "photoWidthMm": "Width (mm)",
+  "photoHeightMm": "Height (mm)",
+  "photoHint": "Pinch to zoom · fit the face in the oval",
+  "photoTopOfHead": "Top of head",
+  "photoChin": "Chin",
+  "photoTakePhoto": "Take a photo",
+  "photoFromGallery": "Choose from gallery",
+  "photoSheetTitle": "Print sheet",
+  "photoPaperA4": "A4",
+  "photoPaper4x6": "4 × 6 in photo paper",
+  "photoCopies": "Photos on sheet",
+  "photoFull": "Full ({count})",
+  "@photoFull": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "photoCutLines": "Cut lines",
+  "photoPrintTip": "Print at 100% / Actual size. Photo shops can print the 4 × 6 sheet on glossy photo paper.",
+  "photoSharePdf": "Share PDF",
+  "photoDefaultTitle": "Passport photo - {date}",
+  "@photoDefaultTitle": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "photoStepCrop": "Step 1 of 2 · Crop",
+  "photoStepSheet": "Step 2 of 2 · {size}",
+  "@photoStepSheet": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "photoSizeLabel": "Photo size",
+  "photoRetake": "Retake",
+  "photoMakeSheet": "Make print sheet",
+  "photoUpTo": "Up to {count} photos",
+  "@photoUpTo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "photoSheetCaption": "{paper} · {count} photos at real size · dashed = cut lines",
+  "@photoSheetCaption": {
+    "placeholders": {
+      "paper": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "photoPaperLabel": "Paper"
 }

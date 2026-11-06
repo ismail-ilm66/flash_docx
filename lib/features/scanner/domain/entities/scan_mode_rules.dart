@@ -27,6 +27,7 @@ abstract interface class ScanModeRules {
         ScanMode.document => const DocumentRules(),
         ScanMode.idCard => const IdCardRules(),
         ScanMode.passport => const PassportRules(),
+        ScanMode.photo => const PhotoRules(),
       };
 }
 
@@ -83,6 +84,26 @@ class PassportRules implements ScanModeRules {
   double? get aspectRatio => CardMm.id3Aspect;
   @override
   GuideLabel guideLabel(int captured) => GuideLabel.passport;
+  @override
+  bool isComplete(int captured) => captured >= 1;
+  @override
+  bool get canFinishEarly => false;
+}
+
+/// Passport-size photo (feature 5): one shot, framed later on the photo
+/// crop screen, so no guide.
+class PhotoRules implements ScanModeRules {
+  const PhotoRules();
+  @override
+  ScanMode get mode => ScanMode.photo;
+  @override
+  int? get maxPages => 1;
+  @override
+  List<CardSide>? get sides => null;
+  @override
+  double? get aspectRatio => null;
+  @override
+  GuideLabel guideLabel(int captured) => GuideLabel.documentPage;
   @override
   bool isComplete(int captured) => captured >= 1;
   @override

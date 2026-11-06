@@ -101,6 +101,32 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<String> renderPhoto(
+    String originalPath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  }) {
+    return _runner.run(
+      photoInIsolate,
+      PhotoMsg(originalPath, edits, widthMm, heightMm, dpi, outputPath),
+      debugLabel: 'photo',
+    );
+  }
+
+  @override
+  Future<void> bakeTurns(String path, int turns) {
+    return _runner.run(
+      bakeInIsolate,
+      (path, turns),
+      debugLabel: 'bake',
+      priority: JobPriority.interactive,
+    );
+  }
+
+  @override
   Future<String> signatureFromPhoto(String photo, {required String outputPath, int turns = 0}) {
     return _runner.run(
       signatureInIsolate,
@@ -419,6 +445,29 @@ String cardInIsolate(CardMsg m) {
 /// Renders an export. If the full-resolution render fails (out of memory on
 /// a low-end phone), retries at A4 300 DPI (3508 px) and then 2000 px
 /// instead of failing the export (P0-C).
+class PhotoMsg {
+  const PhotoMsg(this.path, this.edits, this.widthMm, this.heightMm, this.dpi, this.out);
+  final String path;
+  final PageEdits edits;
+  final double widthMm;
+  final double heightMm;
+  final int dpi;
+  final String out;
+}
+
+String photoInIsolate(PhotoMsg m) {
+  final img = pipe.renderSized(m.path, m.edits, widthMm: m.widthMm, heightMm: m.heightMm, dpi: m.dpi);
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(img, m.out, quality: 95);
+    return m.out;
+  } finally {
+    img.dispose();
+  }
+}
+
+void bakeInIsolate((String, int) m) => pipe.bakeOrientation(m.$1, extraTurns: m.$2);
+
 class SignatureMsg {
   const SignatureMsg(this.photo, this.out, this.turns);
   final String photo;

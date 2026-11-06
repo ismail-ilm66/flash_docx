@@ -18,6 +18,7 @@ import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
+import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
@@ -57,6 +58,27 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 class _PendingProcessor implements ImageProcessor {
   @override
   dynamic noSuchMethod(Invocation invocation) => Completer<Never>().future;
+}
+
+/// Answers what the passport photo screens ask; the rest stays pending.
+class _PhotoProcessor extends _PendingProcessor {
+  @override
+  Future<({int width, int height})> imageSize(String imagePath) async => (width: 3000, height: 4000);
+
+  @override
+  Future<String> renderPhoto(
+    String originalPath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  }) async {
+    File(outputPath)
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
+    return outputPath;
+  }
 }
 
 const _size = Size(360, 740);
@@ -142,9 +164,28 @@ void main() {
   }
 
   void expectNothingCutOff(WidgetTester tester, String screen) {
+    // Only what's on screen: a label counts when every route around it is
+    // its navigator's current page, or the top page under a sheet / dialog
+    // (pageless routes here are all popups). Covered routes aren't painted.
+    bool onScreen(BuildContext ctx) {
+      BuildContext? at = ctx;
+      while (at != null) {
+        final route = ModalRoute.of(at);
+        if (route == null) return true;
+        final nav = route.navigator!;
+        final pages = nav.widget.pages;
+        if (!route.isCurrent && !(pages.isNotEmpty && identical(route.settings, pages.last))) return false;
+        at = nav.context;
+        if (ModalRoute.of(at) == route) return true;
+      }
+      return true;
+    }
+
     final cut = {
-      for (final r in tester.allRenderObjects.whereType<RenderParagraph>())
-        if (!r.debugNeedsLayout && r.didExceedMaxLines && r.overflow == TextOverflow.ellipsis) '${r.text.toPlainText()} (${r.constraints.maxWidth.round()} px)',
+      for (final e in tester.allElements)
+        if (e.renderObject case final RenderParagraph r)
+          if (!r.debugNeedsLayout && r.didExceedMaxLines && r.overflow == TextOverflow.ellipsis && onScreen(e))
+            '${r.text.toPlainText()} (${r.constraints.maxWidth.round()} px)',
     };
     expect(cut, isEmpty, reason: '$screen: labels cut off at 2× font');
   }
@@ -346,6 +387,43 @@ void main() {
     await real(tester);
     expect(getIt<SignatureStore>().saved.value, isTrue);
     expect(File(getIt<SignatureStore>().path).lengthSync(), greaterThan(100));
+    await close(tester);
+  });
+
+  testWidgets('Passport photo: crop, then the print sheet (feature 5)', (tester) async {
+    getIt
+      ..unregister<ImageProcessor>()
+      ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new);
+    final photo = getIt<FileStore>().newCapturePath('face');
+    await tester.runAsync(() => File('test/fixtures/edges/box_colors_photo.jpg').copy(photo));
+    final router = await pumpApp(tester);
+    unawaited(router.push(Routes.photoCrop, extra: PhotoCropArgs(photoPath: photo)));
+    await real(tester);
+    expect(find.text(l.photoTopOfHead), findsOneWidget);
+    expectNothingCutOff(tester, 'Passport photo crop');
+
+    // Pan the photo; the frame stays covered.
+    await tester.dragFrom(tester.getCenter(find.text(l.photoTopOfHead)) - const Offset(60, -40), const Offset(-40, -40));
+    await tester.pump();
+    await tester.tap(find.text(l.photoMakeSheet));
+    await real(tester);
+    expect(find.text(l.photoSheetTitle), findsOneWidget);
+    expect(find.text(l.photoSheetCaption(l.photoPaperA4, 12)), findsOneWidget);
+    expectNothingCutOff(tester, 'Print sheet');
+
+    await tester.tap(find.text(l.photoPaper4x6));
+    await tester.pump();
+    expect(find.text(l.photoSheetCaption(l.photoPaper4x6, 6)), findsOneWidget, reason: '12 does not fit: Full (6)');
+    expectNothingCutOff(tester, 'Print sheet, 4 × 6');
+
+    final docs = (await tester.runAsync(() => getIt<DocumentRepository>().watchAll().first))!;
+    final saved = docs.firstWhere((d) => d.mode == ScanMode.photo);
+    expect(saved.folder, DocFolder.ids);
+    final e = saved.pages.single.edits;
+    expect((e.photoWidthMm, e.photoHeightMm), (35.0, 45.0));
+    final crop = e.crop!;
+    final px = ((crop.tr.x - crop.tl.x) * 3000) / ((crop.bl.y - crop.tl.y) * 4000);
+    expect(px, closeTo(35 / 45, 1e-3), reason: 'the crop has the photo shape');
     await close(tester);
   });
 

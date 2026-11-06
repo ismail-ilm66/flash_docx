@@ -29,4 +29,5 @@ const _$ActivityTypeEnumMap = {
   ActivityType.textCopied: 'textCopied',
   ActivityType.printLayout: 'printLayout',
   ActivityType.signed: 'signed',
+  ActivityType.photoSheet: 'photoSheet',
 };

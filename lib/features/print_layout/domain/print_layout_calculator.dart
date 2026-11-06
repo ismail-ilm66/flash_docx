@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 
@@ -222,5 +224,84 @@ abstract final class PrintLayoutCalculator {
     final h = g.rotated ? c.w : c.h;
     final groupH = g.rows * h + (g.rows - 1) * gap;
     return groupH * 2 + gap * 2 <= sheetH;
+  }
+}
+
+/// Photo paper for passport photos (feature 5).
+enum PhotoPaper {
+  a4(PaperMm.a4Width, PaperMm.a4Height, 5),
+  // Photo paper prints nearly to the edge: 3 mm fits the usual 2 × 3.
+  fourBySix(PaperMm.photo4x6Width, PaperMm.photo4x6Height, 3);
+
+  const PhotoPaper(this.widthMm, this.heightMm, this.marginMm);
+  final double widthMm;
+  final double heightMm;
+  final double marginMm;
+}
+
+/// One kind of item repeated on a sheet (feature 5's generalisation of the
+/// card grid): its size, how many, the paper, the gap and whether dashed cut
+/// lines are drawn. ID cards keep their own layouts above.
+class PrintItemSpec {
+  const PrintItemSpec({
+    required this.widthMm,
+    required this.heightMm,
+    required this.count,
+    this.paper = PhotoPaper.a4,
+    this.gapMm = 4,
+    this.cutLines = true,
+  });
+
+  final double widthMm;
+  final double heightMm;
+  final int count;
+  final PhotoPaper paper;
+  final double gapMm;
+  final bool cutLines;
+
+  double get marginMm => paper.marginMm;
+}
+
+abstract final class PhotoSheetCalculator {
+  /// Most columns and rows of [w] × [h] mm items that fit on [paper].
+  static ({int cols, int rows}) capacity(double w, double h, PhotoPaper paper, {double gap = 4, double? margin}) {
+    final m = margin ?? paper.marginMm;
+    int fit(double space, double item) => ((space - 2 * m + gap) / (item + gap)).floor().clamp(0, 99);
+    return (cols: fit(paper.widthMm, w), rows: fit(paper.heightMm, h));
+  }
+
+  static int full(double w, double h, PhotoPaper paper) {
+    final c = capacity(w, h, paper);
+    return c.cols * c.rows;
+  }
+
+  /// Copies offered: 4 · 8 · 12 · 16 (those that fit) and Full.
+  static List<int> counts(double w, double h, PhotoPaper paper) {
+    final max = full(w, h, paper);
+    return [...const [4, 8, 12, 16].where((n) => n < max), if (max > 0) max];
+  }
+
+  /// Items filled row by row from the top-left of a centred grid. A partly
+  /// filled sheet keeps the full sheet's grid, so cutting stays the same.
+  static List<PlacedItem> layout(PrintItemSpec s) {
+    final cap = capacity(s.widthMm, s.heightMm, s.paper, gap: s.gapMm, margin: s.marginMm);
+    final n = s.count.clamp(0, cap.cols * cap.rows);
+    if (n == 0) return const [];
+    final cols = math.min(cap.cols, n);
+    final rows = (n / cap.cols).ceil();
+    final groupW = cols * s.widthMm + (cols - 1) * s.gapMm;
+    final groupH = rows * s.heightMm + (rows - 1) * s.gapMm;
+    final x0 = (s.paper.widthMm - groupW) / 2;
+    // Top-aligned on the sheet so the rest of the paper stays usable.
+    final y0 = n == cap.cols * cap.rows ? (s.paper.heightMm - groupH) / 2 : s.marginMm;
+    return [
+      for (var i = 0; i < n; i++)
+        PlacedItem(
+          x: x0 + (i % cols) * (s.widthMm + s.gapMm),
+          y: y0 + (i ~/ cols) * (s.heightMm + s.gapMm),
+          w: s.widthMm,
+          h: s.heightMm,
+        ),
+    ];
   }
 }

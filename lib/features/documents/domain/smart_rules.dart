@@ -32,6 +32,7 @@ class SmartRules {
 
     // IDs: the scan mode decides, or a CNIC number on a document scan.
     final hasCnic = _cnic.hasMatch(text);
+    if (mode == ScanMode.photo) return _id('photo', pages);
     if (mode == ScanMode.passport) return _id('passport', pages);
     if (mode == ScanMode.idCard) return _id(hasCnic ? 'cnic' : 'idCard', pages);
     if (hasCnic) return _id('cnic', pages);

@@ -52,6 +52,20 @@ abstract interface class ImageProcessor {
     required List<String> outputs,
   });
 
+  /// A passport photo (feature 5) at its print size and [dpi]. Background.
+  Future<String> renderPhoto(
+    String originalPath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  });
+
+  /// Turns a fresh camera photo upright in place ([turns] clockwise quarter
+  /// turns, EXIF applied). Interactive lane.
+  Future<void> bakeTurns(String path, int turns);
+
   /// Scan from paper (feature 4): a photo of a signature → transparent PNG
   /// at [outputPath], turned by [turns] quarter turns first. Throws when no
   /// ink is found.

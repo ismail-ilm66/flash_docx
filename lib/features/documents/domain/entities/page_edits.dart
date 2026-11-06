@@ -25,6 +25,10 @@ abstract class PageEdits with _$PageEdits {
 
     /// Signatures and date stamps (feature 4), drawn over the finished page.
     @Default(<PageOverlay>[]) List<PageOverlay> overlays,
+
+    /// Passport photo (feature 5): the print size in millimetres.
+    double? photoWidthMm,
+    double? photoHeightMm,
   }) = _PageEdits;
   const PageEdits._();
 

@@ -16,6 +16,7 @@ import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/presentation/max_size_sheet.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
+import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
@@ -143,11 +144,12 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
-  /// Home › Tools. Tiles appear as their features ship (round 4 plan):
-  /// Passport photo (5), Sign document (4), Shrink PDF (2), Extract text.
+  /// Home › Tools (round 4): Passport photo, Sign document, Shrink PDF,
+  /// Extract text.
   List<HomeTool> _tools(BuildContext context) {
     final l = context.l10n;
     return [
+      HomeTool(icon: AppIcons.portrait, label: l.toolPassportPhoto, onTap: () => startPassportPhoto(context)),
       HomeTool(
         icon: AppIcons.signature,
         label: l.toolSign,

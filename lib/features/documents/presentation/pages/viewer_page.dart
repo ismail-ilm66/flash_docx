@@ -13,6 +13,7 @@ import 'package:flash_dox/features/documents/presentation/widgets/suggestion_ban
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
+import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
@@ -153,15 +154,22 @@ class _ViewerViewState extends State<_ViewerView> {
         final pages = s.pages;
         final cur = s.current;
         final multi = pages.length > 1;
-        void edit() => context.push(
-          Routes.adjust,
-          extra: EditorArgs(
-            pages: pages,
-            mode: doc.mode,
-            documentId: doc.id,
-            initialIndex: s.index,
-          ),
-        );
+        final photo = doc.mode == ScanMode.photo;
+        // A passport photo is re-framed on its own crop screen.
+        void edit() => photo
+            ? context.push(
+                Routes.photoCrop,
+                extra: PhotoCropArgs(photoPath: cur!.originalPath, page: cur),
+              )
+            : context.push(
+                Routes.adjust,
+                extra: EditorArgs(
+                  pages: pages,
+                  mode: doc.mode,
+                  documentId: doc.id,
+                  initialIndex: s.index,
+                ),
+              );
         Future<void> addPages() async {
           final added = await collectNewPages(context, mode: doc.mode);
           if (added == null || added.isEmpty || !context.mounted) return;
@@ -351,28 +359,32 @@ class _ViewerViewState extends State<_ViewerView> {
                             onPressed: cur == null ? null : edit,
                           ),
                         ),
-                        Expanded(
-                          flex: 10,
-                          child: ToolbarAction(
-                            icon: AppIcons.text,
-                            label: l.viewerText,
-                            iconSize: 22,
-                            onPressed: cur == null
-                                ? null
-                                : () => context.push(
-                                    '${Routes.text(doc.id)}?page=${cur.id}',
-                                  ),
+                        if (!photo)
+                          Expanded(
+                            flex: 10,
+                            child: ToolbarAction(
+                              icon: AppIcons.text,
+                              label: l.viewerText,
+                              iconSize: 22,
+                              onPressed: cur == null
+                                  ? null
+                                  : () => context.push(
+                                      '${Routes.text(doc.id)}?page=${cur.id}',
+                                    ),
+                            ),
                           ),
-                        ),
-                        if (doc.mode.supportsPrintLayout)
+                        if (doc.mode.supportsPrintLayout || photo)
                           Expanded(
                             flex: 10,
                             child: ToolbarAction(
                               icon: AppIcons.print,
                               label: l.viewerPrint,
                               iconSize: 22,
-                              onPressed: () =>
-                                  context.push(Routes.print(doc.id)),
+                              onPressed: () => context.push(
+                                photo
+                                    ? Routes.photoSheet(doc.id)
+                                    : Routes.print(doc.id),
+                              ),
                             ),
                           )
                         else
@@ -383,7 +395,13 @@ class _ViewerViewState extends State<_ViewerView> {
                               icon: AppIcons.signature,
                               label: l.viewerSign,
                               iconSize: 22,
-                              onPressed: cur == null ? null : () => openSignFlow(context, doc.id, pageId: cur.id),
+                              onPressed: cur == null
+                                  ? null
+                                  : () => openSignFlow(
+                                      context,
+                                      doc.id,
+                                      pageId: cur.id,
+                                    ),
                             ),
                           ),
                         const SizedBox(width: 6),

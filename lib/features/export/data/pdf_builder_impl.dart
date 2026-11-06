@@ -33,6 +33,25 @@ class PdfBuilderImpl implements PdfBuilder {
   }
 
   @override
+  Future<File> photoSheet({
+    required String photoPath,
+    required List<PlacedItem> items,
+    required PhotoPaper paper,
+    required bool cutLines,
+    required String title,
+    required String outputPath,
+  }) async {
+    final bytes = await _runner.run(
+      _buildPhotoSheet,
+      _PhotoSheetMsg(photoPath, items, paper, cutLines, title),
+      debugLabel: 'pdfPhotos',
+    );
+    final f = File(outputPath);
+    await f.parent.create(recursive: true);
+    return f.writeAsBytes(bytes, flush: true);
+  }
+
+  @override
   Future<File> printSheet(
     PrintLayoutSpec spec, {
     required String outputPath,
@@ -147,5 +166,65 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
       ),
     );
   }
+  return doc.save();
+}
+
+class _PhotoSheetMsg {
+  const _PhotoSheetMsg(this.photo, this.items, this.paper, this.cutLines, this.title);
+  final String photo;
+  final List<PlacedItem> items;
+  final PhotoPaper paper;
+  final bool cutLines;
+  final String title;
+}
+
+/// Passport photos at real size; dashed cut lines along every photo edge,
+/// run across the gaps so one straight cut serves a whole row or column.
+Future<Uint8List> _buildPhotoSheet(_PhotoSheetMsg m) async {
+  final photo = pw.MemoryImage(File(m.photo).readAsBytesSync());
+  final w = m.paper.widthMm * _mm;
+  final h = m.paper.heightMm * _mm;
+  final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
+  final xs = {for (final it in m.items) ...[it.x, it.x + it.w]}.toList()..sort();
+  final ys = {for (final it in m.items) ...[it.y, it.y + it.h]}.toList()..sort();
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat(w, h),
+      build: (_) => pw.Stack(
+        children: [
+          for (final it in m.items)
+            pw.Positioned(
+              left: it.x * _mm,
+              top: it.y * _mm,
+              child: pw.Image(photo, fit: pw.BoxFit.fill, width: it.w * _mm, height: it.h * _mm),
+            ),
+          if (m.cutLines && m.items.isNotEmpty)
+            pw.Positioned.fill(
+              child: pw.CustomPaint(
+                size: PdfPoint(w, h),
+                painter: (canvas, size) {
+                  canvas
+                    ..setStrokeColor(PdfColors.grey500)
+                    ..setLineWidth(0.4)
+                    ..setLineDashPattern([3, 2]);
+                  // pdf's canvas origin is bottom-left; flip y.
+                  for (final x in xs) {
+                    canvas
+                      ..moveTo(x * _mm, size.y - ys.first * _mm + 8)
+                      ..lineTo(x * _mm, size.y - ys.last * _mm - 8);
+                  }
+                  for (final y in ys) {
+                    canvas
+                      ..moveTo(xs.first * _mm - 8, size.y - y * _mm)
+                      ..lineTo(xs.last * _mm + 8, size.y - y * _mm);
+                  }
+                  canvas.strokePath();
+                },
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
   return doc.save();
 }
