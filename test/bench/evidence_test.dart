@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:path/path.dart' as p;
 
-/// Writes docs/round3/results_dart.jpg — the Dart pipeline on the owner's
+/// Writes docs/round4/results_dart.jpg — the Dart pipeline on the owner's
 /// photos, laid out like the reference's results_documents.jpg — and prints
 /// timings for a full-resolution 16 MP export.
 /// Run: flutter test test/bench --tags bench --run-skipped
@@ -69,7 +69,7 @@ void main() {
       sheet.dispose();
       sheet = next;
     }
-    pipe.writeJpeg(sheet, 'docs/round3/results_dart.jpg', quality: 88);
+    pipe.writeJpeg(sheet, 'docs/round4/results_dart.jpg', quality: 88);
 
     // 16 MP (4608 × 3456, the Mate 10 Lite's sensor) full-resolution exports.
     final tmp = Directory.systemTemp.createTempSync('ev');

@@ -1503,6 +1503,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'High · 600 DPI'**
   String get printQualityHigh;
+
+  /// No description provided for @cameraHintDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold steady · edges are found automatically'**
+  String get cameraHintDocument;
+
+  /// No description provided for @cameraHintCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit the card in the frame · move back if it\'s blurry'**
+  String get cameraHintCard;
+
+  /// No description provided for @cameraCardBlurry.
+  ///
+  /// In en, this message translates to:
+  /// **'Card looks blurry'**
+  String get cameraCardBlurry;
 }
 
 class _AppLocalizationsDelegate

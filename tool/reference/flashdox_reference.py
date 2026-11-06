@@ -226,15 +226,25 @@ def _unsharp(bgr: np.ndarray, amount: float, sigma: float) -> np.ndarray:
     return cv.addWeighted(bgr, 1 + amount, blur, -amount, 0)
 
 
-def _denoise(bgr: np.ndarray) -> np.ndarray:
+def estimate_noise(bgr: np.ndarray) -> float:
+    """Rough sensor-noise sigma (median absolute deviation of the Laplacian on gray)."""
+    g = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY).astype(np.float32)
+    lap = cv.Laplacian(g, cv.CV_32F)
+    return float(np.median(np.abs(lap - np.median(lap))) / 0.6745 / 2.0)
+
+
+def _denoise(bgr: np.ndarray, min_h: float = 3.0, max_h: float = 6.0) -> np.ndarray:
     """Remove sensor noise BEFORE any contrast step (otherwise it gets amplified).
-    Non-local means is the strongest; it runs on a <= 2000 px copy for speed and the
-    clean result is upscaled only if the input was larger. Fallback: bilateral."""
+    Strength adapts to the measured noise: a clean, well-lit photo gets almost none,
+    so fine print is not smeared into a 'watercolour' look. Non-local means runs on a
+    <= 2000 px copy for speed. Fallback: bilateral."""
     h, w = bgr.shape[:2]
+    sigma = estimate_noise(bgr)
+    strength = float(np.clip(sigma * 0.8, min_h, max_h))
     s = min(1.0, 2000.0 / max(h, w))
     small = cv.resize(bgr, (int(w * s), int(h * s)), interpolation=cv.INTER_AREA) if s < 1 else bgr
     try:
-        clean = cv.fastNlMeansDenoisingColored(small, None, 5, 5, 7, 21)
+        clean = cv.fastNlMeansDenoisingColored(small, None, strength, strength, 7, 21)
     except Exception:
         clean = cv.bilateralFilter(small, 7, 40, 40)
     if s < 1:
@@ -283,8 +293,10 @@ def _levels_L(bgr: np.ndarray, lo_pct: float, hi_pct: float) -> np.ndarray:
 
 def filter_id_color(bgr: np.ndarray) -> np.ndarray:
     """'ID colour' (default in ID/Passport modes): no background whitening —
-    a card is not white paper. Clean, sharp, true colours for colour copies."""
-    img = _denoise(bgr)
+    a card is not white paper. Clean, sharp, true colours for colour copies.
+    Denoise is capped lower than for documents: cards have fine guilloche print and
+    small text that strong denoising smears."""
+    img = _denoise(bgr, min_h=2.0, max_h=3.0)
     img = _gray_world_wb(img, 0.5)
     img = _clahe_L(img, 1.6)
     img = _saturate(img, 1.15)

@@ -127,7 +127,10 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         sharpness: e.result?.sharpness,
         brightness: e.result?.brightness,
       );
-      if (CaptureChecks.isBlurry(e.result?.sharpness)) {
+      final isCard = state.rules.aspectRatio != null;
+      if (isCard && CaptureChecks.isCardBlurry(e.result?.cardSharpness)) {
+        notice = CaptureNotice(NoticeKind.blurryCard, e.id);
+      } else if (!isCard && CaptureChecks.isBlurry(e.result?.sharpness)) {
         notice = CaptureNotice(NoticeKind.blurry, e.id);
       } else if (!state.flashOn && CaptureChecks.isDark(e.result?.brightness)) {
         notice = CaptureNotice(NoticeKind.dark, e.id);

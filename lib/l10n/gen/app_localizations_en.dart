@@ -803,4 +803,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get printQualityHigh => 'High · 600 DPI';
+
+  @override
+  String get cameraHintDocument =>
+      'Hold steady · edges are found automatically';
+
+  @override
+  String get cameraHintCard =>
+      'Fit the card in the frame · move back if it\'s blurry';
+
+  @override
+  String get cameraCardBlurry => 'Card looks blurry';
 }

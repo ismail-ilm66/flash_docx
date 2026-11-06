@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
@@ -14,6 +15,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
+import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/bloc/scan_session_bloc.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
@@ -104,7 +106,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// Portrait aspect (width / height) of the capture, or 3:4 until known.
   double get _photoAspect {
     final c = _controller;
-    if (c == null || !c.value.isInitialized) return PreviewGeometry.wellAspect;
+    if (c == null || !c.value.isInitialized) return PreviewGeometry.defaultPhotoAspect;
     return 1 / c.value.aspectRatio;
   }
 
@@ -152,7 +154,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         return;
       }
       _controller = ctrl;
-      await _applyFlash(context.read<ScanSessionBloc>().state.flashOn);
+      final session = context.read<ScanSessionBloc>().state;
+      await _applyFlash(session.flashOn);
+      await _applyModeCamera(session.mode);
       setState(() => _initializing = false);
     } on CameraException catch (e) {
       setState(() {
@@ -175,18 +179,20 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   /// Tap-to-focus: focus and exposure jump to the tapped point.
-  Future<void> _onPreviewTap(Offset well) async {
+  Future<void> _onPreviewTap(Offset screen) async {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
-    final photo = PreviewGeometry.wellToPhoto(well, photoAspect: _photoAspect);
-    setState(() => _focusPoint = well);
+    final photo = PreviewGeometry.viewportToPhoto(screen, photoAspect: _photoAspect, viewport: MediaQuery.sizeOf(context));
+    setState(() => _focusPoint = screen);
     _focusedAt = DateTime.now();
     _focusRingTimer?.cancel();
     _focusRingTimer = Timer(const Duration(milliseconds: 900), () {
       if (mounted) setState(() => _focusPoint = null);
     });
-    await _trySet(() => c.setFocusPoint(photo));
-    await _trySet(() => c.setExposurePoint(photo));
+    // ID / passport: every tap refocuses on the card frame (P0-2).
+    final target = _cardFocusPoint() ?? photo;
+    await _trySet(() => c.setFocusPoint(target));
+    await _trySet(() => c.setExposurePoint(target));
   }
 
   /// Continuous autofocus is always on. Only right after a tap-to-focus
@@ -205,6 +211,47 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       unawaited(_shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9));
     }
     setState(() => _flashTick++);
+  }
+
+  ScanMode? _cameraMode;
+
+  /// P0-2: 1.5× zoom in ID / passport (or the device maximum if lower) so
+  /// the card fills more of the sensor; 1× for Document. Focus and exposure
+  /// go to the frame centre.
+  Future<void> _applyModeCamera(ScanMode mode) async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || mode == _cameraMode) return;
+    _cameraMode = mode;
+    final card = ScanModeRules.of(mode).aspectRatio != null;
+    try {
+      final max = await c.getMaxZoomLevel();
+      final min = await c.getMinZoomLevel();
+      await c.setZoomLevel((card ? math.min(1.5, max) : 1.0).clamp(min, max));
+    } catch (_) {}
+    final focus = _cardFocusPoint();
+    if (focus != null) {
+      await _trySet(() => c.setFocusPoint(focus));
+      await _trySet(() => c.setExposurePoint(focus));
+    } else {
+      await _trySet(() => c.setFocusPoint(null));
+      await _trySet(() => c.setExposurePoint(null));
+    }
+  }
+
+  /// Centre of the ID / passport frame in photo coordinates; null in
+  /// Document mode.
+  Offset? _cardFocusPoint() {
+    if (!mounted) return null;
+    final aspect = context.read<ScanSessionBloc>().state.rules.aspectRatio;
+    if (aspect == null) return null;
+    final q = PreviewGeometry.guideQuad(
+      aspect,
+      photoAspect: _photoAspect,
+      viewport: MediaQuery.sizeOf(context),
+      area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
+    );
+    final pts = q.points;
+    return Offset(pts.map((p) => p.x).reduce((a, b) => a + b) / 4, pts.map((p) => p.y).reduce((a, b) => a + b) / 4);
   }
 
   Future<void> _applyFlash(bool on) async {
@@ -254,7 +301,17 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     setState(() => _capturing = true);
     final total = Stopwatch()..start();
     try {
-      await _waitForTapFocus();
+      final card = _cardFocusPoint();
+      if (card != null) {
+        // P0-2: refocus on the card, then wait for it to settle (the plugin
+        // has no "focus done" callback). The shutter stays disabled.
+        await _trySet(() => c.setFocusPoint(card));
+        await _trySet(() => c.setExposurePoint(card));
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        if (!mounted) return;
+      } else {
+        await _waitForTapFocus();
+      }
       _captureFeedback();
       final take = Stopwatch()..start();
       // How the phone is held right now (from the motion sensor, even with
@@ -268,7 +325,12 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       final guideAspect = bloc.state.rules.aspectRatio;
       final guide = guideAspect == null
           ? null
-          : PreviewGeometry.guideQuad(guideAspect, photoAspect: _photoAspect);
+          : PreviewGeometry.guideQuad(
+              guideAspect,
+              photoAspect: _photoAspect,
+              viewport: MediaQuery.sizeOf(context),
+              area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
+            );
       if (widget.args.retake) {
         context.pop(RetakeShot(shot.path, guide: guide, turns: turns));
         return;
@@ -295,6 +357,14 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     final n = s.notice;
     if (n != null) {
       return switch (n.kind) {
+        NoticeKind.blurryCard => _NoticeBanner(
+            text: l.cameraCardBlurry,
+            icon: AppIcons.warning,
+            actions: [
+              (l.cameraRetake, () => bloc.add(SessionRetakeRequested(n.captureId))),
+              (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
+            ],
+          ),
         NoticeKind.blurry => _NoticeBanner(
             text: l.cameraBlurryTitle,
             icon: AppIcons.warning,
@@ -320,6 +390,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       StorageLevel.low => _NoticeBanner(text: l.cameraStorageLow, icon: AppIcons.storage),
       StorageLevel.ok => null,
     };
+  }
+
+  /// "Import": Photos or Files, then the same pipeline as the camera.
+  Future<void> _importFromSheet() async {
+    final source = await pickPageSource(context, camera: false);
+    if (source == null || !mounted) return;
+    await _import(gallery: source == PageSource.photos);
   }
 
   Future<void> _import({required bool gallery}) async {
@@ -355,20 +432,25 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final l = context.l10n;
     return BlocConsumer<ScanSessionBloc, ScanSessionState>(
-      listenWhen: (a, b) => a.status != b.status || a.flashOn != b.flashOn,
+      listenWhen: (a, b) => a.status != b.status || a.flashOn != b.flashOn || a.mode != b.mode,
       listener: (context, s) {
         if (s.status == SessionStatus.ready) _onReady(context, s);
         if (s.status == SessionStatus.failed) {
           context.showSnack(failureMessage(context, s.failure), error: true);
         }
         unawaited(_applyFlash(s.flashOn));
+        unawaited(_applyModeCamera(s.mode));
       },
       builder: (context, s) {
-        final title = widget.args.retake
-            ? l.adjustRetake
-            : s.count == 0
-            ? modeLabel(context, s.mode)
-            : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
+        // "Document · 3 pages"; ID cards name the side being taken.
+        final side = widget.args.retake ? widget.args.retakeSide : s.nextSide;
+        final title = side != null
+            ? '${modeLabel(context, s.mode)} · ${side == CardSide.back ? l.cameraGuideBack : l.cameraGuideFront}'
+            : widget.args.retake
+                ? l.adjustRetake
+                : s.count == 0
+                    ? modeLabel(context, s.mode)
+                    : '${modeLabel(context, s.mode)} · ${l.pagesCount(s.count)}';
         final guard =
             !widget.args.retake &&
             s.count > 0 &&
@@ -411,9 +493,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                     SessionModeChanged(m),
                   ),
                   onShutter: _capture,
-                  onGallery: widget.args.retake
-                      ? null
-                      : () => _import(gallery: true),
+                  onGallery: widget.args.retake ? null : _importFromSheet,
                   onFinish: () => context.read<ScanSessionBloc>().add(
                     const SessionFinished(),
                   ),
@@ -446,15 +526,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   String _guideText(AppLocalizations l, ScanSessionState s) {
     // A retake shows the label of the side being replaced (P0-3).
-    final side = widget.args.retakeSide;
-    if (widget.args.retake && side != null) {
-      return side == CardSide.back ? l.cameraGuideBack : l.cameraGuideFront;
-    }
     return switch (s.guide) {
-        GuideLabel.documentPage => l.cameraGuideDocument(s.count + 1),
-        GuideLabel.front => l.cameraGuideFront,
-        GuideLabel.back => l.cameraGuideBack,
-        GuideLabel.passport => l.cameraGuidePassport,
+        GuideLabel.documentPage => l.cameraHintDocument,
+        GuideLabel.front || GuideLabel.back || GuideLabel.passport => l.cameraHintCard,
     };
   }
 

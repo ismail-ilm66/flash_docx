@@ -7,6 +7,7 @@
 
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -846,9 +847,82 @@ cv.Mat unsharp(cv.Mat bgr, double amount, double sigma) {
   return out;
 }
 
-/// Non-local-means denoise on a ≤ 2000 px copy; for larger inputs the fine
-/// detail of the original (minus its noise-scale blur) is added back.
-cv.Mat denoise(cv.Mat bgr) {
+/// Rough sensor-noise sigma, as the reference `estimate_noise()`: the median
+/// absolute deviation of the Laplacian of the gray image / 0.6745 / 2.
+double estimateNoise(cv.Mat bgr) {
+  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
+  final g32 = gray.convertTo(cv.MatType.CV_32FC1);
+  final lap = cv.laplacian(g32, cv.MatType.CV_32F);
+  final cont = lap.isContinuous ? lap : lap.clone();
+  final bytes = cont.data;
+  final values = Float32List.fromList(bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols));
+  for (final m in [gray, g32, lap]) {
+    m.dispose();
+  }
+  if (!identical(cont, lap)) cont.dispose();
+  final med = _median(values);
+  for (var i = 0; i < values.length; i++) {
+    values[i] = (values[i] - med).abs();
+  }
+  return _median(values) / 0.6745 / 2.0;
+}
+
+/// numpy's median (mean of the two middle values for an even count), by
+/// quickselect: O(n), reorders [v].
+double _median(Float32List v) {
+  final n = v.length;
+  if (n == 0) return 0;
+  double select(int k) {
+    var lo = 0;
+    var hi = n - 1;
+    while (lo < hi) {
+      final pivot = v[(lo + hi) >> 1];
+      var i = lo;
+      var j = hi;
+      while (i <= j) {
+        while (v[i] < pivot) {
+          i++;
+        }
+        while (v[j] > pivot) {
+          j--;
+        }
+        if (i <= j) {
+          final t = v[i];
+          v[i] = v[j];
+          v[j] = t;
+          i++;
+          j--;
+        }
+      }
+      if (k <= j) {
+        hi = j;
+      } else if (k >= i) {
+        lo = i;
+      } else {
+        return v[k];
+      }
+    }
+    return v[k];
+  }
+
+  if (n.isOdd) return select(n ~/ 2);
+  final upper = select(n ~/ 2);
+  // After selecting n/2 everything left of it is ≤ it: the lower middle is
+  // the maximum of that part.
+  var lower = v[0];
+  for (var i = 1; i < n ~/ 2; i++) {
+    if (v[i] > lower) lower = v[i];
+  }
+  return (lower + upper) / 2;
+}
+
+/// Non-local-means denoise whose strength follows the measured noise
+/// (round 4 reference): `clamp(sigma × 0.8, minH, maxH)`, so a clean,
+/// well-lit photo gets almost none and fine print isn't smeared. Runs on a
+/// ≤ 2000 px copy; for larger inputs the fine detail of the original (minus
+/// its noise-scale blur) is added back.
+cv.Mat denoise(cv.Mat bgr, {double minH = 3.0, double maxH = 6.0}) {
+  final strength = (estimateNoise(bgr) * 0.8).clamp(minH, maxH);
   final h = bgr.rows;
   final w = bgr.cols;
   final s = math.min(1.0, 2000.0 / math.max(h, w));
@@ -857,7 +931,7 @@ cv.Mat denoise(cv.Mat bgr) {
       : bgr;
   cv.Mat clean;
   try {
-    clean = cv.fastNlMeansDenoisingColored(small, h: 5, hColor: 5, templateWindowSize: 7, searchWindowSize: 21);
+    clean = cv.fastNlMeansDenoisingColored(small, h: strength, hColor: strength, templateWindowSize: 7, searchWindowSize: 21);
   } catch (_) {
     clean = cv.bilateralFilter(small, 7, 40, 40);
   }
@@ -953,7 +1027,8 @@ cv.Mat autoFilter(cv.Mat bgr) {
 /// "ID colour" (default in ID / passport): no background whitening — a card
 /// is not white paper. Clean, sharp, true colours.
 cv.Mat idColorFilter(cv.Mat bgr) {
-  final dn = denoise(bgr);
+  // Cards have fine guilloche print and small text: denoise capped low.
+  final dn = denoise(bgr, minH: 2.0, maxH: 3.0);
   final wb = grayWorldWb(dn, 0.5);
   dn.dispose();
   final cl = claheL(wb, 1.6);
@@ -1043,6 +1118,26 @@ cv.Mat ocrImage(cv.Mat warpedBgr) {
 // Capture checks
 // ---------------------------------------------------------------------------
 
+/// Sharpness of a card (P0-2): warp [quad] out of [img] to the real card
+/// shape, scale to 1000 px wide, Laplacian variance.
+double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
+  final card = warpToQuad(img, quad, aspect: aspect);
+  final landscape = card.cols >= card.rows ? card : cv.rotate(card, cv.ROTATE_90_CLOCKWISE);
+  final w1000 = cv.resize(landscape, (1000, (1000 * landscape.rows / landscape.cols).round()), interpolation: cv.INTER_AREA);
+  final gray = cv.cvtColor(w1000, cv.COLOR_BGR2GRAY);
+  final lap = cv.laplacian(gray, cv.MatType.CV_64F);
+  final (mean, std) = cv.meanStdDev(lap);
+  final v = std.val1 * std.val1;
+  for (final m in [w1000, gray, lap]) {
+    m.dispose();
+  }
+  mean.dispose();
+  std.dispose();
+  if (!identical(landscape, card)) landscape.dispose();
+  card.dispose();
+  return v;
+}
+
 /// Variance of the Laplacian on a 1000 px copy (reference `sharpness()`), and
 /// the mean brightness of that copy. Low sharpness = blurry; low brightness =
 /// dark. Thresholds live in `CaptureChecks`.
@@ -1123,9 +1218,14 @@ class IngestReport {
     required this.width,
     required this.height,
     required this.decodeScale,
+    this.cardSharpness,
   });
 
   final DetectionReport detection;
+
+  /// ID / passport only (P0-2): Laplacian variance of the warped card at
+  /// 1000 px wide — the card itself, not the table around it.
+  final double? cardSharpness;
 
   /// Laplacian variance on a 1000 px copy; low = blurry.
   final double sharpness;
@@ -1166,6 +1266,20 @@ IngestReport ingest({
     writeJpeg(preview, previewOut, quality: 85);
     final detection = detectDocument(preview, aspectHint: aspectHint, searchArea: searchArea);
     final stats = captureStats(preview);
+    double? cardSharpness;
+    if (aspectHint != null) {
+      final area = searchArea;
+      final quad = detection.quad ??
+          (area == null
+              ? null
+              : Quad(
+                  tl: Pt(area.left, area.top),
+                  tr: Pt(area.right, area.top),
+                  br: Pt(area.right, area.bottom),
+                  bl: Pt(area.left, area.bottom),
+                ));
+      if (quad != null) cardSharpness = cardSharpnessOf(img, quad, aspectHint);
+    }
     // EXIF may swap the header's width and height; the decoded image is
     // upright, so take the orientation from it.
     final long = header == null ? math.max(img.cols, img.rows) * scale : math.max(header.width, header.height);
@@ -1178,6 +1292,7 @@ IngestReport ingest({
       width: landscape ? long : short,
       height: landscape ? short : long,
       decodeScale: scale,
+      cardSharpness: cardSharpness,
     );
   } finally {
     disposeUnless(preview, img);

@@ -3,63 +3,66 @@ import 'dart:ui';
 
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 
-/// Pure geometry for the camera preview well. The well is a 3:4 box; the
-/// photo is cover-fitted into it. These helpers map between the box and the
-/// photo so the guide frame and tap-to-focus land where the user expects.
+/// Pure geometry for the full-screen camera preview (round 4, P1-2).
+///
+/// The photo (4:3 sensor, shown portrait as 3:4) is cover-fitted to the
+/// whole screen, so on tall phones its sides run off the screen. These
+/// helpers map between screen fractions and photo fractions through that
+/// cover crop, so the guide frame and tap-to-focus land where the user sees
+/// them.
 abstract final class PreviewGeometry {
-  /// Portrait aspect (width / height) of the preview well.
-  static const double wellAspect = 3 / 4;
+  /// Portrait aspect (width / height) of a capture until the camera reports
+  /// its own.
+  static const double defaultPhotoAspect = 3 / 4;
 
-  /// Guide frame as a fraction of the well: centred, 84% of the well width
-  /// for landscape shapes, or fitted to 84% of the width / 72% of the height
-  /// for portrait shapes. [aspect] is width / height.
-  static Rect guideRect(double aspect) {
-    const maxW = 0.84;
-    const maxH = 0.72;
-    // Work in well units where width = 1 and height = 1 / wellAspect.
-    const wellH = 1 / wellAspect;
-    var w = maxW;
+  /// The guide frame as fractions of the [viewport]: a constant shape on
+  /// screen (P1-4), 84 % of the width, or 72 % of the height of [area] if
+  /// that is smaller, centred in [area] (fractions of the viewport — the
+  /// part between the top bar and the controls). [aspect] is width / height.
+  static Rect guideRect(double aspect, {required Size viewport, Rect area = const Rect.fromLTWH(0, 0, 1, 1)}) {
+    final vw = viewport.width;
+    final vh = viewport.height;
+    final a = Rect.fromLTWH(area.left * vw, area.top * vh, area.width * vw, area.height * vh);
+    var w = 0.84 * vw;
     var h = w / aspect;
-    if (h > maxH * wellH) {
-      h = maxH * wellH;
+    if (h > 0.72 * a.height) {
+      h = 0.72 * a.height;
       w = h * aspect;
     }
-    // Convert back to fractions of each axis.
-    final fw = w;
-    final fh = h / wellH;
-    return Rect.fromLTWH((1 - fw) / 2, (1 - fh) / 2, fw, fh);
+    final c = a.center;
+    return Rect.fromLTWH((c.dx - w / 2) / vw, (c.dy - h / 2) / vh, w / vw, h / vh);
   }
 
-  /// Maps a point given as fractions of the well (0..1) to fractions of the
-  /// photo (0..1), for a photo of [photoAspect] (width / height) cover-fitted
-  /// into the well. Points outside the visible photo are clamped.
-  static Offset wellToPhoto(Offset p, {required double photoAspect}) {
-    // Scale so the photo covers the well.
-    const scaleX = 1.0; // well width = 1
-    const wellH = 1 / wellAspect;
-    final photoH = 1 / photoAspect; // photo width = 1
-    final k = math.max(scaleX, wellH / photoH); // cover
-    final shownW = k; // photo width in well units
-    final shownH = k * photoH;
-    final offX = (1 - shownW) / 2;
-    final offY = (wellH - shownH) / 2;
-    final x = (p.dx - offX) / shownW;
-    final y = (p.dy * wellH - offY) / shownH;
+  /// Maps a point given as fractions of the [viewport] to fractions of the
+  /// photo (0..1) for a photo of [photoAspect] (portrait width / height)
+  /// cover-fitted to the viewport. Points outside the photo are clamped.
+  static Offset viewportToPhoto(Offset p, {required double photoAspect, required Size viewport}) {
+    final vw = viewport.width;
+    final vh = viewport.height;
+    // Photo of width photoAspect, height 1, scaled by k to cover.
+    final k = math.max(vw / photoAspect, vh);
+    final shownW = photoAspect * k;
+    final shownH = k;
+    final offX = (vw - shownW) / 2;
+    final offY = (vh - shownH) / 2;
+    final x = (p.dx * vw - offX) / shownW;
+    final y = (p.dy * vh - offY) / shownH;
     return Offset(x.clamp(0, 1), y.clamp(0, 1));
   }
 
-  /// The guide frame expressed in photo coordinates, as a [Quad].
-  static Quad guideQuad(double aspect, {required double photoAspect}) {
-    final r = guideRect(aspect);
+  /// The guide frame in photo coordinates, as a [Quad].
+  static Quad guideQuad(
+    double aspect, {
+    required double photoAspect,
+    required Size viewport,
+    Rect area = const Rect.fromLTWH(0, 0, 1, 1),
+  }) {
+    final r = guideRect(aspect, viewport: viewport, area: area);
     Pt pt(Offset o) {
-      final m = wellToPhoto(o, photoAspect: photoAspect);
+      final m = viewportToPhoto(o, photoAspect: photoAspect, viewport: viewport);
       return Pt(m.dx, m.dy);
     }
-    return Quad(
-      tl: pt(r.topLeft),
-      tr: pt(r.topRight),
-      br: pt(r.bottomRight),
-      bl: pt(r.bottomLeft),
-    );
+
+    return Quad(tl: pt(r.topLeft), tr: pt(r.topRight), br: pt(r.bottomRight), bl: pt(r.bottomLeft));
   }
 }

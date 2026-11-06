@@ -48,7 +48,7 @@ void main() {
       final side = (inv.namedArguments[#sides] as List<CardSide?>?)?.single;
       final page = ScanPage(id: path, documentId: '', originalPath: path, edits: const PageEdits(), order: 0, side: side);
       final cb = inv.namedArguments[#onPrepared] as void Function(int, AutoEditsResult)?;
-      cb?.call(0, AutoEditsResult(edits: const PageEdits(), detected: true, sharpness: sharpnessFor[path] ?? 500, brightness: 150));
+      cb?.call(0, AutoEditsResult(edits: const PageEdits(), detected: true, sharpness: sharpnessFor[path] ?? 500, cardSharpness: sharpnessFor[path] ?? 500, brightness: 150));
       return Right([page]);
     });
   });
@@ -130,6 +130,7 @@ void main() {
     expect(bloc.state.nextSide, CardSide.back);
     bloc.add(SessionCaptured(back));
     await pump();
+    expect(bloc.state.notice!.kind, NoticeKind.blurryCard, reason: 'card wording in ID mode (P0-2)');
     bloc.add(SessionRetakeRequested(bloc.state.notice!.captureId));
     await pump();
     expect(bloc.state.nextSide, CardSide.back);

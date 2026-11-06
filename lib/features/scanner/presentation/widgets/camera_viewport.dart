@@ -2,13 +2,15 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flutter/material.dart';
 
-/// The 3:4 preview box: camera feed, guide frame, tap-to-focus ring, the
-/// white capture flash and the thumbnail that flies into the page stack.
-class PreviewWell extends StatefulWidget {
-  const PreviewWell({
+/// The full-screen camera viewport (round 4, P1-2): camera feed (cover
+/// fit), guide frame, tap-to-focus ring, the white capture flash and the
+/// page that flies into the stack.
+class CameraViewport extends StatefulWidget {
+  const CameraViewport({
     required this.preview,
     super.key,
     this.guideAspect,
+    this.guideArea = const Rect.fromLTWH(0, 0, 1, 1),
     this.focusPoint,
     this.flashTick = 0,
     this.onTap,
@@ -20,6 +22,10 @@ class PreviewWell extends StatefulWidget {
 
   /// Frame shape (width / height), or null for no frame (Document mode).
   final double? guideAspect;
+
+  /// Where the frame is centred: the visible part between the top bar and
+  /// the controls, as fractions of the viewport.
+  final Rect guideArea;
   final Offset? focusPoint;
   final int flashTick;
   final ValueChanged<Offset>? onTap;
@@ -29,10 +35,10 @@ class PreviewWell extends StatefulWidget {
   final int flyTick;
 
   @override
-  State<PreviewWell> createState() => _PreviewWellState();
+  State<CameraViewport> createState() => _CameraViewportState();
 }
 
-class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin {
+class _CameraViewportState extends State<CameraViewport> with TickerProviderStateMixin {
   late final AnimationController _flash = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 150),
@@ -45,7 +51,7 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
   bool _flying = false;
 
   @override
-  void didUpdateWidget(PreviewWell old) {
+  void didUpdateWidget(CameraViewport old) {
     super.didUpdateWidget(old);
     if (widget.flashTick != old.flashTick) {
       _flash
@@ -83,10 +89,10 @@ class _PreviewWellState extends State<PreviewWell> with TickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     final aspect = widget.guideAspect;
-    final rect = aspect == null ? null : PreviewGeometry.guideRect(aspect);
     return LayoutBuilder(
       builder: (context, constraints) {
         final size = Size(constraints.maxWidth, constraints.maxHeight);
+        final rect = aspect == null ? null : PreviewGeometry.guideRect(aspect, viewport: size, area: widget.guideArea);
         final frame = rect == null
             ? null
             : Rect.fromLTWH(

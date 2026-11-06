@@ -55,6 +55,7 @@ class OpenCvImageProcessor implements ImageProcessor {
       edits: PageEdits(crop: r.quad ?? pipe.fallbackQuad(guide: guide), filter: filter, outputAspect: outputAspect),
       detected: r.quad != null,
       sharpness: r.sharpness,
+      cardSharpness: r.cardSharpness,
       brightness: r.brightness,
       width: r.width,
       height: r.height,
@@ -205,10 +206,12 @@ class IngestResult {
     required this.width,
     required this.height,
     required this.log,
+    this.cardSharpness,
   });
   final Quad? quad;
   final List<Quad> ranked;
   final double sharpness;
+  final double? cardSharpness;
   final double brightness;
   final int width;
   final int height;
@@ -254,12 +257,13 @@ IngestResult ingestInIsolate(IngestMsg m) {
     quad: r.detection.quad,
     ranked: r.detection.ranked,
     sharpness: r.sharpness,
+    cardSharpness: r.cardSharpness,
     brightness: r.brightness,
     width: r.width,
     height: r.height,
     log: '${r.width}×${r.height} (${(r.width * r.height / 1e6).toStringAsFixed(1)} MP, '
         '${mb.toStringAsFixed(1)} MB) decode 1/${r.decodeScale}; ${r.detection}; '
-        'sharpness ${r.sharpness.toStringAsFixed(0)} brightness ${r.brightness.toStringAsFixed(0)}; '
+        'sharpness ${r.sharpness.toStringAsFixed(0)}${r.cardSharpness == null ? '' : ' card ${r.cardSharpness!.toStringAsFixed(0)}'} brightness ${r.brightness.toStringAsFixed(0)}; '
         'total ${sw.elapsedMilliseconds} ms',
   );
 }

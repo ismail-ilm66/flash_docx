@@ -95,6 +95,7 @@ class AutoEditsResult {
     required this.edits,
     required this.detected,
     this.sharpness,
+    this.cardSharpness,
     this.brightness,
     this.width,
     this.height,
@@ -109,6 +110,9 @@ class AutoEditsResult {
 
   /// Capture checks (see `CaptureChecks`). null when not measured.
   final double? sharpness;
+
+  /// ID / passport: sharpness of the warped card itself (P0-2).
+  final double? cardSharpness;
   final double? brightness;
 
   /// Original photo size in pixels (upright).

@@ -63,7 +63,7 @@ class Capture extends Equatable {
 }
 
 /// A post-capture prompt for one capture (round 3, A3).
-enum NoticeKind { blurry, dark, unreadable }
+enum NoticeKind { blurry, blurryCard, dark, unreadable }
 
 class CaptureNotice extends Equatable {
   const CaptureNotice(this.kind, this.captureId);

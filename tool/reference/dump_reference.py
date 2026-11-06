@@ -34,7 +34,15 @@ for p in sorted(glob.glob(os.path.join(edges, '*.jpg'))):
     meta.update({'source': 'reference detect_document (owner photo)', 'map': src, 'score': round(score, 4)})
     if mode == 'id':
         meta['aspect'] = ref.ID_ASPECT
-    json.dump(meta, open(os.path.join(edges, name + '.json'), 'w'), indent=1)
+    side = os.path.join(edges, name + '.json')
+    if os.path.exists(side):
+        # Never overwrite hand-marked corners: only refresh what the
+        # reference found, which the parity test compares against.
+        old = json.load(open(side))
+        old['reference_found'] = {k: meta[k] for k in ['tl', 'tr', 'br', 'bl']}
+        old['map'], old['score'] = meta['map'], meta['score']
+        meta = old
+    json.dump(meta, open(side, 'w'), indent=1)
     warped = ref.warp(img, q, mode)
     cv.imwrite(os.path.join(out, f'{name}_warp.png'), warped)
     cv.imwrite(os.path.join(out, f'{name}_auto.png'), ref.filter_auto_color(warped))

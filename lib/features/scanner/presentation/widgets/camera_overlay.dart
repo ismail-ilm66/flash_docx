@@ -4,8 +4,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
-import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
-import 'package:flash_dox/features/scanner/presentation/widgets/preview_well.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/camera_viewport.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -73,163 +72,211 @@ class CameraOverlay extends StatelessWidget {
   /// Storage / blur / dark notice shown above the hint.
   final Widget? banner;
 
+  /// Heights from the artboard (round 4, P1-2).
+  static const double topFade = 96;
+  static const double bottomFade = 250;
+
+  /// The visible part of the full-screen preview between the top bar and
+  /// the controls, as fractions of the screen. The guide frame is centred in
+  /// it; the camera page uses the same area to map the frame into the photo.
+  static Rect guideAreaFor(MediaQueryData mq) {
+    final h = mq.size.height;
+    final top = mq.padding.top + 70;
+    final bottom = h - mq.padding.bottom - bottomFade;
+    return Rect.fromLTRB(0, top / h, 1, (bottom > top ? bottom : h) / h);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
+    final mq = MediaQuery.of(context);
     // P1-4: Document has no frame guide; ID / passport frames are always
     // landscape and a constant in screen space.
     final aspect = rules.aspectRatio;
     return Stack(
       children: [
-        // ---- preview: 3:4 at full width from the very top (P1-5) ----
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: AspectRatio(
-            aspectRatio: PreviewGeometry.wellAspect,
-            child: PreviewWell(
-              preview: preview,
-              guideAspect: aspect,
-              focusPoint: focusPoint,
-              flashTick: flashTick,
-              onTap: onPreviewTap,
-              stackKey: stackKey,
-              flyTick: flyTick,
-            ),
+        // ---- preview: the whole screen, under a transparent status bar ----
+        Positioned.fill(
+          child: CameraViewport(
+            preview: preview,
+            guideAspect: aspect,
+            guideArea: guideAreaFor(mq),
+            focusPoint: focusPoint,
+            flashTick: flashTick,
+            onTap: onPreviewTap,
+            stackKey: stackKey,
+            flyTick: flyTick,
           ),
         ),
-        // ---- top bar, overlaid on a soft gradient ----
+        // ---- top fade: ✕ · title · flash ----
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          child: DecoratedBox(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0xB3000000), Color(0x00000000)],
-              ),
-            ),
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(Space.x2, Space.x1, Space.x2, Space.x5),
-                child: Row(
-                  children: [
-                    IconButton(
-                      tooltip: l.commonClose,
-                      onPressed: onClose,
-                      icon: const AppIcon(AppIcons.close, color: Colors.white),
-                    ),
-                    Expanded(
-                      child: Text(
-                        title,
-                        textAlign: TextAlign.center,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
-                      ),
-                    ),
-                    _FlashPill(on: flashOn, onTap: onFlash),
-                  ],
+          child: IgnorePointer(
+            ignoring: false,
+            child: Container(
+              height: topFade + mq.padding.top,
+              padding: EdgeInsets.fromLTRB(Space.x2, mq.padding.top + 14, Space.x2, 0),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x99000000), Color(0x00000000)],
                 ),
               ),
+              alignment: Alignment.topCenter,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: Sizes.tap,
+                    height: Sizes.tap,
+                    child: IconButton(
+                      tooltip: l.commonClose,
+                      onPressed: onClose,
+                      icon: const AppIcon(AppIcons.close, color: _ink),
+                    ),
+                  ),
+                  Expanded(
+                    child: SizedBox(
+                      height: Sizes.tap,
+                      child: Center(
+                        child: Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
+                        ),
+                      ),
+                    ),
+                  ),
+                  _FlashPill(on: flashOn, onTap: onFlash),
+                ],
+              ),
             ),
           ),
         ),
-        // ---- bottom: banner + hint float above one solid black panel ----
+        // ---- hint chip (and notices) just above the bottom fade ----
         Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
+          left: Space.x4,
+          right: Space.x4,
+          bottom: mq.padding.bottom + bottomFade + 12,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (banner != null)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Space.x2),
-                  child: banner,
+              if (banner != null) ...[banner!, const SizedBox(height: Space.x2)],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(18),
                 ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: Space.x3),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.6),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Text(
-                    guide,
-                    textAlign: TextAlign.center,
-                    style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
-                  ),
-                ),
-              ),
-              ColoredBox(
-                color: Colors.black,
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 14, bottom: Space.x3),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (showModes) ...[
-                          _ModePills(selected: rules.mode, onMode: onMode),
-                          const SizedBox(height: Space.x4),
-                        ],
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: Space.x8),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: onGallery == null
-                                    ? null
-                                    : Tooltip(
-                                        message: l.homeImportGallery,
-                                        child: Material(
-                                          color: const Color(0xFF24272D),
-                                          borderRadius: BorderRadius.circular(14),
-                                          clipBehavior: Clip.antiAlias,
-                                          child: InkWell(
-                                            onTap: onGallery,
-                                            child: const Center(child: AppIcon(AppIcons.gallery, color: _ink)),
-                                          ),
-                                        ),
-                                      ),
-                              ),
-                              _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
-                              SizedBox(
-                                width: 52,
-                                height: 52,
-                                child: captureCount == 0
-                                    ? null
-                                    : _PageStack(
-                                        key: stackKey,
-                                        count: captureCount,
-                                        path: lastCapturePath,
-                                        onTap: canFinish ? onFinish : onRemoveLast,
-                                        onLongPress: onRemoveLast,
-                                        label: canFinish ? l.cameraReview(captureCount) : l.cameraRemoveLast,
-                                      ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                child: Text(
+                  guide,
+                  textAlign: TextAlign.center,
+                  style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
                 ),
               ),
             ],
           ),
         ),
+        // ---- bottom fade: modes, then Import · shutter · stack ----
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            height: bottomFade + mq.padding.bottom,
+            padding: EdgeInsets.only(bottom: 28 + mq.padding.bottom),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00000000), Color(0xC7000000)],
+                stops: [0, 0.32],
+              ),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (showModes) ...[
+                  _ModePills(selected: rules.mode, onMode: onMode),
+                  const SizedBox(height: 22),
+                ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.x8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: onGallery == null ? null : _ImportButton(onTap: onGallery!),
+                      ),
+                      _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
+                      SizedBox(
+                        width: 56,
+                        height: 64,
+                        child: captureCount == 0
+                            ? null
+                            : _PageStack(
+                                key: stackKey,
+                                count: captureCount,
+                                path: lastCapturePath,
+                                onTap: canFinish ? onFinish : onRemoveLast,
+                                onLongPress: onRemoveLast,
+                                label: canFinish ? l.cameraDone : l.cameraRemoveLast,
+                              ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ],
+    );
+  }
+}
+
+/// "Import" (Photos / Files), 56 px, icon over label.
+class _ImportButton extends StatelessWidget {
+  const _ImportButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Semantics(
+      button: true,
+      label: l.homeImport,
+      excludeSemantics: true,
+      child: Material(
+        color: const Color(0xFF24272D),
+        borderRadius: BorderRadius.circular(16),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const AppIcon(AppIcons.gallery, color: _ink, size: 22),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  l.homeImport,
+                  maxLines: 1,
+                  style: context.text.labelSmall?.copyWith(fontSize: 10, fontWeight: FontWeight.w700, color: _ink),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
