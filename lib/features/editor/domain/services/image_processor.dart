@@ -15,7 +15,10 @@ abstract interface class ImageProcessor {
   ///
   /// When nothing is found the crop becomes [guide] (the on-screen frame in
   /// ID / passport modes, which is also searched first) or a 5 % inset.
-  /// [outputAspect] forces the warp to the real card shape.
+  /// [outputAspect] forces the warp to the real card shape. [extraTurns] is
+  /// how the phone was held (clockwise quarter turns); it is baked into the
+  /// original together with the EXIF orientation, and [guide] (given in the
+  /// photo as captured) is turned to match.
   Future<AutoEditsResult> ingest(
     String sourcePath, {
     required String previewOut,
@@ -23,6 +26,7 @@ abstract interface class ImageProcessor {
     Quad? guide,
     double? outputAspect,
     FilterType filter = FilterType.auto,
+    int extraTurns = 0,
   });
 
   /// Enhance preview (filter only; sliders are applied live in the UI).

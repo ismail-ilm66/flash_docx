@@ -2,6 +2,8 @@ import 'package:flash_dox/core/constants/sizes.dart';
 
 /// Target long-edge size for a render. `full` keeps the original resolution.
 enum RenderSize {
+  /// Small render for the ID / passport 0° vs 180° check (P0-1).
+  probe(640),
   thumb(RenderPx.thumbLongEdge),
   preview(RenderPx.previewLongEdge),
   standard(RenderPx.standardExportLongEdge),

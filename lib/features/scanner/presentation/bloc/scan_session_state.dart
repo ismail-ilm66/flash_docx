@@ -10,6 +10,7 @@ class Capture extends Equatable {
     this.path, {
     this.side,
     this.guide,
+    this.turns = 0,
     this.status = CaptureStatus.processing,
     this.page,
     this.sharpness,
@@ -25,6 +26,9 @@ class Capture extends Equatable {
   /// On-screen guide frame in photo coordinates (ID / passport fallback and
   /// first search area).
   final Quad? guide;
+
+  /// How the phone was held when it was taken (P0-1).
+  final int turns;
   final CaptureStatus status;
 
   /// The prepared draft page once [status] is ready.
@@ -47,6 +51,7 @@ class Capture extends Equatable {
         path,
         side: side,
         guide: guide,
+        turns: turns,
         status: status ?? this.status,
         page: page ?? this.page,
         sharpness: sharpness ?? this.sharpness,
@@ -54,7 +59,7 @@ class Capture extends Equatable {
       );
 
   @override
-  List<Object?> get props => [id, path, side, guide, status, page, sharpness, brightness];
+  List<Object?> get props => [id, path, side, guide, turns, status, page, sharpness, brightness];
 }
 
 /// A post-capture prompt for one capture (round 3, A3).

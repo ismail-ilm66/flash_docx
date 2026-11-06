@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -39,10 +40,13 @@ class OpenCvImageProcessor implements ImageProcessor {
     Quad? guide,
     double? outputAspect,
     FilterType filter = FilterType.auto,
+    int extraTurns = 0,
   }) async {
+    // The guide was mapped into the photo as captured; turn it with the photo.
+    guide = guide?.rotatedQuarterTurns(extraTurns);
     final r = await _runner.run(
       ingestInIsolate,
-      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide),
+      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide, extraTurns),
       debugLabel: 'ingest',
     );
     debugPrint('[ingest] ${r.log}');
@@ -168,11 +172,12 @@ class RenderMsg {
 }
 
 class IngestMsg {
-  const IngestMsg(this.src, this.previewOut, this.snapAspect, this.guide);
+  const IngestMsg(this.src, this.previewOut, this.snapAspect, this.guide, [this.extraTurns = 0]);
   final String src;
   final String previewOut;
   final double? snapAspect;
   final Quad? guide;
+  final int extraTurns;
 }
 
 class IngestResult {
@@ -218,6 +223,7 @@ IngestResult ingestInIsolate(IngestMsg m) {
     previewOut: m.previewOut,
     previewLongEdge: RenderPx.previewLongEdge,
     aspectHint: m.snapAspect,
+    extraTurns: m.extraTurns,
     searchArea: g == null
         ? null
         : (
@@ -348,9 +354,11 @@ String renderOcrInIsolate(RenderMsg m) {
 }
 
 ({int width, int height}) sizeInIsolate(String path) {
-  final img = cv.imread(path, flags: cv.IMREAD_REDUCED_GRAYSCALE_8);
+  final img = cv.imread(path, flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION);
   try {
-    return (width: math.max(1, img.cols * 8), height: math.max(1, img.rows * 8));
+    final w = math.max(1, img.cols * 8);
+    final h = math.max(1, img.rows * 8);
+    return orientationSwapsAxes(readJpegOrientation(path)) ? (width: h, height: w) : (width: w, height: h);
   } finally {
     img.dispose();
   }

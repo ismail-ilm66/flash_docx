@@ -8,6 +8,7 @@
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
@@ -15,14 +16,75 @@ import 'package:opencv_dart/opencv.dart' as cv;
 // Loading / sizing
 // ---------------------------------------------------------------------------
 
-/// Reads an image upright (EXIF orientation applied by OpenCV).
+/// Reads an image upright (round 4, P0-1).
+///
+/// OpenCV is always told to IGNORE the EXIF orientation, and the tag is
+/// applied here instead, so a photo can never come back sideways or be
+/// rotated twice whatever the OpenCV build does. Ingest bakes the tag into
+/// new originals, so for them this is a plain decode; legacy files that
+/// still carry a tag are handled the same way.
 cv.Mat readUpright(String path, {int flags = cv.IMREAD_COLOR}) {
-  final m = cv.imread(path, flags: flags);
+  final m = cv.imread(path, flags: flags | cv.IMREAD_IGNORE_ORIENTATION);
   if (m.isEmpty) {
     m.dispose();
     throw StateError('Could not decode $path');
   }
-  return m;
+  final o = readJpegOrientation(path);
+  final out = applyExifOrientation(m, o);
+  if (!identical(out, m)) m.dispose();
+  return out;
+}
+
+/// The EXIF orientation transform, exactly as OpenCV's own
+/// `ApplyExifOrientation`. Returns [m] itself for orientation 1.
+cv.Mat applyExifOrientation(cv.Mat m, int orientation) {
+  switch (orientation) {
+    case 2:
+      return cv.flip(m, 1);
+    case 3:
+      return cv.flip(m, -1);
+    case 4:
+      return cv.flip(m, 0);
+    case 5:
+      return cv.transpose(m);
+    case 6:
+    case 7:
+    case 8:
+      final t = cv.transpose(m);
+      final out = cv.flip(t, orientation == 6 ? 1 : orientation == 7 ? -1 : 0);
+      t.dispose();
+      return out;
+    default:
+      return m;
+  }
+}
+
+/// Bakes the EXIF orientation plus [extraTurns] (clockwise quarter turns:
+/// how the phone was held when the photo was taken) into the file at [path],
+/// once, at ingest. The result is an upright JPEG (q95) with no orientation
+/// tag. When nothing needs turning the file is left byte-for-byte as it is.
+/// Returns true if the file was rewritten.
+bool bakeOrientation(String path, {int extraTurns = 0}) {
+  final o = readJpegOrientation(path);
+  final turns = ((extraTurns % 4) + 4) % 4;
+  if (o == 1 && turns == 0) return false;
+  final raw = cv.imread(path, flags: cv.IMREAD_COLOR | cv.IMREAD_IGNORE_ORIENTATION);
+  if (raw.isEmpty) {
+    raw.dispose();
+    throw StateError('Could not decode $path');
+  }
+  final upright = applyExifOrientation(raw, o);
+  if (!identical(upright, raw)) raw.dispose();
+  final turned = rotateQuarterTurns(upright, turns);
+  if (!identical(turned, upright)) upright.dispose();
+  try {
+    final tmp = '$path.baking.jpg';
+    writeJpeg(turned, tmp, quality: 95);
+    File(tmp).renameSync(path);
+    return true;
+  } finally {
+    turned.dispose();
+  }
 }
 
 /// Decodes at 1/2 or 1/4 scale straight from the JPEG when the photo is far
@@ -1092,7 +1154,10 @@ IngestReport ingest({
   required int previewLongEdge,
   double? aspectHint,
   ({double left, double top, double right, double bottom})? searchArea,
+  int extraTurns = 0,
 }) {
+  // P0-1: make the original upright once (EXIF + how the phone was held).
+  bakeOrientation(src, extraTurns: extraTurns);
   final header = jpegSize(src);
   final (img, scale) = _decodeForPreview(src, previewLongEdge, header);
   final preview = fitLongEdge(img, previewLongEdge);

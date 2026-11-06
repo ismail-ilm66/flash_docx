@@ -70,7 +70,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
 
   void _onCaptured(SessionCaptured e, Emitter<ScanSessionState> emit) {
     if (!state.canCapture) return;
-    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide);
+    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide, turns: e.turns);
     final list = [...state.captures];
     final at = state.insertAt;
     if (at != null && at <= list.length) {
@@ -95,6 +95,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         mode: mode,
         sides: [c.side],
         fallbacks: [c.guide],
+        turns: [c.turns],
         copySource: false,
         onPrepared: (_, result) => res = result,
       );

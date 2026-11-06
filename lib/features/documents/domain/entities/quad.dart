@@ -96,6 +96,22 @@ abstract class Quad with _$Quad {
     return true;
   }
 
+  /// The same quad after the image is turned [turns] quarter turns
+  /// clockwise (normalised coordinates: (x, y) → (1 − y, x) per turn).
+  Quad rotatedQuarterTurns(int turns) {
+    final t = ((turns % 4) + 4) % 4;
+    if (t == 0) return this;
+    Pt turn(Pt p) {
+      var q = p;
+      for (var i = 0; i < t; i++) {
+        q = Pt(1 - q.y, q.x);
+      }
+      return q;
+    }
+
+    return Quad.fromUnordered(points.map(turn).toList());
+  }
+
   Quad clamp01() => Quad(
         tl: tl.clamp01(),
         tr: tr.clamp01(),

@@ -199,18 +199,26 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
       ),
     );
-    gh.factory<_i493.SettingsCubit>(
-      () => _i493.SettingsCubit(
-        gh<_i567.PrefsService>(),
-        gh<_i626.FileStore>(),
-        gh<_i310.GetStorageUsed>(),
-      ),
-    );
     gh.factory<_i922.PreparePages>(
       () => _i922.PreparePages(
         gh<_i618.ImageProcessor>(),
         gh<_i626.FileStore>(),
         gh<_i567.PrefsService>(),
+        gh<_i917.TextRecognizer>(),
+      ),
+    );
+    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
+      (initialMode, _) => _i382.ScanSessionBloc(
+        gh<_i922.PreparePages>(),
+        gh<_i567.PrefsService>(),
+        initialMode,
+      ),
+    );
+    gh.factory<_i493.SettingsCubit>(
+      () => _i493.SettingsCubit(
+        gh<_i567.PrefsService>(),
+        gh<_i626.FileStore>(),
+        gh<_i310.GetStorageUsed>(),
       ),
     );
     gh.factory<_i713.HomeCubit>(
@@ -240,18 +248,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
       ),
     );
-    gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
-      (args, _) => _i935.PageEditorBloc(
-        gh<_i618.ImageProcessor>(),
-        gh<_i626.FileStore>(),
-        gh<_i310.CreateDocument>(),
-        gh<_i310.AddPages>(),
-        gh<_i310.UpdatePages>(),
-        gh<_i310.LogActivity>(),
-        gh<_i120.PageRenderService>(),
-        args,
-      ),
-    );
     gh.factoryParam<_i323.OcrCubit, String, String?>(
       (documentId, pageId) => _i323.OcrCubit(
         gh<_i310.GetDocument>(),
@@ -259,13 +255,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.LogActivity>(),
         documentId,
         pageId,
-      ),
-    );
-    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
-      (initialMode, _) => _i382.ScanSessionBloc(
-        gh<_i922.PreparePages>(),
-        gh<_i567.PrefsService>(),
-        initialMode,
       ),
     );
     gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
@@ -290,6 +279,19 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
         gh<_i84.SheetImageRenderer>(),
         gh<_i618.ImageProcessor>(),
+      ),
+    );
+    gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
+      (args, _) => _i935.PageEditorBloc(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i310.CreateDocument>(),
+        gh<_i310.AddPages>(),
+        gh<_i310.UpdatePages>(),
+        gh<_i310.LogActivity>(),
+        gh<_i120.PageRenderService>(),
+        gh<_i922.PreparePages>(),
+        args,
       ),
     );
     gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(

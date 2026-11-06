@@ -33,13 +33,18 @@ class AdjustEdgesPage extends StatelessWidget {
 class _AdjustView extends StatelessWidget {
   const _AdjustView();
 
+  /// P0-3: retake opens the camera in the scan's mode with the page's side
+  /// (ID front / back frame and label); the new photo replaces the page in
+  /// place.
   Future<void> _retake(BuildContext context) async {
-    final path = await context.push<String>(
+    final bloc = context.read<PageEditorBloc>();
+    final page = bloc.state.current;
+    final shot = await context.push<RetakeShot>(
       Routes.camera,
-      extra: const CameraArgs(retake: true),
+      extra: CameraArgs(retake: true, mode: bloc.state.args.mode, retakeSide: page?.side),
     );
-    if (path != null && context.mounted) {
-      context.read<PageEditorBloc>().add(EditorPageRetaken(path));
+    if (shot != null && context.mounted) {
+      bloc.add(EditorPageRetaken(shot.path, guide: shot.guide, turns: shot.turns));
     }
   }
 

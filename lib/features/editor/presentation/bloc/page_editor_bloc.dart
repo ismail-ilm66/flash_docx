@@ -14,6 +14,7 @@ import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
+import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
@@ -33,6 +34,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._updatePages,
     this._logActivity,
     this._renderService,
+    this._prepare,
     @factoryParam EditorArgs args,
   ) : super(PageEditorState(args: args, pages: args.pages, index: args.initialIndex)) {
     on<EditorStarted>(_onStarted);
@@ -69,6 +71,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final UpdatePages _updatePages;
   final LogActivity _logActivity;
   final PageRenderService _renderService;
+  final PreparePages _prepare;
 
   /// Set once the scan was saved or the user confirmed discarding it, so the
   /// editor screens pop without asking again.
@@ -269,21 +272,28 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (cur == null) return;
     emit(state.copyWith(status: EditorStatus.loading));
     try {
-      final rules = ScanModeRules.of(state.args.mode);
-      // Same single-decode ingest as every other new photo.
-      // The retaken shot becomes the page's original as-is (never re-encoded).
-      final original = _files.newCapturePath('${cur.id}_${DateTime.now().microsecondsSinceEpoch}');
-      await File(e.newOriginalPath).rename(original);
-      final auto = await _processor.ingest(
-        original,
-        previewOut: _files.basePreviewPath(cur.id, original),
-        snapAspectRatio: rules.aspectRatio,
-        outputAspect: rules.aspectRatio,
-        filter: cur.edits.filter,
+      // P0-3: the same pipeline as every new photo (orientation, detection
+      // in the guide area, card auto-orientation), for this page's id and
+      // side. The page keeps its place, side and chosen look.
+      final r = await _prepare(
+        [e.newOriginalPath],
+        mode: state.args.mode,
+        sides: [cur.side],
+        fallbacks: [e.guide],
+        turns: [e.turns],
+        ids: [cur.id],
+        copySource: false,
       );
+      final fresh = r.fold((f) => throw StateError('$f'), (pages) => pages.single);
       final replaced = cur
-          .copyWith(originalPath: original, edgesDetected: auto.detected)
-          .withEdits(auto.edits);
+          .copyWith(originalPath: fresh.originalPath, edgesDetected: fresh.edgesDetected)
+          .withEdits(
+            fresh.edits.copyWith(
+              filter: cur.edits.filter,
+              brightness: cur.edits.brightness,
+              contrast: cur.edits.contrast,
+            ),
+          );
       final pages = [...state.pages];
       pages[state.index] = replaced;
       final base = Map<String, String>.from(state.basePreviews)..remove(cur.id);

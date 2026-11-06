@@ -24,11 +24,25 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+/// What a retake hands back to Adjust edges (P0-3).
+class RetakeShot {
+  const RetakeShot(this.path, {this.guide, this.turns = 0});
+  final String path;
+
+  /// The ID / passport guide frame in photo coordinates (search area and
+  /// fallback crop).
+  final Quad? guide;
+
+  /// How the phone was held (P0-1).
+  final int turns;
+}
+
 class CameraArgs {
   const CameraArgs({
     this.mode,
     this.addToDocumentId,
     this.retake = false,
+    this.retakeSide,
     this.returnPages = false,
   });
 
@@ -37,8 +51,10 @@ class CameraArgs {
   /// When set, finished pages are appended to this document.
   final String? addToDocumentId;
 
-  /// Single capture that pops with the new file path (used by "Retake").
+  /// Single capture that pops with a [RetakeShot] (used by "Retake"). The
+  /// camera opens in [mode] with the frame and label of [retakeSide].
   final bool retake;
+  final CardSide? retakeSide;
 
   /// Pops with the prepared draft pages instead of opening Adjust edges
   /// (adding pages to a scan that is already being edited).
@@ -53,7 +69,7 @@ class CameraPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = args ?? const CameraArgs();
-    final mode = a.retake ? ScanMode.document : a.mode;
+    final mode = a.mode ?? ScanMode.document;
     return BlocProvider(
       create: (_) => getIt<ScanSessionBloc>(param1: mode),
       child: _CameraView(args: a),
@@ -241,20 +257,23 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       await _waitForTapFocus();
       _captureFeedback();
       final take = Stopwatch()..start();
+      // How the phone is held right now (from the motion sensor, even with
+      // the UI locked to portrait); baked into the photo at ingest (P0-1).
+      final turns = deviceTurns(c.value.deviceOrientation);
       final shot = await c.takePicture();
       take.stop();
       if (!mounted) return;
-      if (widget.args.retake) {
-        context.pop(shot.path);
-        return;
-      }
       // The guide frame in photo coordinates: searched first, and the
       // fallback crop if detection finds nothing (ID / passport only).
       final guideAspect = bloc.state.rules.aspectRatio;
       final guide = guideAspect == null
           ? null
           : PreviewGeometry.guideQuad(guideAspect, photoAspect: _photoAspect);
-      bloc.add(SessionCaptured(shot.path, guide: guide));
+      if (widget.args.retake) {
+        context.pop(RetakeShot(shot.path, guide: guide, turns: turns));
+        return;
+      }
+      bloc.add(SessionCaptured(shot.path, guide: guide, turns: turns));
       setState(() => _flyTick++);
       debugPrint(
         '[capture] takePicture ${take.elapsedMilliseconds} ms; '
@@ -425,13 +444,19 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     );
   }
 
-  String _guideText(AppLocalizations l, ScanSessionState s) =>
-      switch (s.guide) {
+  String _guideText(AppLocalizations l, ScanSessionState s) {
+    // A retake shows the label of the side being replaced (P0-3).
+    final side = widget.args.retakeSide;
+    if (widget.args.retake && side != null) {
+      return side == CardSide.back ? l.cameraGuideBack : l.cameraGuideFront;
+    }
+    return switch (s.guide) {
         GuideLabel.documentPage => l.cameraGuideDocument(s.count + 1),
         GuideLabel.front => l.cameraGuideFront,
         GuideLabel.back => l.cameraGuideBack,
         GuideLabel.passport => l.cameraGuidePassport,
-      };
+    };
+  }
 
   Widget _preview(BuildContext context) {
     final c = _controller;
@@ -503,3 +528,14 @@ class _NoticeBanner extends StatelessWidget {
     );
   }
 }
+
+/// Clockwise quarter turns that bring a photo taken with the capture
+/// orientation locked to portrait upright, for the way the phone was held.
+/// `landscapeLeft` is the phone turned 90° counter-clockwise, so world-up
+/// is towards the photo's right edge and it needs 3 clockwise turns.
+int deviceTurns(DeviceOrientation o) => switch (o) {
+      DeviceOrientation.portraitUp => 0,
+      DeviceOrientation.landscapeRight => 1,
+      DeviceOrientation.portraitDown => 2,
+      DeviceOrientation.landscapeLeft => 3,
+    };

@@ -15,9 +15,12 @@ class SessionFlashToggled extends ScanSessionEvent {
 
 /// A photo was just taken. Only records it; processing is queued.
 class SessionCaptured extends ScanSessionEvent {
-  const SessionCaptured(this.path, {this.guide});
+  const SessionCaptured(this.path, {this.guide, this.turns = 0});
   final String path;
   final Quad? guide;
+
+  /// How the phone was held (clockwise quarter turns), baked in at ingest.
+  final int turns;
 }
 
 /// Background processing of one capture finished (internal).

@@ -8,7 +8,9 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -25,6 +27,8 @@ class _Update extends Mock implements UpdatePages {}
 class _Log extends Mock implements LogActivity {}
 
 class _Render extends Mock implements PageRenderService {}
+
+class _Prepare extends Mock implements PreparePages {}
 
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
@@ -44,6 +48,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const PageEdits());
     registerFallbackValue(RenderSize.preview);
+    registerFallbackValue(ScanMode.document);
   });
 
   setUp(() async {
@@ -71,7 +76,7 @@ void main() {
 
   PageEditorBloc build() {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), args)..add(EditorStarted(args));
+    return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), args)..add(EditorStarted(args));
   }
 
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 200));
@@ -126,6 +131,83 @@ void main() {
     bloc.add(const EditorCornerMoved(2, Pt(0.85, 0.88)));
     await settle();
     expect(bloc.state.edits.crop!.br, const Pt(0.85, 0.88));
+    await bloc.close();
+  });
+
+  test('P0-3: retaking page 2 of an ID scan keeps its side, place, card shape and look', () async {
+    final prepare = _Prepare();
+    final front = page.copyWith(id: 'front', side: CardSide.front, order: 0);
+    final back = page.copyWith(
+      id: 'back',
+      side: CardSide.back,
+      order: 1,
+      edits: const PageEdits(filter: FilterType.bwPrint, brightness: 12, outputAspect: 85.6 / 54),
+    );
+    const args = EditorArgs(pages: [], mode: ScanMode.idCard);
+    final bloc = PageEditorBloc(
+      proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), prepare,
+      EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
+    );
+    const guide = Quad(tl: Pt(0.1, 0.3), tr: Pt(0.9, 0.3), br: Pt(0.9, 0.6), bl: Pt(0.1, 0.6));
+    final shot = files.newCapturePath('retake_raw');
+    File(shot).writeAsBytesSync([1]);
+    final fresh = files.newCapturePath('back_new');
+    File(fresh).writeAsBytesSync([1]);
+    when(
+      () => prepare(
+        any(),
+        mode: any(named: 'mode'),
+        sides: any(named: 'sides'),
+        fallbacks: any(named: 'fallbacks'),
+        turns: any(named: 'turns'),
+        ids: any(named: 'ids'),
+        copySource: any(named: 'copySource'),
+        onPrepared: any(named: 'onPrepared'),
+      ),
+    ).thenAnswer(
+      (inv) async => Right([
+        ScanPage(
+          id: (inv.namedArguments[#ids] as List<String>).single,
+          documentId: '',
+          originalPath: fresh,
+          edits: const PageEdits(crop: guide, filter: FilterType.idColor, outputAspect: 85.6 / 54, quarterTurns: 2),
+          order: 0,
+          side: (inv.namedArguments[#sides] as List<CardSide?>).single,
+        ),
+      ]),
+    );
+
+    bloc.add(const EditorPageRetaken('placeholder', guide: guide, turns: 3));
+    await settle();
+    // The event carries the raw shot; use a real file for the call check.
+    final call = verify(
+      () => prepare(
+        captureAny(),
+        mode: captureAny(named: 'mode'),
+        sides: captureAny(named: 'sides'),
+        fallbacks: captureAny(named: 'fallbacks'),
+        turns: captureAny(named: 'turns'),
+        ids: captureAny(named: 'ids'),
+        copySource: any(named: 'copySource'),
+        onPrepared: any(named: 'onPrepared'),
+      ),
+    )..called(1);
+    expect(call.captured[1], ScanMode.idCard, reason: 'same mode');
+    expect(call.captured[2], [CardSide.back], reason: 'same side');
+    expect(call.captured[3], [guide], reason: 'guide fallback passed on');
+    expect(call.captured[4], [3], reason: 'phone orientation passed on');
+    expect(call.captured[5], ['back'], reason: 'same page id');
+
+    expect(bloc.state.index, 1);
+    final p2 = bloc.state.pages[1];
+    expect(p2.id, 'back');
+    expect(p2.side, CardSide.back);
+    expect(p2.originalPath, fresh);
+    expect(p2.edits.outputAspect, closeTo(85.6 / 54, 1e-9), reason: 'card shape');
+    expect(p2.edits.quarterTurns, 2, reason: 'auto-orientation of the new photo');
+    expect(p2.edits.filter, FilterType.bwPrint, reason: 'look kept');
+    expect(p2.edits.brightness, 12);
+    expect(bloc.state.pages[0].id, 'front', reason: 'other page untouched');
     await bloc.close();
   });
 }
