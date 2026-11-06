@@ -39,6 +39,8 @@ import 'package:flash_dox/features/editor/data/services/opencv_image_processor.d
     as _i421;
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart'
     as _i120;
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart'
+    as _i769;
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart'
     as _i618;
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart'
@@ -248,6 +250,10 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
       ),
     );
+    gh.lazySingleton<_i769.PreviewCache>(
+      () =>
+          _i769.PreviewCache(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
+    );
     gh.factoryParam<_i323.OcrCubit, String, String?>(
       (documentId, pageId) => _i323.OcrCubit(
         gh<_i310.GetDocument>(),
@@ -255,18 +261,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.LogActivity>(),
         documentId,
         pageId,
-      ),
-    );
-    gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
-      (documentId, _) => _i411.ViewerCubit(
-        gh<_i310.WatchDocument>(),
-        gh<_i310.RenameDocument>(),
-        gh<_i310.DeleteDocument>(),
-        gh<_i310.DeletePage>(),
-        gh<_i310.ReorderPages>(),
-        gh<_i310.AddPages>(),
-        gh<_i120.PageRenderService>(),
-        documentId,
       ),
     );
     gh.factory<_i402.ExportDocument>(
@@ -291,7 +285,21 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.LogActivity>(),
         gh<_i120.PageRenderService>(),
         gh<_i922.PreparePages>(),
+        gh<_i769.PreviewCache>(),
         args,
+      ),
+    );
+    gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
+      (documentId, _) => _i411.ViewerCubit(
+        gh<_i310.WatchDocument>(),
+        gh<_i310.RenameDocument>(),
+        gh<_i310.DeleteDocument>(),
+        gh<_i310.DeletePage>(),
+        gh<_i310.ReorderPages>(),
+        gh<_i310.AddPages>(),
+        gh<_i120.PageRenderService>(),
+        gh<_i769.PreviewCache>(),
+        documentId,
       ),
     );
     gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(

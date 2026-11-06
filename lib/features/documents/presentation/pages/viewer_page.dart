@@ -148,7 +148,7 @@ class _ViewerViewState extends State<_ViewerView> {
                                 itemCount: pages.length,
                                 onPageChanged: cubit.select,
                                 itemBuilder: (context, i) {
-                                  final path = pages[i].displayPath;
+                                  final path = s.imageFor(pages[i]);
                                   return Padding(
                                     padding: const EdgeInsets.fromLTRB(Space.x10, Space.x6, Space.x10, Space.x3),
                                     child: InteractiveViewer(
@@ -162,16 +162,19 @@ class _ViewerViewState extends State<_ViewerView> {
                                           ),
                                           child: ClipRRect(
                                             borderRadius: BorderRadius.circular(4),
-                                            child: Image.file(
-                                              File(path),
-                                              key: ValueKey(path),
-                                              gaplessPlayback: true,
-                                              fit: BoxFit.contain,
-                                              // Until the processed cache is
-                                              // ready this is the 12 MP original;
-                                              // never decode it at full size.
-                                              cacheWidth: RenderPx.previewLongEdge,
-                                            ),
+                                            child: path == null
+                                                ? const SizedBox(
+                                                    width: 240,
+                                                    height: 320,
+                                                    child: Center(child: CircularProgressIndicator()),
+                                                  )
+                                                : Image.file(
+                                                    File(path),
+                                                    key: ValueKey(path),
+                                                    gaplessPlayback: true,
+                                                    fit: BoxFit.contain,
+                                                    cacheWidth: RenderPx.previewLongEdge,
+                                                  ),
                                           ),
                                         ),
                                       ),
@@ -205,7 +208,7 @@ class _ViewerViewState extends State<_ViewerView> {
                         index: s.index,
                         onSelect: _jump,
                         onReorder: multi ? cubit.reorder : null,
-                        pathOf: (p) => p.thumbPath ?? p.displayPath,
+                        pathOf: (p) => p.listImagePath ?? s.quick[p.id],
                         cacheKeyOf: (p) => p.thumbPath,
                         trailing: AddPageTile(onTap: addPages),
                       ),

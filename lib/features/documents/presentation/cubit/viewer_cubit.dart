@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
@@ -16,6 +18,7 @@ class ViewerState extends Equatable {
     this.loading = true,
     this.failure,
     this.deleted = false,
+    this.quick = const {},
   });
 
   final ScanDocument? document;
@@ -23,6 +26,17 @@ class ViewerState extends Equatable {
   final bool loading;
   final Failure? failure;
   final bool deleted;
+
+  /// Crop-only placeholders while a page's processed preview is made (P0-4).
+  final Map<String, String> quick;
+
+  /// What page [p] shows: processed preview, else the placeholder, else
+  /// null (spinner). Never the original photo.
+  String? imageFor(ScanPage p) {
+    final processed = p.processedPath;
+    if (processed != null && File(processed).existsSync()) return processed;
+    return quick[p.id];
+  }
 
   List<ScanPage> get pages => document?.sortedPages ?? const [];
   ScanPage? get current => pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
@@ -33,6 +47,7 @@ class ViewerState extends Equatable {
     bool? loading,
     Failure? failure,
     bool? deleted,
+    Map<String, String>? quick,
   }) =>
       ViewerState(
         document: document ?? this.document,
@@ -40,10 +55,11 @@ class ViewerState extends Equatable {
         loading: loading ?? this.loading,
         failure: failure,
         deleted: deleted ?? this.deleted,
+        quick: quick ?? this.quick,
       );
 
   @override
-  List<Object?> get props => [document, index, loading, failure, deleted];
+  List<Object?> get props => [document, index, loading, failure, deleted, quick];
 }
 
 @injectable
@@ -56,6 +72,7 @@ class ViewerCubit extends Cubit<ViewerState> {
     this._reorder,
     this._addPages,
     this._render,
+    this._previews,
     @factoryParam String documentId,
   ) : super(const ViewerState()) {
     _sub = _watch(documentId).listen(_onDoc, onError: (Object e) {
@@ -70,6 +87,7 @@ class ViewerCubit extends Cubit<ViewerState> {
   final ReorderPages _reorder;
   final AddPages _addPages;
   final PageRenderService _render;
+  final PreviewCache _previews;
   StreamSubscription<ScanDocument?>? _sub;
 
   void _onDoc(ScanDocument? doc) {
@@ -78,6 +96,7 @@ class ViewerCubit extends Cubit<ViewerState> {
       return;
     }
     emit(state.copyWith(document: doc, loading: false, index: state.index.clamp(0, doc.pages.isEmpty ? 0 : doc.pages.length - 1)));
+    unawaited(_placeholders(doc));
     unawaited(_render.ensureCaches(doc).catchError((Object e) => debugPrint('cache: $e')));
   }
 
@@ -105,5 +124,24 @@ class ViewerCubit extends Cubit<ViewerState> {
   Future<void> close() {
     _sub?.cancel();
     return super.close();
+  }
+
+  /// Quick crop-only previews for pages whose processed preview isn't
+  /// ready, current page first (interactive lane).
+  Future<void> _placeholders(ScanDocument doc) async {
+    final sw = Stopwatch()..start();
+    final order = [...doc.sortedPages]..sort((a, b) => (a.id == state.current?.id ? 0 : 1).compareTo(b.id == state.current?.id ? 0 : 1));
+    for (final p in order) {
+      if (isClosed) return;
+      if (state.imageFor(p) != null) continue;
+      try {
+        final path = await _previews.quick(p);
+        if (isClosed) return;
+        emit(state.copyWith(quick: {...state.quick, p.id: path}));
+        if (p.id == state.current?.id) debugPrint('[perf] viewer first image in ${sw.elapsedMilliseconds} ms');
+      } catch (e) {
+        debugPrint('quick preview failed: $e');
+      }
+    }
   }
 }

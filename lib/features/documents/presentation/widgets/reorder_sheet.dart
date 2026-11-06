@@ -48,7 +48,7 @@ class _ReorderSheetState extends State<_ReorderSheet> {
                   final p = _pages[i];
                   return ListTile(
                     key: ValueKey(p.id),
-                    leading: PageThumb(path: p.thumbPath ?? p.displayPath, size: 40, cacheKey: p.thumbPath),
+                    leading: PageThumb(path: p.listImagePath, size: 40, cacheKey: p.thumbPath),
                     title: Text('${i + 1}', style: context.text.titleSmall),
                     trailing: AppIcon(AppIcons.dragHandle, color: c.muted),
                   );

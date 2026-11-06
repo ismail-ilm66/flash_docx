@@ -54,7 +54,7 @@ class DocumentTile extends StatelessWidget {
                 width: isCard ? 42 : 36,
                 height: isCard ? 27 : 48,
                 child: PageImage(
-                  path: cover?.thumbPath ?? cover?.processedPath ?? cover?.originalPath,
+                  path: cover?.listImagePath,
                   cacheKey: cover?.thumbPath ?? cover?.processedPath,
                   cacheWidth: 120,
                   radius: isCard ? 4 : 3,

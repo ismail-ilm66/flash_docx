@@ -39,5 +39,7 @@ abstract class ScanPage with _$ScanPage {
         ocrText: null,
       );
 
-  String get displayPath => processedPath ?? originalPath;
+  /// A small image for lists: the thumbnail, else the processed preview.
+  /// Never the original photo (P0-4); null means "placeholder".
+  String? get listImagePath => thumbPath ?? processedPath;
 }

@@ -1,3 +1,4 @@
+import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
@@ -36,7 +37,12 @@ abstract interface class ImageProcessor {
     PageEdits edits, {
     required String workPath,
     required String outputPath,
+    CancelToken? cancel,
   });
+
+  /// The fast placeholder (P0-4): crop + rotate only, 600 px, no filter,
+  /// interactive lane. Never the uncropped photo.
+  Future<String> renderQuick(String originalPath, PageEdits edits, {required String outputPath});
 
   /// Processed preview + thumbnail for the viewer, from one decode.
   Future<void> renderPageCaches(
@@ -54,6 +60,7 @@ abstract interface class ImageProcessor {
     required RenderSize size,
     required String outputPath,
     int jpegQuality,
+    JobPriority priority,
   });
 
   /// Full-resolution crop + rotate → gray → mild contrast → denoise, for text

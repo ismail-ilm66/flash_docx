@@ -4,8 +4,30 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
+/// Which queue a job waits in (round 4, P0-4). Interactive jobs (what the
+/// user is looking at right now) always start before background jobs (cache
+/// warm-up, exports), but never interrupt a job that is already running.
+enum JobPriority { interactive, background }
+
+/// Cancels a queued job before it starts (a superseded preview request).
+/// A job that has already started runs to the end; its result is dropped.
+class CancelToken {
+  bool _cancelled = false;
+  bool get isCancelled => _cancelled;
+  void cancel() => _cancelled = true;
+}
+
+/// Thrown for a job whose [CancelToken] was cancelled before it started.
+class JobCancelled implements Exception {
+  const JobCancelled();
+  @override
+  String toString() => 'JobCancelled';
+}
+
 /// One long-lived background isolate that runs heavy jobs (OpenCV, PDF)
-/// strictly one at a time, in the order they were queued.
+/// strictly one at a time. Jobs wait on the main isolate in two queues and
+/// are sent to the worker one by one, interactive first, so a preview never
+/// waits behind a queue of exports.
 ///
 /// Spawning an isolate per job (what `compute` does) costs tens of
 /// milliseconds on older phones and repeats the warm-up every time; a single
@@ -15,10 +37,43 @@ import 'package:injectable/injectable.dart';
 class IsolateRunner {
   _Worker? _worker;
   Future<_Worker>? _starting;
+  final _interactive = <_Pending>[];
+  final _background = <_Pending>[];
+  bool _busy = false;
 
-  Future<R> run<Q, R>(ComputeCallback<Q, R> fn, Q arg, {String? debugLabel}) async {
-    final w = await _ensureWorker();
-    return w.run(_Job<Q, R>(fn, arg));
+  Future<R> run<Q, R>(
+    ComputeCallback<Q, R> fn,
+    Q arg, {
+    String? debugLabel,
+    JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
+  }) {
+    final pending = _Pending(_Job<Q, R>(fn, arg), cancel);
+    (priority == JobPriority.interactive ? _interactive : _background).add(pending);
+    unawaited(_pump());
+    return pending.completer.future.then((v) => v as R);
+  }
+
+  Future<void> _pump() async {
+    if (_busy) return;
+    _busy = true;
+    try {
+      while (_interactive.isNotEmpty || _background.isNotEmpty) {
+        final next = _interactive.isNotEmpty ? _interactive.removeAt(0) : _background.removeAt(0);
+        if (next.cancel?.isCancelled ?? false) {
+          next.completer.completeError(const JobCancelled());
+          continue;
+        }
+        try {
+          final w = await _ensureWorker();
+          next.completer.complete(await w.run<Object?>(next.job));
+        } catch (e, s) {
+          next.completer.completeError(e, s);
+        }
+      }
+    } finally {
+      _busy = false;
+    }
   }
 
   Future<_Worker> _ensureWorker() {
@@ -33,6 +88,13 @@ class IsolateRunner {
       Error.throwWithStackTrace(e, s);
     });
   }
+}
+
+class _Pending {
+  _Pending(this.job, this.cancel);
+  final _Job<dynamic, dynamic> job;
+  final CancelToken? cancel;
+  final Completer<Object?> completer = Completer<Object?>();
 }
 
 /// A unit of work sent to the worker. Holds a top-level function and its

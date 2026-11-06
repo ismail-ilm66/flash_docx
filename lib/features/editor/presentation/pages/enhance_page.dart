@@ -79,9 +79,8 @@ class _EnhanceViewState extends State<_EnhanceView> {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
         final edits = s.edits;
-        final preview = _comparing
-            ? s.basePreview
-            : (s.enhancePreview ?? s.basePreview);
+        // P0-4: never the uncropped photo. Compare = same crop, no filter.
+        final preview = _comparing ? (s.comparePreview ?? s.shownPreview) : s.shownPreview;
         final multi = s.pages.length > 1;
         final saving = s.status == EditorStatus.saving;
 
@@ -178,13 +177,9 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                               4,
                                             ),
                                             child: _comparing
-                                                ? RotatedBox(
-                                                    quarterTurns:
-                                                        edits.normalizedTurns,
-                                                    child: Image.file(
-                                                      File(preview),
-                                                      gaplessPlayback: true,
-                                                    ),
+                                                ? Image.file(
+                                                    File(preview),
+                                                    gaplessPlayback: true,
                                                   )
                                                 : ColorFiltered(
                                                     // Sliders run on the GPU

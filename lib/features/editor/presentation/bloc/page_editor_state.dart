@@ -18,6 +18,7 @@ class PageEditorState extends Equatable {
     this.savedDocumentId,
     this.appliedToAllTick = 0,
     this.snaps = const {},
+    this.quickPreviews = const {},
   });
 
   final EditorArgs args;
@@ -34,11 +35,28 @@ class PageEditorState extends Equatable {
   /// Magnetic-edge candidates per page id.
   final Map<String, SnapCandidates> snaps;
 
+  /// Fast crop-only placeholders per page id (P0-4).
+  final Map<String, String> quickPreviews;
+
   ScanPage? get current => pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
   PageEdits get edits => current?.edits ?? const PageEdits();
   String? get basePreview => current == null ? null : basePreviews[current!.id];
   String? get enhancePreview =>
       current == null ? null : enhancePreviews[_previewKey(current!)];
+
+  /// What Enhance shows now (P0-4): the exact render, else the last render
+  /// of this page (another filter), else the crop-only placeholder. Never
+  /// the uncropped photo; null means "spinner".
+  String? get shownPreview {
+    final p = current;
+    if (p == null) return null;
+    return enhancePreview ??
+        enhancePreviews.entries.where((e) => e.key.startsWith('${p.id}:')).map((e) => e.value).lastOrNull ??
+        quickPreviews[p.id];
+  }
+
+  /// "Hold to compare": the same crop with no filter.
+  String? get comparePreview => current == null ? null : quickPreviews[current!.id];
 
   /// Sliders are excluded: they are applied live on the GPU, so moving them
   /// never needs a new render.
@@ -56,6 +74,7 @@ class PageEditorState extends Equatable {
     String? savedDocumentId,
     int? appliedToAllTick,
     Map<String, SnapCandidates>? snaps,
+    Map<String, String>? quickPreviews,
   }) {
     return PageEditorState(
       args: args,
@@ -69,6 +88,7 @@ class PageEditorState extends Equatable {
       savedDocumentId: savedDocumentId ?? this.savedDocumentId,
       appliedToAllTick: appliedToAllTick ?? this.appliedToAllTick,
       snaps: snaps ?? this.snaps,
+      quickPreviews: quickPreviews ?? this.quickPreviews,
     );
   }
 
@@ -84,5 +104,6 @@ class PageEditorState extends Equatable {
         savedDocumentId,
         appliedToAllTick,
         snaps,
+        quickPreviews,
       ];
 }

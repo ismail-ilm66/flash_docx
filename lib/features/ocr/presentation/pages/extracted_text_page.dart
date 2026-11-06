@@ -134,7 +134,7 @@ class _OcrViewState extends State<_OcrView> {
                     index: pageIndex,
                     size: 44,
                     onSelect: goTo,
-                    pathOf: (p) => p.thumbPath ?? p.displayPath,
+                    pathOf: (p) => p.listImagePath,
                     cacheKeyOf: (p) => p.thumbPath,
                   ),
                 ),

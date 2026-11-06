@@ -157,7 +157,7 @@ class _AdjustView extends StatelessWidget {
                       pages: s.pages,
                       index: s.index,
                       onSelect: (i) => bloc.add(EditorPageSelected(i)),
-                      pathOf: (p) => s.basePreviews[p.id] ?? p.originalPath,
+                      pathOf: (p) => s.basePreviews[p.id],
                       trailing: AddPageTile(
                         onTap: () async {
                           final added = await collectNewPages(

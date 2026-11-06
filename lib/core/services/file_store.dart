@@ -79,6 +79,12 @@ class FileStore {
         'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.filter)}.jpg',
       );
 
+  /// The fast crop-only placeholder (P0-4) for one crop / rotation.
+  String quickPath(String pageId, String originalPath, PageEdits edits) => p.join(
+        _captureTemp.path,
+        'quick_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
+      );
+
   /// Identifies one version of an original: its path plus modification time,
   /// so a retake saved over the same path still gets fresh previews.
   int _stamp(String originalPath) {

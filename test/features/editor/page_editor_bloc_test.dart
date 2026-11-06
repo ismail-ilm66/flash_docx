@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
@@ -49,6 +51,7 @@ void main() {
     registerFallbackValue(const PageEdits());
     registerFallbackValue(RenderSize.preview);
     registerFallbackValue(ScanMode.document);
+    registerFallbackValue(JobPriority.background);
   });
 
   setUp(() async {
@@ -66,17 +69,22 @@ void main() {
       edits: PageEdits(crop: Quad.full(inset: 0.1)),
       order: 0,
     );
-    when(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')))
+    when(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority')))
         .thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
-    when(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath')))
+    when(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')))
         .thenAnswer((inv) async => inv.namedArguments[#outputPath] as String);
+    when(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath'))).thenAnswer((inv) async {
+      final out = inv.namedArguments[#outputPath] as String;
+      File(out).writeAsBytesSync([1]);
+      return out;
+    });
   });
 
   tearDown(() => tmp.delete(recursive: true));
 
   PageEditorBloc build() {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), args)..add(EditorStarted(args));
+    return PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), args)..add(EditorStarted(args));
   }
 
   Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 200));
@@ -87,7 +95,7 @@ void main() {
     final bloc = build();
     await settle();
     expect(bloc.state.basePreview, base);
-    verifyNever(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')));
+    verifyNever(() => proc.render(any(), any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority')));
     await bloc.close();
   });
 
@@ -95,7 +103,7 @@ void main() {
     final bloc = build();
     await settle();
     expect(bloc.state.basePreview, files.basePreviewPath(page.id, page.originalPath));
-    verify(() => proc.render(any(), any(), size: RenderSize.preview, outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'))).called(1);
+    verify(() => proc.render(any(), any(), size: RenderSize.preview, outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), priority: any(named: 'priority'))).called(1);
     await bloc.close();
   });
 
@@ -111,11 +119,11 @@ void main() {
     await settle();
     expect(bloc.state.edits.brightness, 60);
     expect(bloc.state.edits.contrast, -40);
-    verifyNever(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath')));
+    verifyNever(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')));
 
     bloc.add(const EditorFilterChanged(FilterType.bwPrint));
     await settle();
-    verify(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'))).called(1);
+    verify(() => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel'))).called(1);
     await bloc.close();
   });
 
@@ -145,7 +153,7 @@ void main() {
     );
     const args = EditorArgs(pages: [], mode: ScanMode.idCard);
     final bloc = PageEditorBloc(
-      proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), prepare,
+      proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), prepare, PreviewCache(proc, files),
       EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
     );
     const guide = Quad(tl: Pt(0.1, 0.3), tr: Pt(0.9, 0.3), br: Pt(0.9, 0.6), bl: Pt(0.1, 0.6));
@@ -208,6 +216,17 @@ void main() {
     expect(p2.edits.filter, FilterType.bwPrint, reason: 'look kept');
     expect(p2.edits.brightness, 12);
     expect(bloc.state.pages[0].id, 'front', reason: 'other page untouched');
+    await bloc.close();
+  });
+
+  test('P0-4: Enhance shows the crop-only placeholder, never the uncropped photo', () async {
+    final bloc = build();
+    await settle();
+    final shown = bloc.state.shownPreview;
+    expect(shown, isNotNull);
+    expect(shown, isNot(bloc.state.basePreview), reason: 'base preview is the uncropped photo');
+    expect(shown, isNot(page.originalPath));
+    expect(bloc.state.comparePreview, files.quickPath(page.id, page.originalPath, page.edits));
     await bloc.close();
   });
 }

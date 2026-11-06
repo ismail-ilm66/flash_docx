@@ -6,9 +6,11 @@ import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
@@ -35,6 +37,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._logActivity,
     this._renderService,
     this._prepare,
+    this._previews,
     @factoryParam EditorArgs args,
   ) : super(PageEditorState(args: args, pages: args.pages, index: args.initialIndex)) {
     on<EditorStarted>(_onStarted);
@@ -72,6 +75,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final LogActivity _logActivity;
   final PageRenderService _renderService;
   final PreparePages _prepare;
+  final PreviewCache _previews;
 
   /// Set once the scan was saved or the user confirmed discarding it, so the
   /// editor screens pop without asking again.
@@ -111,6 +115,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
             size: RenderSize.preview,
             outputPath: path,
             jpegQuality: 85,
+            priority: JobPriority.interactive,
           );
         }
         if (isClosed) return;
@@ -306,6 +311,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
 
   // ---------- preview ----------
 
+  CancelToken? _lookCancel;
+
   Future<void> _onPreview(
     EditorPreviewRequested e,
     Emitter<PageEditorState> emit,
@@ -314,21 +321,42 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (cur == null) return;
     final key = PageEditorState._previewKey(cur);
     if (state.enhancePreviews.containsKey(key)) return;
+    final sw = Stopwatch()..start();
     emit(state.copyWith(rendering: true));
+    // 1. A crop-only placeholder first, if nothing better is on screen.
+    final quickKey = cur.id;
+    final hasQuick = state.quickPreviews[quickKey] != null &&
+        _files.quickPath(cur.id, cur.originalPath, cur.edits) == state.quickPreviews[quickKey];
+    if (!hasQuick) {
+      try {
+        final q = await _previews.quick(cur);
+        if (isClosed) return;
+        emit(state.copyWith(quickPreviews: {...state.quickPreviews, quickKey: q}));
+        debugPrint('[perf] enhance first image in ${sw.elapsedMilliseconds} ms');
+      } catch (_) {}
+    }
+    // 2. The filtered preview; a newer request cancels this one if it hasn't
+    // started yet.
+    _lookCancel?.cancel();
+    final token = _lookCancel = CancelToken();
     try {
-      // Filter only, from the cached cropped page; sliders are live in the UI.
       final out = await _processor.renderLook(
         cur.originalPath,
         cur.edits,
         workPath: _files.workPath(cur.id, cur.originalPath, cur.edits),
         outputPath: _files.lookPath(cur.id, cur.originalPath, cur.edits),
+        cancel: token,
       );
       if (isClosed) return;
       final map = Map<String, String>.from(state.enhancePreviews);
       // Keep the map small: drop older previews of this page.
       map.removeWhere((k, v) => k.startsWith('${cur.id}:') && k != key);
       map[key] = out;
+      _previews.remember(cur.id, out);
       emit(state.copyWith(enhancePreviews: map, rendering: false));
+      debugPrint('[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMilliseconds} ms');
+    } on JobCancelled {
+      // Superseded by a newer request; it will set `rendering` itself.
     } catch (err) {
       if (!isClosed) {
         emit(state.copyWith(rendering: false, failure: ImageProcessingFailure(err.toString())));

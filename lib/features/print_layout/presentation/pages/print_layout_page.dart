@@ -175,8 +175,8 @@ class _PrintViewState extends State<_PrintView> {
                                 child: _SheetPreview(
                                   items: layout.pages[i],
                                   cutGuides: s.cutGuides && s.output != PrintOutput.image,
-                                  frontPath: frontPage.thumbPath ?? frontPage.displayPath,
-                                  backPath: backPage == null ? null : (backPage.thumbPath ?? backPage.displayPath),
+                                  frontPath: frontPage.listImagePath,
+                                  backPath: backPage?.listImagePath,
                                 ),
                               ),
                             ),
@@ -450,7 +450,7 @@ class _SheetPreview extends StatelessWidget {
     this.cutGuides = false,
   });
   final List<PlacedItem> items;
-  final String frontPath;
+  final String? frontPath;
   final String? backPath;
   final bool cutGuides;
 

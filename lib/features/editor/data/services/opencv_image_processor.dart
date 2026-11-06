@@ -27,6 +27,7 @@ class OpenCvImageProcessor implements ImageProcessor {
       detectInIsolate,
       DetectMsg(imagePath, snapAspectRatio),
       debugLabel: 'detectEdges',
+      priority: JobPriority.interactive,
     );
     debugPrint('[edges] ${r.log}');
     return r.quad;
@@ -67,11 +68,24 @@ class OpenCvImageProcessor implements ImageProcessor {
     PageEdits edits, {
     required String workPath,
     required String outputPath,
+    CancelToken? cancel,
   }) {
     return _runner.run(
       lookInIsolate,
       LookMsg(originalPath, edits, workPath, outputPath),
       debugLabel: 'look',
+      priority: JobPriority.interactive,
+      cancel: cancel,
+    );
+  }
+
+  @override
+  Future<String> renderQuick(String originalPath, PageEdits edits, {required String outputPath}) {
+    return _runner.run(
+      renderInIsolate,
+      RenderMsg(originalPath, edits.copyWith(filter: FilterType.original, brightness: 0, contrast: 0), 600, outputPath, 80),
+      debugLabel: 'quick',
+      priority: JobPriority.interactive,
     );
   }
 
@@ -96,11 +110,13 @@ class OpenCvImageProcessor implements ImageProcessor {
     required RenderSize size,
     required String outputPath,
     int jpegQuality = Limits.cacheJpegQuality,
+    JobPriority priority = JobPriority.background,
   }) {
     return _runner.run(
       renderInIsolate,
       RenderMsg(originalPath, edits, size.longEdge, outputPath, jpegQuality),
       debugLabel: 'render',
+      priority: priority,
     );
   }
 
