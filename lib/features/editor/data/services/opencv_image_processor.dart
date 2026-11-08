@@ -10,6 +10,7 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
@@ -42,15 +43,19 @@ class OpenCvImageProcessor implements ImageProcessor {
     Quad? guide,
     double? outputAspect,
     FilterType filter = FilterType.auto,
-    int extraTurns = 0,
+    CaptureMeta? capture,
   }) async {
-    // The guide was mapped into the photo as captured; turn it with the photo.
-    guide = guide?.rotatedQuarterTurns(extraTurns);
+    // The guide was mapped into the portrait capture; turn it the way the
+    // phone was held (the sensor part brings the raw pixels to that frame).
+    if (capture != null) {
+      guide = guide?.rotatedQuarterTurns(capture.frontCamera ? -capture.deviceTurns : capture.deviceTurns);
+    }
     final r = await _runner.run(
       ingestInIsolate,
-      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide, extraTurns),
+      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide, capture),
       debugLabel: 'ingest',
     );
+    debugPrint(r.orientation);
     debugPrint('[ingest] ${r.log}');
     return AutoEditsResult(
       edits: PageEdits(
@@ -59,6 +64,7 @@ class OpenCvImageProcessor implements ImageProcessor {
         outputAspect: outputAspect,
       ),
       detected: r.quad != null,
+      orientation: r.orientation,
       sharpness: r.sharpness,
       cardSharpness: r.cardSharpness,
       brightness: r.brightness,
@@ -117,20 +123,22 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
-  Future<void> bakeTurns(String path, int turns) {
-    return _runner.run(
-      bakeInIsolate,
-      (path, turns),
-      debugLabel: 'bake',
+  Future<String> normalizeCapture(String path, CaptureMeta? capture) async {
+    final report = await _runner.run(
+      normalizeInIsolate,
+      (path, capture),
+      debugLabel: 'normalize',
       priority: JobPriority.interactive,
     );
+    debugPrint(report);
+    return report;
   }
 
   @override
-  Future<String> signatureFromPhoto(String photo, {required String outputPath, int turns = 0}) {
+  Future<String> signatureFromPhoto(String photo, {required String outputPath, CaptureMeta? capture}) {
     return _runner.run(
       signatureInIsolate,
-      SignatureMsg(photo, outputPath, turns),
+      SignatureMsg(photo, outputPath, capture),
       debugLabel: 'signature',
       priority: JobPriority.interactive,
     );
@@ -281,13 +289,13 @@ class IngestMsg {
     this.previewOut,
     this.snapAspect,
     this.guide, [
-    this.extraTurns = 0,
+    this.capture,
   ]);
   final String src;
   final String previewOut;
   final double? snapAspect;
   final Quad? guide;
-  final int extraTurns;
+  final CaptureMeta? capture;
 }
 
 class IngestResult {
@@ -299,8 +307,10 @@ class IngestResult {
     required this.width,
     required this.height,
     required this.log,
+    required this.orientation,
     this.cardSharpness,
   });
+  final String orientation;
   final Quad? quad;
   final List<Quad> ranked;
   final double sharpness;
@@ -335,7 +345,7 @@ IngestResult ingestInIsolate(IngestMsg m) {
     previewOut: m.previewOut,
     previewLongEdge: RenderPx.previewLongEdge,
     aspectHint: m.snapAspect,
-    extraTurns: m.extraTurns,
+    capture: m.capture,
     searchArea: g == null
         ? null
         : (
@@ -347,6 +357,7 @@ IngestResult ingestInIsolate(IngestMsg m) {
   );
   final mb = File(m.src).lengthSync() / (1024 * 1024);
   return IngestResult(
+    orientation: r.orientation,
     quad: r.detection.quad,
     ranked: r.detection.ranked,
     sharpness: r.sharpness,
@@ -466,17 +477,17 @@ String photoInIsolate(PhotoMsg m) {
   }
 }
 
-void bakeInIsolate((String, int) m) => pipe.bakeOrientation(m.$1, extraTurns: m.$2);
+String normalizeInIsolate((String, CaptureMeta?) m) => pipe.normalizeCapture(m.$1, m.$2);
 
 class SignatureMsg {
-  const SignatureMsg(this.photo, this.out, this.turns);
+  const SignatureMsg(this.photo, this.out, this.capture);
   final String photo;
   final String out;
-  final int turns;
+  final CaptureMeta? capture;
 }
 
 String signatureInIsolate(SignatureMsg m) {
-  if (m.turns % 4 != 0) pipe.bakeOrientation(m.photo, extraTurns: m.turns);
+  pipe.normalizeCapture(m.photo, m.capture);
   pipe.signatureFromPhoto(m.photo, m.out);
   return m.out;
 }

@@ -11,6 +11,7 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
@@ -265,7 +266,7 @@ void main() {
           mode: any(named: 'mode'),
           sides: any(named: 'sides'),
           fallbacks: any(named: 'fallbacks'),
-          turns: any(named: 'turns'),
+          captures: any(named: 'captures'),
           ids: any(named: 'ids'),
           copySource: any(named: 'copySource'),
           onPrepared: any(named: 'onPrepared'),
@@ -288,7 +289,8 @@ void main() {
         ]),
       );
 
-      bloc.add(const EditorPageRetaken('placeholder', guide: guide, turns: 3));
+      const capture = CaptureMeta(sensorOrientation: 90, deviceTurns: 3);
+      bloc.add(const EditorPageRetaken('placeholder', guide: guide, capture: capture));
       await settle();
       // The event carries the raw shot; use a real file for the call check.
       final call = verify(
@@ -297,7 +299,7 @@ void main() {
           mode: captureAny(named: 'mode'),
           sides: captureAny(named: 'sides'),
           fallbacks: captureAny(named: 'fallbacks'),
-          turns: captureAny(named: 'turns'),
+          captures: captureAny(named: 'captures'),
           ids: captureAny(named: 'ids'),
           copySource: any(named: 'copySource'),
           onPrepared: any(named: 'onPrepared'),
@@ -306,7 +308,7 @@ void main() {
       expect(call.captured[1], ScanMode.idCard, reason: 'same mode');
       expect(call.captured[2], [CardSide.back], reason: 'same side');
       expect(call.captured[3], [guide], reason: 'guide fallback passed on');
-      expect(call.captured[4], [3], reason: 'phone orientation passed on');
+      expect(call.captured[4], [capture], reason: 'what the camera knew is passed on');
       expect(call.captured[5], ['back'], reason: 'same page id');
 
       expect(bloc.state.index, 1);

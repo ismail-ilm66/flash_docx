@@ -3,6 +3,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 
 /// Implemented with OpenCV in `data/`. All methods run off the UI isolate.
 abstract interface class ImageProcessor {
@@ -17,10 +18,10 @@ abstract interface class ImageProcessor {
   ///
   /// When nothing is found the crop becomes [guide] (the on-screen frame in
   /// ID / passport modes, which is also searched first) or a 5 % inset.
-  /// [outputAspect] forces the warp to the real card shape. [extraTurns] is
-  /// how the phone was held (clockwise quarter turns); it is baked into the
-  /// original together with the EXIF orientation, and [guide] (given in the
-  /// photo as captured) is turned to match.
+  /// [outputAspect] forces the warp to the real card shape. [capture] is what
+  /// the camera knew at the shutter (P0-1; null for imports): the original is
+  /// made upright from it and the EXIF tag, and [guide] (given in the
+  /// portrait capture) is turned by how the phone was held.
   Future<AutoEditsResult> ingest(
     String sourcePath, {
     required String previewOut,
@@ -28,7 +29,7 @@ abstract interface class ImageProcessor {
     Quad? guide,
     double? outputAspect,
     FilterType filter = FilterType.auto,
-    int extraTurns = 0,
+    CaptureMeta? capture,
   });
 
   /// Enhance preview (filter only; sliders are applied live in the UI).
@@ -62,14 +63,15 @@ abstract interface class ImageProcessor {
     required String outputPath,
   });
 
-  /// Turns a fresh camera photo upright in place ([turns] clockwise quarter
-  /// turns, EXIF applied). Interactive lane.
-  Future<void> bakeTurns(String path, int turns);
+  /// Turns a fresh camera photo upright in place (P0-1: EXIF, then what
+  /// [capture] says; null for imports). Interactive lane. Returns the
+  /// `[orient]` line.
+  Future<String> normalizeCapture(String path, CaptureMeta? capture);
 
   /// Scan from paper (feature 4): a photo of a signature → transparent PNG
-  /// at [outputPath], turned by [turns] quarter turns first. Throws when no
+  /// at [outputPath], made upright from [capture] first. Throws when no
   /// ink is found.
-  Future<String> signatureFromPhoto(String photo, {required String outputPath, int turns = 0});
+  Future<String> signatureFromPhoto(String photo, {required String outputPath, CaptureMeta? capture});
 
   /// All six filter thumbnails for one page in one job (160 px, P0-4).
   Future<void> renderFilterStrip(
@@ -145,9 +147,13 @@ class AutoEditsResult {
     this.width,
     this.height,
     this.candidates = const [],
+    this.orientation,
   });
 
   final PageEdits edits;
+
+  /// The `[orient]` line (P0-1), for the dev-build label on Adjust edges.
+  final String? orientation;
 
   /// False when the crop is a fallback and the user should be told to drag
   /// the corners.

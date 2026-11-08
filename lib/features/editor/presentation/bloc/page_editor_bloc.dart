@@ -16,6 +16,7 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter/foundation.dart';
@@ -396,7 +397,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         mode: state.args.mode,
         sides: [cur.side],
         fallbacks: [e.guide],
-        turns: [e.turns],
+        captures: [e.capture],
         ids: [cur.id],
         copySource: false,
       );

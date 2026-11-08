@@ -9,9 +9,8 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/data/services/opencv_image_processor.dart';
 import 'package:flash_dox/features/ocr/domain/text_recognizer.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
-import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
@@ -67,8 +66,9 @@ void main() {
         expect((read.cols, read.rows), (600, 400));
         read.dispose();
 
-        final rewritten = pipe.bakeOrientation(path);
-        expect(rewritten, o != 1, reason: 'upright files are left byte-for-byte');
+        final before = File(path).readAsBytesSync();
+        pipe.bakeOrientation(path);
+        if (o == 1) expect(File(path).readAsBytesSync(), before, reason: 'upright files are left byte-for-byte');
         expect(readJpegOrientation(path), 1);
         final again = pipe.readUpright(path);
         expect(markerSide(again), 'top', reason: 'never rotated twice');
@@ -99,28 +99,118 @@ void main() {
     });
   });
 
-  group('phone held landscape', () {
-    test('device orientation maps to clockwise turns', () {
-      expect(deviceTurns(DeviceOrientation.portraitUp), 0);
-      expect(deviceTurns(DeviceOrientation.landscapeRight), 1);
-      expect(deviceTurns(DeviceOrientation.portraitDown), 2);
-      expect(deviceTurns(DeviceOrientation.landscapeLeft), 3);
-    });
+  group('P0-1 capture normalizer: every row of the table', () {
+    // Physical model, independent of the code under test: a camera whose
+    // sensor is mounted at [sensor]° stores the scene turned back by the
+    // rotation Android documents: (sensor − device + 360) % 360 for the back
+    // camera, (sensor + device) % 360 for the front. Device degrees: portrait
+    // 0, landscape left (top to the left) 90, upside down 180, landscape
+    // right 270.
+    int neededDegrees(int sensor, int deviceDeg, {required bool front}) =>
+        front ? (sensor + deviceDeg) % 360 : (sensor - deviceDeg + 360) % 360;
+    // Our deviceTurns for those poses (clockwise turns of a portrait capture).
+    int turnsFor(int deviceDeg) => {0: 0, 90: 3, 180: 2, 270: 1}[deviceDeg]!;
 
-    test('the turns are baked in at ingest', () {
-      // Phone turned counter-clockwise: the locked-portrait photo has world-up
-      // on its right, i.e. the marker is on the right.
-      final up = uprightWithMarker();
-      final stored = cv.rotate(up, cv.ROTATE_90_CLOCKWISE);
-      final path = p.join(tmp.path, 'land.jpg');
+    cv.Mat turnedBack(cv.Mat scene, int degrees) => switch (degrees) {
+          90 => cv.rotate(scene, cv.ROTATE_90_COUNTERCLOCKWISE),
+          180 => cv.rotate(scene, cv.ROTATE_180),
+          270 => cv.rotate(scene, cv.ROTATE_90_CLOCKWISE),
+          _ => scene.clone(),
+        };
+
+    for (final front in [false, true]) {
+      final sensor = front ? 270 : 90;
+      for (final (pose, deviceDeg) in [('portrait', 0), ('landscape left', 90), ('upside down', 180), ('landscape right', 270)]) {
+        test('${front ? 'front' : 'back'} camera, $pose, no EXIF tag, sensor pixels', () {
+          // Held portrait the scene is portrait; held sideways, landscape.
+          final portrait = deviceDeg % 180 == 0;
+          final scene = uprightWithMarker(w: portrait ? 400 : 600, h: portrait ? 600 : 400);
+          final raw = turnedBack(scene, neededDegrees(sensor, deviceDeg, front: front));
+          expect(raw.cols, greaterThan(raw.rows), reason: 'sensors are landscape');
+          final path = p.join(tmp.path, 'raw_${front}_$deviceDeg.jpg');
+          pipe.writeJpeg(raw, path, quality: 95);
+          for (final m in [scene, raw]) {
+            m.dispose();
+          }
+          expect(readJpegOrientation(path), 1);
+          final line = pipe.normalizeCapture(
+            path,
+            CaptureMeta(sensorOrientation: sensor, deviceTurns: turnsFor(deviceDeg), frontCamera: front),
+          );
+          expect(line, startsWith('[orient] exif=1'));
+          final read = pipe.readUpright(path);
+          expect(markerSide(read), 'top', reason: line);
+          expect(read.cols < read.rows, portrait);
+          read.dispose();
+        });
+      }
+    }
+
+    test('no tag, but the phone already turned the pixels: device only', () {
+      // Held landscape left: the phone turned the sensor pixels upright for
+      // a portrait UI, so world-up is on the right of the stored image.
+      final scene = uprightWithMarker();
+      final stored = cv.rotate(scene, cv.ROTATE_90_CLOCKWISE);
+      final path = p.join(tmp.path, 'turned.jpg');
       pipe.writeJpeg(stored, path, quality: 95);
-      up.dispose();
+      scene.dispose();
       stored.dispose();
-      expect(markerSide(pipe.readUpright(path)), 'right');
-      ingestInIsolate(IngestMsg(path, p.join(tmp.path, 'prev2.jpg'), null, null, deviceTurns(DeviceOrientation.landscapeLeft)));
+      pipe.normalizeCapture(path, const CaptureMeta(sensorOrientation: 90, deviceTurns: 3));
       final read = pipe.readUpright(path);
       expect(markerSide(read), 'top');
       read.dispose();
+
+      final upright = uprightWithMarker(w: 400, h: 600);
+      final path2 = p.join(tmp.path, 'portrait.jpg');
+      pipe.writeJpeg(upright, path2, quality: 95);
+      upright.dispose();
+      final before = File(path2).readAsBytesSync();
+      pipe.normalizeCapture(path2, const CaptureMeta(sensorOrientation: 90, deviceTurns: 0));
+      expect(File(path2).readAsBytesSync(), before, reason: 'nothing to do: untouched');
+    });
+
+    test('tagged: the tag, then how the phone was held', () {
+      // Held landscape left, sensor pixels with tag 6 (the camera tagged for
+      // its portrait UI): after the tag world-up is on the right.
+      final scene = uprightWithMarker();
+      final afterTag = cv.rotate(scene, cv.ROTATE_90_CLOCKWISE);
+      final path = writeWithExif(afterTag, p.join(tmp.path, 'tag6.jpg'), 6);
+      scene.dispose();
+      afterTag.dispose();
+      final line = pipe.normalizeCapture(path, const CaptureMeta(sensorOrientation: 90, deviceTurns: 3));
+      expect(readJpegOrientation(path), 1);
+      final read = pipe.readUpright(path);
+      expect(markerSide(read), 'top', reason: line);
+      read.dispose();
+    });
+
+    test('imports get the tag only, even when the pixels are landscape', () {
+      final scene = uprightWithMarker();
+      final path = p.join(tmp.path, 'import.jpg');
+      pipe.writeJpeg(scene, path, quality: 95);
+      scene.dispose();
+      final line = pipe.normalizeCapture(path, null);
+      expect(line, contains('import'));
+      final read = pipe.readUpright(path);
+      expect(markerSide(read), 'top');
+      read.dispose();
+    });
+
+    test('ingest uses the capture, and turns the guide by the device part', () {
+      final scene = uprightWithMarker(w: 400, h: 600);
+      final raw = cv.rotate(scene, cv.ROTATE_90_COUNTERCLOCKWISE);
+      final path = p.join(tmp.path, 'ingest_raw.jpg');
+      pipe.writeJpeg(raw, path, quality: 95);
+      scene.dispose();
+      raw.dispose();
+      final r = ingestInIsolate(
+        IngestMsg(path, p.join(tmp.path, 'prev3.jpg'), null, null, const CaptureMeta(sensorOrientation: 90, deviceTurns: 0)),
+      );
+      expect((r.width, r.height), (400, 600));
+      expect(r.orientation, contains('final=90°'));
+      final prev = cv.imread(p.join(tmp.path, 'prev3.jpg'));
+      expect(markerSide(prev), 'top');
+      prev.dispose();
     });
 
     test('a guide quad turns with the photo', () {

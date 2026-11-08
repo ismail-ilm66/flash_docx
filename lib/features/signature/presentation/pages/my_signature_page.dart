@@ -49,7 +49,7 @@ class _MySignaturePageState extends State<MySignaturePage> {
     setState(() => _busy = true);
     try {
       final out = getIt<FileStore>().newCapturePath('signature_${newId()}').replaceAll('.jpg', '.png');
-      await getIt<ImageProcessor>().signatureFromPhoto(shot.path, outputPath: out, turns: shot.turns);
+      await getIt<ImageProcessor>().signatureFromPhoto(shot.path, outputPath: out, capture: shot.capture);
       if (mounted) setState(() => _scanned = out);
     } on Object {
       if (mounted) context.showSnack(context.l10n.mySignatureNotFound, error: true);

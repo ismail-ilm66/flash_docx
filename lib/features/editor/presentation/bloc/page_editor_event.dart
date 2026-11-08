@@ -74,10 +74,10 @@ class EditorPageDeleted extends PageEditorEvent {
 }
 
 class EditorPageRetaken extends PageEditorEvent {
-  const EditorPageRetaken(this.newOriginalPath, {this.guide, this.turns = 0});
+  const EditorPageRetaken(this.newOriginalPath, {this.guide, this.capture});
   final String newOriginalPath;
   final Quad? guide;
-  final int turns;
+  final CaptureMeta? capture;
 }
 
 class EditorPreviewRequested extends PageEditorEvent {

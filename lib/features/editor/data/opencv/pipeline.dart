@@ -11,6 +11,7 @@ import 'dart:typed_data';
 
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 
 // ---------------------------------------------------------------------------
@@ -60,15 +61,23 @@ cv.Mat applyExifOrientation(cv.Mat m, int orientation) {
   }
 }
 
-/// Bakes the EXIF orientation plus [extraTurns] (clockwise quarter turns:
-/// how the phone was held when the photo was taken) into the file at [path],
-/// once, at ingest. The result is an upright JPEG (q95) with no orientation
-/// tag. When nothing needs turning the file is left byte-for-byte as it is.
-/// Returns true if the file was rewritten.
-bool bakeOrientation(String path, {int extraTurns = 0}) {
+/// Makes a photo upright once, in place (round 5, P0-1): the EXIF tag, then
+/// the rotation [captureRotation] works out from what the camera knew
+/// ([meta]; null for imports, which get the tag only). The result is an
+/// upright JPEG (q95) with no orientation tag; when nothing needs turning
+/// the file is left byte-for-byte as it is. Returns the `[orient]` line.
+String normalizeCapture(String path, CaptureMeta? meta) {
   final o = readJpegOrientation(path);
-  final turns = ((extraTurns % 4) + 4) % 4;
-  if (o == 1 && turns == 0) return false;
+  var size = jpegSize(path);
+  if (size == null) {
+    final probe = cv.imread(path, flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION);
+    size = (width: probe.cols, height: probe.rows);
+    probe.dispose();
+  }
+  final rot = captureRotation(exif: o, width: size.width, height: size.height, meta: meta);
+  final report = '[orient] exif=$o ${meta ?? 'import'} pixels=${size.width}x${size.height} '
+      'final=${rot.turns * 90}°${rot.mirror ? ' mirrored' : ''}';
+  if (o <= 1 && rot.turns == 0 && !rot.mirror) return report;
   final raw = cv.imread(path, flags: cv.IMREAD_COLOR | cv.IMREAD_IGNORE_ORIENTATION);
   if (raw.isEmpty) {
     raw.dispose();
@@ -76,17 +85,25 @@ bool bakeOrientation(String path, {int extraTurns = 0}) {
   }
   final upright = applyExifOrientation(raw, o);
   if (!identical(upright, raw)) raw.dispose();
-  final turned = rotateQuarterTurns(upright, turns);
+  var turned = rotateQuarterTurns(upright, rot.turns);
   if (!identical(turned, upright)) upright.dispose();
+  if (rot.mirror) {
+    final flipped = cv.flip(turned, 1);
+    turned.dispose();
+    turned = flipped;
+  }
   try {
     final tmp = '$path.baking.jpg';
     writeJpeg(turned, tmp, quality: 95);
     File(tmp).renameSync(path);
-    return true;
+    return report;
   } finally {
     turned.dispose();
   }
 }
+
+/// Imports: the EXIF tag only.
+void bakeOrientation(String path) => normalizeCapture(path, null);
 
 /// Decodes at 1/2 or 1/4 scale straight from the JPEG when the photo is far
 /// larger than [targetLongEdge] (48–200 MP sensors). Halves or quarters the
@@ -1351,10 +1368,14 @@ class IngestReport {
     required this.width,
     required this.height,
     required this.decodeScale,
+    required this.orientation,
     this.cardSharpness,
   });
 
   final DetectionReport detection;
+
+  /// The `[orient]` line from [normalizeCapture] (P0-1).
+  final String orientation;
 
   /// ID / passport only (P0-2): Laplacian variance of the warped card at
   /// 1000 px wide — the card itself, not the table around it.
@@ -1387,10 +1408,10 @@ IngestReport ingest({
   required int previewLongEdge,
   double? aspectHint,
   ({double left, double top, double right, double bottom})? searchArea,
-  int extraTurns = 0,
+  CaptureMeta? capture,
 }) {
-  // P0-1: make the original upright once (EXIF + how the phone was held).
-  bakeOrientation(src, extraTurns: extraTurns);
+  // P0-1: make the original upright once (EXIF, sensor, how it was held).
+  final orientation = normalizeCapture(src, capture);
   final header = jpegSize(src);
   final (img, scale) = _decodeForPreview(src, previewLongEdge, header);
   final preview = fitLongEdge(img, previewLongEdge);
@@ -1425,6 +1446,7 @@ IngestReport ingest({
       width: landscape ? long : short,
       height: landscape ? short : long,
       decodeScale: scale,
+      orientation: orientation,
       cardSharpness: cardSharpness,
     );
   } finally {

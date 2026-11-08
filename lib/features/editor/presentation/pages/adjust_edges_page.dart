@@ -1,4 +1,5 @@
 import 'package:flash_dox/app/di/injection.dart';
+import 'package:flash_dox/app/flavor.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
@@ -8,6 +9,7 @@ import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dar
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/quad_editor.dart';
+import 'package:flash_dox/features/scanner/domain/capture_orientation_log.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
@@ -49,7 +51,7 @@ class _AdjustView extends StatelessWidget {
     );
     if (shot != null && context.mounted) {
       bloc.add(
-        EditorPageRetaken(shot.path, guide: shot.guide, turns: shot.turns),
+        EditorPageRetaken(shot.path, guide: shot.guide, capture: shot.capture),
       );
     }
   }
@@ -154,6 +156,21 @@ class _AdjustView extends StatelessWidget {
                                   ),
                           ),
                         ),
+                        // P0-1: dev builds show how the photo was turned, for
+                        // testers without adb. Never in the store build.
+                        if (FlavorConfig.isDev && page != null && CaptureOrientationLog.lineFor(page.id) != null)
+                          Positioned(
+                            left: Space.x2,
+                            right: Space.x2,
+                            bottom: 2,
+                            child: IgnorePointer(
+                              child: Text(
+                                CaptureOrientationLog.lineFor(page.id)!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(color: Color(0xB3FFFFFF), fontSize: 10, height: 1.2),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

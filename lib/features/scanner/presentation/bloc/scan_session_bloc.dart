@@ -9,6 +9,7 @@ import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter/foundation.dart';
@@ -70,7 +71,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
 
   void _onCaptured(SessionCaptured e, Emitter<ScanSessionState> emit) {
     if (!state.canCapture) return;
-    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide, turns: e.turns);
+    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide, capture: e.capture);
     final list = [...state.captures];
     final at = state.insertAt;
     if (at != null && at <= list.length) {
@@ -95,7 +96,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         mode: mode,
         sides: [c.side],
         fallbacks: [c.guide],
-        turns: [c.turns],
+        captures: [c.capture],
         copySource: false,
         onPrepared: (_, result) => res = result,
       );

@@ -74,6 +74,8 @@ import 'package:flash_dox/features/rewards/data/unlock_all_reward_gate.dart'
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart' as _i607;
 import 'package:flash_dox/features/rewards/presentation/reward_cubit.dart'
     as _i904;
+import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart'
+    as _i401;
 import 'package:flash_dox/features/scanner/data/import_service.dart' as _i959;
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart'
     as _i922;
@@ -117,6 +119,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i554.AppDatabase>(
       () => _i554.AppDatabase(),
       dispose: (i) => i.dispose(),
+    );
+    gh.lazySingleton<_i401.DeviceOrientationTracker>(
+      () => _i401.DeviceOrientationTracker(),
     );
     gh.lazySingleton<_i132.DocumentRepository>(
       () => _i257.DocumentRepositoryImpl(

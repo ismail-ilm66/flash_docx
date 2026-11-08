@@ -70,16 +70,19 @@ Future<String?> _pickPhoto(BuildContext context, {required bool camera}) async {
     );
     if (shot == null) return null;
     // The camera records how the phone was held; turn the photo upright.
-    await getIt<ImageProcessor>().bakeTurns(shot.path, shot.turns);
+    await getIt<ImageProcessor>().normalizeCapture(shot.path, shot.capture);
     return shot.path;
   }
   final r = await getIt<ImportService>().fromGallery(multiple: false);
-  return r.fold((f) {
+  final path = r.fold((f) {
     if (context.mounted && f is! CancelledFailure) {
       context.showSnack(failureMessage(context, f), error: true);
     }
     return null;
   }, (paths) => paths.firstOrNull);
+  // Imports: the EXIF tag only (P0-1), so every screen reads it the same.
+  if (path != null) await getIt<ImageProcessor>().normalizeCapture(path, null);
+  return path;
 }
 
 /// Passport photo, step 1 (feature 5, artboard *Passport photo · crop*): a

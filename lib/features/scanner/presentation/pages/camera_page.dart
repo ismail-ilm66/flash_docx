@@ -13,7 +13,9 @@ import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/bloc/scan_session_bloc.dart';
@@ -28,15 +30,15 @@ import 'package:go_router/go_router.dart';
 
 /// What a retake hands back to Adjust edges (P0-3).
 class RetakeShot {
-  const RetakeShot(this.path, {this.guide, this.turns = 0});
+  const RetakeShot(this.path, {this.guide, this.capture});
   final String path;
 
   /// The ID / passport guide frame in photo coordinates (search area and
   /// fallback crop).
   final Quad? guide;
 
-  /// How the phone was held (P0-1).
-  final int turns;
+  /// What the camera knew at the shutter, for making it upright (P0-1).
+  final CaptureMeta? capture;
 }
 
 class CameraArgs {
@@ -88,6 +90,7 @@ class _CameraView extends StatefulWidget {
 }
 
 class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
+  final DeviceOrientationTracker _orientation = getIt<DeviceOrientationTracker>();
   CameraController? _controller;
   bool _permissionDenied = false;
   bool _initializing = true;
@@ -118,6 +121,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     // P1-4: the camera screen is portrait only; EXIF uprights the photos.
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    _orientation.start();
     unawaited(_init());
     unawaited(_checkStorage());
   }
@@ -290,6 +294,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _orientation.stop();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _focusRingTimer?.cancel();
     _shutterPlayer.dispose();
@@ -326,9 +331,14 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       }
       _captureFeedback();
       final take = Stopwatch()..start();
-      // How the phone is held right now (from the motion sensor, even with
-      // the UI locked to portrait); baked into the photo at ingest (P0-1).
-      final turns = deviceTurns(c.value.deviceOrientation);
+      // How the phone is held right now (round 5, P0-1): from the
+      // accelerometer, since the plugin's orientation follows the UI, which
+      // is locked to portrait. Applied with the sensor angle at ingest.
+      final capture = CaptureMeta(
+        sensorOrientation: c.description.sensorOrientation,
+        deviceTurns: _orientation.turns,
+        frontCamera: c.description.lensDirection == CameraLensDirection.front,
+      );
       final shot = await c.takePicture();
       take.stop();
       if (!mounted) return;
@@ -344,10 +354,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
               area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
             );
       if (widget.args.retake) {
-        context.pop(RetakeShot(shot.path, guide: guide, turns: turns));
+        context.pop(RetakeShot(shot.path, guide: guide, capture: capture));
         return;
       }
-      bloc.add(SessionCaptured(shot.path, guide: guide, turns: turns));
+      bloc.add(SessionCaptured(shot.path, guide: guide, capture: capture));
       setState(() => _flyTick++);
       debugPrint(
         '[capture] takePicture ${take.elapsedMilliseconds} ms; '
@@ -658,14 +668,3 @@ class _NoticeBanner extends StatelessWidget {
     );
   }
 }
-
-/// Clockwise quarter turns that bring a photo taken with the capture
-/// orientation locked to portrait upright, for the way the phone was held.
-/// `landscapeLeft` is the phone turned 90° counter-clockwise, so world-up
-/// is towards the photo's right edge and it needs 3 clockwise turns.
-int deviceTurns(DeviceOrientation o) => switch (o) {
-  DeviceOrientation.portraitUp => 0,
-  DeviceOrientation.landscapeRight => 1,
-  DeviceOrientation.portraitDown => 2,
-  DeviceOrientation.landscapeLeft => 3,
-};

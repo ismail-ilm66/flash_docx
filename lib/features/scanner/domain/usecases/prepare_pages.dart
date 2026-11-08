@@ -9,6 +9,8 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/ocr/domain/text_recognizer.dart';
+import 'package:flash_dox/features/scanner/domain/capture_orientation_log.dart';
+import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
@@ -37,7 +39,7 @@ class PreparePages {
     required ScanMode mode,
     List<CardSide?>? sides,
     List<Quad?>? fallbacks,
-    List<int>? turns,
+    List<CaptureMeta?>? captures,
     List<String>? ids,
     bool copySource = true,
     void Function(int index, AutoEditsResult result)? onPrepared,
@@ -73,8 +75,9 @@ class PreparePages {
           outputAspect: rules.aspectRatio,
           // ID colour is the default for cards; documents use the Settings default.
           filter: isCard ? FilterType.idColor : filter,
-          extraTurns: turns != null && i < turns.length ? turns[i] : 0,
+          capture: captures != null && i < captures.length ? captures[i] : null,
         );
+        if (auto.orientation != null) CaptureOrientationLog.record(id, auto.orientation!);
         var edits = auto.edits;
         if (isCard) {
           edits = edits.copyWith(
