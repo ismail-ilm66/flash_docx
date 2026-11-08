@@ -234,6 +234,16 @@ void main() {
     router.go(Routes.home);
     await settle(tester);
     expectNothingCutOff(tester, 'Home');
+    // P1-1: Docs · ID Card · Passport · Import: equal width, one line each.
+    final tiles = find.byType(QuickActionTile);
+    expect(tiles, findsNWidgets(4));
+    final widths = {for (final e in tiles.evaluate()) tester.getSize(find.byWidget(e.widget)).width.round()};
+    expect(widths, hasLength(1), reason: 'equal width');
+    for (final label in [l.homeDocument, l.homeIdCard, l.modePassport, l.homeImport]) {
+      final paragraph = tester.renderObject<RenderParagraph>(find.descendant(of: tiles, matching: find.text(label)));
+      final lineHeight = paragraph.getFullHeightForCaret(const TextPosition(offset: 0));
+      expect(paragraph.size.height, lessThan(lineHeight * 1.5), reason: '$label on one line');
+    }
     final list = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(find.textContaining(l.sidesCount(2)), 200, scrollable: list);
     await settle(tester);

@@ -207,7 +207,7 @@
   "errorOffline": "No internet connection",
   "splashTagline": "Scan. Clean. Share.",
   "homeHeadline": "What are we scanning today?",
-  "homeDocument": "Document",
+  "homeDocument": "Docs",
   "homeSortLatest": "Latest",
   "homeSortOldest": "Oldest",
   "homeSortName": "Name",
@@ -636,5 +636,6 @@
       }
     }
   },
-  "photoPaperLabel": "Paper"
+  "photoPaperLabel": "Paper",
+  "homeIdCard": "ID Card"
 }

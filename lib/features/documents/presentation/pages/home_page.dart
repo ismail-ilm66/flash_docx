@@ -255,7 +255,7 @@ class _HomeViewState extends State<_HomeView> {
                                   children: [
                                     for (final (i, tile) in [
                                       QuickActionTile(icon: AppIcons.document, label: l.homeDocument, onTap: () => _scan(context, ScanMode.document)),
-                                      QuickActionTile(icon: AppIcons.idCard, label: l.modeIdCard, onTap: () => _scan(context, ScanMode.idCard)),
+                                      QuickActionTile(icon: AppIcons.idCard, label: l.homeIdCard, onTap: () => _scan(context, ScanMode.idCard)),
                                       QuickActionTile(icon: AppIcons.passport, label: l.modePassport, onTap: () => _scan(context, ScanMode.passport)),
                                       QuickActionTile(icon: AppIcons.gallery, label: l.homeImport, onTap: _pickImportSource),
                                     ].indexed) ...[

@@ -57,8 +57,11 @@ class QuickActionTile extends StatelessWidget {
                   child: AppIcon(icon, size: 22, color: c.accentText),
                 ),
                 const SizedBox(height: Space.x2),
+                // One line, shrunk to fit: a label wrapping at a large font
+                // would put the four tiles out of line (round 5, P1-1).
                 FitText(
                   label,
+                  maxLines: 1,
                   style: context.text.labelLarge?.copyWith(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,

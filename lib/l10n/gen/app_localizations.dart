@@ -1069,7 +1069,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeDocument.
   ///
   /// In en, this message translates to:
-  /// **'Document'**
+  /// **'Docs'**
   String get homeDocument;
 
   /// No description provided for @homeSortLatest.
@@ -2181,6 +2181,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Paper'**
   String get photoPaperLabel;
+
+  /// No description provided for @homeIdCard.
+  ///
+  /// In en, this message translates to:
+  /// **'ID Card'**
+  String get homeIdCard;
 }
 
 class _AppLocalizationsDelegate

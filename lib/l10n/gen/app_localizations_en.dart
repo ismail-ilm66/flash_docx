@@ -518,7 +518,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeHeadline => 'What are we scanning today?';
 
   @override
-  String get homeDocument => 'Document';
+  String get homeDocument => 'Docs';
 
   @override
   String get homeSortLatest => 'Latest';
@@ -1185,4 +1185,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoPaperLabel => 'Paper';
+
+  @override
+  String get homeIdCard => 'ID Card';
 }
