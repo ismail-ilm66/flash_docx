@@ -44,7 +44,7 @@ class _MySignaturePageState extends State<MySignaturePage> {
   }
 
   Future<void> _takePhoto() async {
-    final shot = await context.push<RetakeShot>(Routes.camera, extra: const CameraArgs(retake: true, mode: ScanMode.document));
+    final shot = await context.push<RetakeShot>(Routes.camera, extra: const CameraArgs(retake: true, mode: ScanMode.document, hint: CameraHint.signature));
     if (shot == null || !mounted) return;
     setState(() => _busy = true);
     try {

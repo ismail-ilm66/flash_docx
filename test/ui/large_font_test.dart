@@ -20,6 +20,7 @@ import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
+import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
 import 'package:flash_dox/features/signature/data/signature_store.dart';
@@ -437,8 +438,10 @@ void main() {
     await close(tester);
   });
 
-  for (final mode in [ScanMode.document, ScanMode.idCard]) {
-    testWidgets('Camera overlay (${mode.name})', (tester) async {
+  for (final hint in CameraHint.values) {
+    // P1-7: every entry point's hint fits at 2×.
+    final mode = hint == CameraHint.idCard || hint == CameraHint.passport ? ScanMode.idCard : ScanMode.document;
+    testWidgets('Camera overlay (${hint.name})', (tester) async {
       await setUpView(tester);
       await tester.pumpWidget(
         MaterialApp(
@@ -449,7 +452,7 @@ void main() {
             preview: const ColoredBox(color: Colors.black),
             rules: ScanModeRules.of(mode),
             title: mode == ScanMode.document ? l.modeDocument : '${l.modeIdCard} · ${l.cameraGuideFront}',
-            guide: mode == ScanMode.document ? l.cameraHintDocument : l.cameraHintCard,
+            guide: cameraHintText(l, hint),
             flashOn: false,
             captureCount: 2,
             canFinish: true,

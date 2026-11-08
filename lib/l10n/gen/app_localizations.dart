@@ -2193,6 +2193,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Office'**
   String get folderOffice;
+
+  /// No description provided for @cameraHintPassport.
+  ///
+  /// In en, this message translates to:
+  /// **'Fit the open data page in the frame'**
+  String get cameraHintPassport;
+
+  /// No description provided for @cameraHintPassportPhoto.
+  ///
+  /// In en, this message translates to:
+  /// **'Plain wall behind · face the camera · even light'**
+  String get cameraHintPassportPhoto;
+
+  /// No description provided for @cameraHintSignature.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign on white paper · fill the frame'**
+  String get cameraHintSignature;
+
+  /// No description provided for @cameraHintExtractText.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold flat · text should fill the frame'**
+  String get cameraHintExtractText;
 }
 
 class _AppLocalizationsDelegate

@@ -40,6 +40,10 @@ class RetakeShot {
   final CaptureMeta? capture;
 }
 
+/// The hint over the shutter, per entry point (round 5, P1-7). Without one,
+/// it follows the scan mode.
+enum CameraHint { document, idCard, passport, passportPhoto, signature, extractText }
+
 class CameraArgs {
   const CameraArgs({
     this.mode,
@@ -47,7 +51,10 @@ class CameraArgs {
     this.retake = false,
     this.retakeSide,
     this.returnPages = false,
+    this.hint,
   });
+
+  final CameraHint? hint;
 
   final ScanMode? mode;
 
@@ -568,13 +575,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   String _guideText(AppLocalizations l, ScanSessionState s) {
-    // A retake shows the label of the side being replaced (P0-3).
-    return switch (s.guide) {
-      GuideLabel.documentPage => l.cameraHintDocument,
-      GuideLabel.front ||
-      GuideLabel.back ||
-      GuideLabel.passport => l.cameraHintCard,
-    };
+    final hint = widget.args.hint ??
+        switch (s.guide) {
+          GuideLabel.documentPage => CameraHint.document,
+          GuideLabel.front || GuideLabel.back => CameraHint.idCard,
+          GuideLabel.passport => CameraHint.passport,
+        };
+    return cameraHintText(l, hint);
   }
 
   Widget _preview(BuildContext context) {
@@ -665,3 +672,12 @@ class _NoticeBanner extends StatelessWidget {
     );
   }
 }
+
+String cameraHintText(AppLocalizations l, CameraHint hint) => switch (hint) {
+      CameraHint.document => l.cameraHintDocument,
+      CameraHint.idCard => l.cameraHintCard,
+      CameraHint.passport => l.cameraHintPassport,
+      CameraHint.passportPhoto => l.cameraHintPassportPhoto,
+      CameraHint.signature => l.cameraHintSignature,
+      CameraHint.extractText => l.cameraHintExtractText,
+    };

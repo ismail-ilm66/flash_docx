@@ -66,7 +66,7 @@ Future<String?> _pickPhoto(BuildContext context, {required bool camera}) async {
   if (camera) {
     final shot = await context.push<RetakeShot>(
       Routes.camera,
-      extra: const CameraArgs(retake: true, mode: ScanMode.document),
+      extra: const CameraArgs(retake: true, mode: ScanMode.document, hint: CameraHint.passportPhoto),
     );
     if (shot == null) return null;
     // The camera records how the phone was held; turn the photo upright.

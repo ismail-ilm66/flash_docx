@@ -1191,4 +1191,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get folderOffice => 'Office';
+
+  @override
+  String get cameraHintPassport => 'Fit the open data page in the frame';
+
+  @override
+  String get cameraHintPassportPhoto =>
+      'Plain wall behind · face the camera · even light';
+
+  @override
+  String get cameraHintSignature => 'Sign on white paper · fill the frame';
+
+  @override
+  String get cameraHintExtractText => 'Hold flat · text should fill the frame';
 }
