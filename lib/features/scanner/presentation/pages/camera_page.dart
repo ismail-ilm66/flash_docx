@@ -107,6 +107,14 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   bool _initializing = true;
   bool _capturing = false;
 
+  /// Passport photo (P1-3.1): the lens in use, the 3 s self-timer and its
+  /// countdown.
+  CameraLensDirection _lens = CameraLensDirection.back;
+  bool _timerOn = false;
+  int? _countdown;
+
+  bool get _selfieTools => widget.args.hint == CameraHint.passportPhoto;
+
   // Feedback + focus state (P0-4 / P0-5).
   final GlobalKey _stackKey = GlobalKey();
   final AudioPlayer _shutterPlayer = AudioPlayer();
@@ -133,7 +141,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     // P1-4: the camera screen is portrait only; EXIF uprights the photos.
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _orientation.start();
-    unawaited(_init());
+    unawaited(_init(lens: _lens));
     unawaited(_checkStorage());
   }
 
@@ -143,16 +151,17 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (mounted) setState(() => _storage = level);
   }
 
-  Future<void> _init() async {
+  Future<void> _init({CameraLensDirection lens = CameraLensDirection.back}) async {
     try {
       final cams = await availableCameras();
       if (cams.isEmpty) {
         setState(() => _initializing = false);
         return;
       }
+      // The back camera unless the passport photo flip asked for the front.
       final back = cams.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
-        orElse: () => cams.first,
+        (c) => c.lensDirection == lens,
+        orElse: () => cams.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cams.first),
       );
       // `max` is the sensor's full 4:3 photo size on both platforms, which
       // matches the 3:4 preview well: what you see is what you capture.
@@ -185,6 +194,33 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     } catch (_) {
       setState(() => _initializing = false);
     }
+  }
+
+  /// P1-3.1: reopen the camera on the other lens.
+  Future<void> _flip() async {
+    if (_capturing || _countdown != null) return;
+    final old = _controller;
+    setState(() {
+      _controller = null;
+      _initializing = true;
+      _lens = _lens == CameraLensDirection.back ? CameraLensDirection.front : CameraLensDirection.back;
+    });
+    await old?.dispose();
+    if (mounted) await _init(lens: _lens);
+  }
+
+  /// The shutter: straight away, or after the 3 s self-timer (P1-3.1).
+  Future<void> _shutter() async {
+    if (_countdown != null) return;
+    if (!_timerOn) return _capture();
+    for (var left = 3; left > 0; left--) {
+      if (!mounted) return;
+      setState(() => _countdown = left);
+      await Future<void>.delayed(const Duration(seconds: 1));
+    }
+    if (!mounted) return;
+    setState(() => _countdown = null);
+    await _capture();
   }
 
   Future<void> _trySet(Future<void> Function() f) async {
@@ -298,7 +334,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       _controller = null;
     } else if (state == AppLifecycleState.resumed) {
       setState(() => _initializing = true);
-      unawaited(_init());
+      unawaited(_init(lens: _lens));
     }
   }
 
@@ -546,7 +582,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   onMode: (m) => context.read<ScanSessionBloc>().add(
                     SessionModeChanged(m),
                   ),
-                  onShutter: _capture,
+                  onShutter: _shutter,
+                  onFlip: _selfieTools ? _flip : null,
+                  onTimer: _selfieTools ? () => setState(() => _timerOn = !_timerOn) : null,
+                  timerOn: _timerOn,
+                  countdown: _countdown,
                   onGallery: widget.args.retake ? null : _importFromSheet,
                   onFinish: () => context.read<ScanSessionBloc>().add(
                     const SessionFinished(),

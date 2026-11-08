@@ -1229,4 +1229,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mySignatureExpand => 'Expand';
+
+  @override
+  String get cameraFlip => 'Switch camera';
+
+  @override
+  String get cameraTimerOn => '3 second timer on';
+
+  @override
+  String get cameraTimerOff => '3 second timer off';
 }

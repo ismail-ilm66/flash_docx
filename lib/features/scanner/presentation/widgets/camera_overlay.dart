@@ -36,7 +36,20 @@ class CameraOverlay extends StatelessWidget {
     this.stackKey,
     this.flyTick = 0,
     this.banner,
+    this.onFlip,
+    this.timerOn = false,
+    this.onTimer,
+    this.countdown,
   });
+
+  /// Passport photo only (P1-3.1): switch between back and front camera,
+  /// and a 3 s self-timer. Hidden when null.
+  final VoidCallback? onFlip;
+  final bool timerOn;
+  final VoidCallback? onTimer;
+
+  /// Seconds left on the self-timer, shown large over the preview.
+  final int? countdown;
 
   final Widget preview;
   final ScanModeRules rules;
@@ -108,6 +121,17 @@ class CameraOverlay extends StatelessWidget {
             flyTick: flyTick,
           ),
         ),
+        if (countdown != null)
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Center(
+                child: Text(
+                  '$countdown',
+                  style: const TextStyle(fontSize: 120, fontWeight: FontWeight.w800, color: Colors.white, shadows: [Shadow(blurRadius: 24)]),
+                ),
+              ),
+            ),
+          ),
         // ---- top fade: ✕ · title · flash ----
         Positioned(
           top: 0,
@@ -150,6 +174,19 @@ class CameraOverlay extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (onTimer != null) ...[
+                    _RoundButton(
+                      icon: AppIcons.timer,
+                      label: timerOn ? l.cameraTimerOn : l.cameraTimerOff,
+                      active: timerOn,
+                      onTap: onTimer!,
+                    ),
+                    const SizedBox(width: Space.x1),
+                  ],
+                  if (onFlip != null) ...[
+                    _RoundButton(icon: AppIcons.flipCamera, label: l.cameraFlip, onTap: onFlip!),
+                    const SizedBox(width: Space.x1),
+                  ],
                   _FlashPill(on: flashOn, onTap: onFlash),
                 ],
               ),
@@ -518,3 +555,37 @@ class _PageStack extends StatelessWidget {
 }
 
 /// Four white corner brackets with rounded outer corners.
+
+/// A round icon button in the top bar (flip, timer); [label] is for screen
+/// readers.
+class _RoundButton extends StatelessWidget {
+  const _RoundButton({required this.icon, required this.label, required this.onTap, this.active = false});
+  final AppIcons icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      selected: active,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: active ? c.accent.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.12),
+        shape: const CircleBorder(),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            width: Sizes.tap,
+            height: Sizes.tap,
+            child: Center(child: AppIcon(icon, size: 20, color: active ? c.accent : _ink)),
+          ),
+        ),
+      ),
+    );
+  }
+}

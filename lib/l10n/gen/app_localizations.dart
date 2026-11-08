@@ -2265,6 +2265,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Expand'**
   String get mySignatureExpand;
+
+  /// No description provided for @cameraFlip.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch camera'**
+  String get cameraFlip;
+
+  /// No description provided for @cameraTimerOn.
+  ///
+  /// In en, this message translates to:
+  /// **'3 second timer on'**
+  String get cameraTimerOn;
+
+  /// No description provided for @cameraTimerOff.
+  ///
+  /// In en, this message translates to:
+  /// **'3 second timer off'**
+  String get cameraTimerOff;
 }
 
 class _AppLocalizationsDelegate

@@ -498,6 +498,11 @@ void main() {
             rules: ScanModeRules.of(mode),
             title: mode == ScanMode.document ? l.modeDocument : '${l.modeIdCard} · ${l.cameraGuideFront}',
             guide: cameraHintText(l, hint),
+            // P1-3.1: passport photo has the flip and the self-timer.
+            onFlip: hint == CameraHint.passportPhoto ? () {} : null,
+            onTimer: hint == CameraHint.passportPhoto ? () {} : null,
+            timerOn: hint == CameraHint.passportPhoto,
+            countdown: hint == CameraHint.passportPhoto ? 3 : null,
             flashOn: false,
             captureCount: 2,
             canFinish: true,

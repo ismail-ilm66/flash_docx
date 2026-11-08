@@ -63,7 +63,9 @@ enum AppIcons {
   pages(Icons.filter_none_rounded, asset: '$_dir/pages.svg'),
   portrait(Icons.portrait_rounded, asset: '$_dir/portrait.svg'),
   signature(Icons.draw_rounded, asset: '$_dir/signature.svg'),
-  shrink(Icons.compress_rounded, asset: '$_dir/shrink.svg');
+  shrink(Icons.compress_rounded, asset: '$_dir/shrink.svg'),
+  flipCamera(Icons.cameraswitch_rounded),
+  timer(Icons.timer_outlined);
 
   const AppIcons(this.fallback, {this.asset});
 
