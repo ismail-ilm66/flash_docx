@@ -36,6 +36,27 @@ class DrawPadController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces the strokes with [strokes] (drawn on a bigger canvas) scaled
+  /// down to fit [size] with [padding], centred (P1-5 Expand). Smaller
+  /// drawings keep their size.
+  void replaceWith(List<List<Offset>> strokes, Size size, {double padding = 16}) {
+    _strokes.clear();
+    final pts = strokes.expand((s) => s).toList();
+    if (pts.isNotEmpty) {
+      var bounds = Rect.fromPoints(pts.first, pts.first);
+      for (final p in pts) {
+        bounds = bounds.expandToInclude(Rect.fromCenter(center: p, width: 0, height: 0));
+      }
+      final room = Size(math.max(1, size.width - 2 * padding), math.max(1, size.height - 2 * padding));
+      final k = math.min(1.0, math.min(room.width / math.max(1, bounds.width), room.height / math.max(1, bounds.height)));
+      final centre = size.center(Offset.zero);
+      for (final s in strokes) {
+        _strokes.add([for (final p in s) centre + (p - bounds.center) * k]);
+      }
+    }
+    notifyListeners();
+  }
+
   /// Black strokes on transparent, trimmed to the ink, at [scale]× for a
   /// sharp print. Ink colour is applied when the signature is placed.
   Future<ui.Image?> toImage({double strokeWidth = DrawPad.strokeWidth, double scale = 3}) async {

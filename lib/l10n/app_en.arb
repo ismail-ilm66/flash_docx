@@ -523,7 +523,7 @@
   "signTitle": "Sign document",
   "signHint": "Drag to move · drag the corner to resize",
   "signInk": "Ink",
-  "signChange": "Change signature",
+  "signChange": "Change",
   "signAddDate": "Add date",
   "signAddSignature": "Add signature",
   "signRemove": "Remove",
@@ -651,5 +651,7 @@
   "pickTitleText": "Pick a document to read text from, or scan a new one",
   "pickScanNew": "Scan new",
   "pickFromPhotos": "From photos",
-  "pickOrDocument": "Or pick a document"
+  "pickOrDocument": "Or pick a document",
+  "mySignatureSignHere": "Sign here",
+  "mySignatureExpand": "Expand"
 }

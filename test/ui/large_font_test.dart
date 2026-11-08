@@ -422,7 +422,18 @@ void main() {
     expectNothingCutOff(tester, 'My signature');
     await tester.tap(find.text(l.mySignatureDraw));
     await settle(tester);
+    // P1-5: sign on the sideways full-screen canvas, then back.
+    await tester.tap(find.text(l.mySignatureExpand));
+    await settle(tester);
+    expect(find.byType(RotatedBox), findsWidgets);
+    expectNothingCutOff(tester, 'Expanded signature');
+    final big = find.byType(DrawPad);
+    await tester.dragFrom(tester.getCenter(big) - const Offset(0, 120), const Offset(10, 240));
+    await tester.pump();
+    await tester.tap(find.text(l.commonDone));
+    await settle(tester);
     final pad = find.byType(DrawPad);
+    expect(tester.widget<DrawPad>(pad).controller.isEmpty, isFalse, reason: 'brought back into the pad');
     await tester.dragFrom(tester.getCenter(pad) - const Offset(80, 0), const Offset(160, 20));
     await tester.pump();
     await tester.tap(find.text(l.mySignatureSave));

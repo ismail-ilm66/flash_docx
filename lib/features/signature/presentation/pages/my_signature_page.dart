@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -36,6 +37,9 @@ class _MySignaturePageState extends State<MySignaturePage> {
   late InkColor _ink = _store.defaultInk;
   String? _scanned;
   bool _busy = false;
+
+  /// The draw canvas size, for fitting an expanded signature into it.
+  Size? _padSize;
 
   @override
   void dispose() {
@@ -108,8 +112,9 @@ class _MySignaturePageState extends State<MySignaturePage> {
                       }),
                     ),
                     const SizedBox(height: Space.x4),
+                    // About half the screen (P1-5): room to sign properly.
                     SizedBox(
-                      height: 230,
+                      height: math.max(230, MediaQuery.sizeOf(context).height * 0.45),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(18),
                         child: DecoratedBox(
@@ -240,27 +245,145 @@ class _MySignaturePageState extends State<MySignaturePage> {
   Widget _drawArea(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
-    return Stack(
-      children: [
-        Positioned(
-          left: Space.x6,
-          right: Space.x6,
-          bottom: 56,
-          child: Container(height: 1, color: c.borderStrong),
-        ),
-        Positioned.fill(child: DrawPad(controller: _pad, ink: inkColor(_ink) ?? inkBlackColor)),
-        Positioned(
-          right: Space.x1,
-          top: Space.x1,
-          child: ListenableBuilder(
-            listenable: _pad,
-            builder: (context, _) => TextButton(
-              onPressed: _pad.isEmpty ? null : _pad.undo,
-              child: Text(l.mySignatureUndo),
+    return LayoutBuilder(
+      builder: (context, box) {
+        _padSize = box.biggest;
+        return Stack(
+          children: [
+            Positioned(
+              left: Space.x6,
+              right: Space.x6,
+              bottom: 56,
+              child: Container(height: 1, color: c.borderStrong),
             ),
+            Positioned(
+              left: Space.x6,
+              bottom: 62,
+              child: ListenableBuilder(
+                listenable: _pad,
+                builder: (context, _) => _pad.isEmpty
+                    ? Text(l.mySignatureSignHere, style: context.text.labelMedium?.copyWith(color: c.muted))
+                    : const SizedBox.shrink(),
+              ),
+            ),
+            Positioned.fill(child: DrawPad(controller: _pad, ink: inkColor(_ink) ?? inkBlackColor)),
+            Positioned(
+              left: Space.x1,
+              top: Space.x1,
+              child: TextButton.icon(
+                onPressed: _expand,
+                icon: const AppIcon(AppIcons.autoEdges, size: 16),
+                label: Text(l.mySignatureExpand),
+              ),
+            ),
+            Positioned(
+              right: Space.x1,
+              top: Space.x1,
+              child: ListenableBuilder(
+                listenable: _pad,
+                builder: (context, _) => TextButton(
+                  onPressed: _pad.isEmpty ? null : _pad.undo,
+                  child: Text(l.mySignatureUndo),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// P1-5: a full-screen canvas drawn sideways, so the phone can be turned
+  /// for a wide signature while the app stays portrait. Strokes drawn in
+  /// the turned canvas are already upright for the signer.
+  Future<void> _expand() async {
+    final strokes = await Navigator.of(context).push<List<List<Offset>>>(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => _ExpandedSignaturePage(ink: inkColor(_ink) ?? inkBlackColor)),
+    );
+    final size = _padSize;
+    if (strokes == null || strokes.isEmpty || size == null || !mounted) return;
+    _pad.replaceWith(strokes, size);
+  }
+}
+
+/// The sideways canvas behind Expand: everything in it is turned a quarter,
+/// so it reads correctly with the phone held landscape.
+class _ExpandedSignaturePage extends StatefulWidget {
+  const _ExpandedSignaturePage({required this.ink});
+  final Color ink;
+
+  @override
+  State<_ExpandedSignaturePage> createState() => _ExpandedSignaturePageState();
+}
+
+class _ExpandedSignaturePageState extends State<_ExpandedSignaturePage> {
+  final _pad = DrawPadController();
+
+  @override
+  void dispose() {
+    _pad.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F7F5),
+      body: SafeArea(
+        child: RotatedBox(
+          quarterTurns: 1,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                child: Row(
+                  children: [
+                    IconButton(
+                      tooltip: l.commonClose,
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const AppIcon(AppIcons.close, color: Color(0xFF15171A)),
+                    ),
+                    Expanded(
+                      child: Text(
+                        l.mySignatureSignHere,
+                        style: context.text.titleSmall?.copyWith(color: const Color(0xFF15171A), fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                    ListenableBuilder(
+                      listenable: _pad,
+                      builder: (context, _) => Row(
+                        children: [
+                          TextButton(onPressed: _pad.isEmpty ? null : _pad.undo, child: Text(l.mySignatureUndo)),
+                          TextButton(onPressed: _pad.isEmpty ? null : _pad.clear, child: Text(l.mySignatureClear)),
+                          TextButton(
+                            onPressed: _pad.isEmpty ? null : () => Navigator.of(context).pop(_pad.strokes),
+                            child: Text(l.commonDone),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned(
+                      left: Space.x10,
+                      right: Space.x10,
+                      bottom: 64,
+                      child: Container(height: 1.5, color: c.borderStrong),
+                    ),
+                    Positioned.fill(child: DrawPad(controller: _pad, ink: widget.ink)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

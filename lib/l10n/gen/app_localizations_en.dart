@@ -982,7 +982,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get signInk => 'Ink';
 
   @override
-  String get signChange => 'Change signature';
+  String get signChange => 'Change';
 
   @override
   String get signAddDate => 'Add date';
@@ -1223,4 +1223,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get pickOrDocument => 'Or pick a document';
+
+  @override
+  String get mySignatureSignHere => 'Sign here';
+
+  @override
+  String get mySignatureExpand => 'Expand';
 }

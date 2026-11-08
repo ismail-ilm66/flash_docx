@@ -6,6 +6,8 @@ import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/signature/data/signature_store.dart';
 import 'package:flash_dox/features/signature/domain/catmull_rom.dart';
+import 'package:flash_dox/features/signature/presentation/widgets/draw_pad.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -38,6 +40,26 @@ void main() {
     test('short strokes are returned as they are', () {
       expect(catmullRom(const [Offset(1, 2)]), const [Offset(1, 2)]);
       expect(catmullRom(const [Offset(1, 2), Offset(3, 4)]), const [Offset(1, 2), Offset(3, 4)]);
+    });
+  });
+
+  group('DrawPadController.replaceWith (P1-5 Expand)', () {
+    test('a big drawing is scaled down to fit and centred; a small one keeps its size', () {
+      final pad = DrawPadController()
+        ..replaceWith([
+          [Offset.zero, const Offset(1000, 200)],
+        ], const Size(300, 200));
+      final s = pad.strokes.single;
+      expect((s.last - s.first).dx, closeTo(268, 1e-6), reason: '300 − 2 × 16 padding');
+      expect((s.first.dx + s.last.dx) / 2, closeTo(150, 1e-6));
+      expect((s.first.dy + s.last.dy) / 2, closeTo(100, 1e-6));
+
+      pad.replaceWith([
+        [const Offset(10, 10), const Offset(60, 30)],
+      ], const Size(300, 200));
+      final t = pad.strokes.single;
+      expect((t.last - t.first).dx, closeTo(50, 1e-6));
+      pad.dispose();
     });
   });
 

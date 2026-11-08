@@ -1813,7 +1813,7 @@ abstract class AppLocalizations {
   /// No description provided for @signChange.
   ///
   /// In en, this message translates to:
-  /// **'Change signature'**
+  /// **'Change'**
   String get signChange;
 
   /// No description provided for @signAddDate.
@@ -2253,6 +2253,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Or pick a document'**
   String get pickOrDocument;
+
+  /// No description provided for @mySignatureSignHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign here'**
+  String get mySignatureSignHere;
+
+  /// No description provided for @mySignatureExpand.
+  ///
+  /// In en, this message translates to:
+  /// **'Expand'**
+  String get mySignatureExpand;
 }
 
 class _AppLocalizationsDelegate
