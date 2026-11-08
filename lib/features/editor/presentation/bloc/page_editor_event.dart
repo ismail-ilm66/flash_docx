@@ -99,3 +99,8 @@ class EditorCropChanged extends PageEditorEvent {
 class EditorSnapsRequested extends PageEditorEvent {
   const EditorSnapsRequested();
 }
+
+/// Crop-only thumbnails for the Adjust edges page strip (P0-3).
+class EditorStripThumbsRequested extends PageEditorEvent {
+  const EditorStripThumbsRequested();
+}

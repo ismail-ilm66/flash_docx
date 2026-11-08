@@ -32,6 +32,13 @@ class _CaptureProcessed extends ScanSessionEvent {
   final Failure? failure;
 }
 
+/// The crop-only stack thumbnail for a capture is ready (P0-3).
+class _CaptureThumbReady extends ScanSessionEvent {
+  const _CaptureThumbReady(this.id, this.path);
+  final String id;
+  final String path;
+}
+
 class SessionCaptureRemoved extends ScanSessionEvent {
   const SessionCaptureRemoved(this.index);
   final int index;

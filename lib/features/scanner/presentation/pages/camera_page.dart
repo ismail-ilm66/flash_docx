@@ -8,7 +8,6 @@ import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
-import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -516,10 +515,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   guide: _guideText(l, s),
                   flashOn: s.flashOn,
                   captureCount: s.count,
-                  // The 1200 px preview once processed; a placeholder before.
-                  lastCapturePath: s.captures.lastOrNull?.thumbPath(
-                    getIt<FileStore>(),
-                  ),
+                  // The cropped page once processed (P0-3); a placeholder before.
+                  lastCapturePath: s.captures.lastOrNull?.thumb,
                   canFinish: s.canFinish && !widget.args.retake,
                   showModes:
                       !widget.args.retake &&

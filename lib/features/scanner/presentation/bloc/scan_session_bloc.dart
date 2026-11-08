@@ -3,10 +3,10 @@ import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
-import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
@@ -29,6 +29,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   ScanSessionBloc(
     this._prepare,
     this._prefs,
+    this._previews,
     @factoryParam ScanMode? initialMode,
   ) : super(
           ScanSessionState(
@@ -40,6 +41,14 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     on<SessionFlashToggled>(_onFlash);
     on<SessionCaptured>(_onCaptured);
     on<_CaptureProcessed>(_onProcessed);
+    on<_CaptureThumbReady>((e, emit) {
+      final i = state.captures.indexWhere((c) => c.id == e.id);
+      if (i < 0) return;
+      final list = [...state.captures];
+      list[i] = list[i].copyWith(thumb: e.path);
+      // copyWith clears the result unless it's passed on.
+      emit(state.copyWith(captures: list, result: state.result));
+    });
     on<SessionCaptureRemoved>(_onRemoved);
     on<SessionRetakeRequested>(_onRetake);
     on<SessionNoticeDismissed>((_, emit) => emit(state.copyWith(clearNotice: true)));
@@ -53,6 +62,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
 
   final PreparePages _prepare;
   final PrefsService _prefs;
+  final PreviewCache _previews;
 
   /// Serial background queue: one page at a time.
   Future<void> _queue = Future.value();
@@ -127,6 +137,15 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         page: e.page,
         sharpness: e.result?.sharpness,
         brightness: e.result?.brightness,
+      );
+      // The stack shows the cropped page, not the photo (P0-3).
+      final page = e.page!;
+      unawaited(
+        _previews.quick(page).then((q) {
+          if (!isClosed) add(_CaptureThumbReady(e.id, q));
+        }).catchError((Object err) {
+          debugPrint('[capture] stack thumb: $err');
+        }),
       );
       final isCard = state.rules.aspectRatio != null;
       if (isCard && CaptureChecks.isCardBlurry(e.result?.cardSharpness)) {

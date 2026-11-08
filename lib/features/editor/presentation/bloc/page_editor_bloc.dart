@@ -78,6 +78,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     });
     on<EditorFilterThumbsRequested>(_onFilterThumbs);
     on<EditorSnapsRequested>(_onSnapsRequested);
+    on<EditorStripThumbsRequested>(_onStripThumbs, transformer: droppable());
   }
 
   final ImageProcessor _processor;
@@ -152,6 +153,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         emit(state.copyWith(status: EditorStatus.idle));
         add(const EditorPreviewRequested());
       }
+      add(const EditorStripThumbsRequested());
     } catch (err) {
       emit(
         state.copyWith(
@@ -159,6 +161,24 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           failure: ImageProcessingFailure(err.toString()),
         ),
       );
+    }
+  }
+
+  /// Every page's crop-only preview, so the Adjust strip never shows an
+  /// uncropped photo (P0-3). The current page gets its own with each edit
+  /// through [EditorPreviewRequested].
+  Future<void> _onStripThumbs(EditorStripThumbsRequested e, Emitter<PageEditorState> emit) async {
+    for (final page in [...state.pages]) {
+      if (isClosed) return;
+      final want = _files.quickPath(page.id, page.originalPath, page.edits);
+      if (state.quickPreviews[page.id] == want) continue;
+      try {
+        final q = await _previews.quick(page);
+        if (isClosed) return;
+        emit(state.copyWith(quickPreviews: {...state.quickPreviews, page.id: q}));
+      } on Object catch (err) {
+        debugPrint('[editor] strip thumb: $err');
+      }
     }
   }
 
@@ -365,7 +385,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       for (final (i, pg) in e.pages.indexed) pg.copyWith(order: start + i),
     ];
     emit(state.copyWith(pages: pages, index: start));
-    // Builds base previews for the new pages, then the current preview.
+    // Builds base previews for the new pages, then the current preview and
+    // the strip thumbnails.
     add(EditorStarted(state.args));
   }
 

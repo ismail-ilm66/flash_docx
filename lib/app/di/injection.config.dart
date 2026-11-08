@@ -242,13 +242,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i813.RecognizePageText>(),
       ),
     );
-    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
-      (initialMode, _) => _i382.ScanSessionBloc(
-        gh<_i922.PreparePages>(),
-        gh<_i567.PrefsService>(),
-        initialMode,
-      ),
-    );
     gh.factory<_i493.SettingsCubit>(
       () => _i493.SettingsCubit(
         gh<_i567.PrefsService>(),
@@ -279,6 +272,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.lazySingleton<_i769.PreviewCache>(
       () =>
           _i769.PreviewCache(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
+    );
+    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
+      (initialMode, _) => _i382.ScanSessionBloc(
+        gh<_i922.PreparePages>(),
+        gh<_i567.PrefsService>(),
+        gh<_i769.PreviewCache>(),
+        initialMode,
+      ),
     );
     gh.factoryParam<_i323.OcrCubit, String, String?>(
       (documentId, pageId) => _i323.OcrCubit(

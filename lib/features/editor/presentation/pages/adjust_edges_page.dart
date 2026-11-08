@@ -182,7 +182,8 @@ class _AdjustView extends StatelessWidget {
                       pages: s.pages,
                       index: s.index,
                       onSelect: (i) => bloc.add(EditorPageSelected(i)),
-                      pathOf: (p) => s.basePreviews[p.id],
+                      // Crop-only previews, never the uncropped photo (P0-3).
+                      pathOf: (p) => s.quickPreviews[p.id],
                       trailing: AddPageTile(
                         onTap: () async {
                           final added = await collectNewPages(

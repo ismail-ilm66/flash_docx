@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
@@ -15,8 +16,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockPrepare extends Mock implements PreparePages {}
 
+class _MockPreviews extends Mock implements PreviewCache {}
+
 void main() {
   late _MockPrepare prepare;
+  late _MockPreviews previews;
   late PrefsService prefs;
   late Directory tmp;
 
@@ -28,6 +32,10 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     prefs = PrefsService(await SharedPreferences.getInstance());
     prepare = _MockPrepare();
+    previews = _MockPreviews();
+    registerFallbackValue(const ScanPage(id: '', documentId: '', originalPath: '', edits: PageEdits(), order: 0));
+    // The crop-only preview (P0-3).
+    when(() => previews.quick(any())).thenAnswer((inv) async => '${(inv.positionalArguments.first as ScanPage).id}.quick.jpg');
     tmp = await Directory.systemTemp.createTemp('session');
     gates.clear();
     sharpnessFor.clear();
@@ -64,7 +72,7 @@ void main() {
   Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 20));
 
   test('the shutter only records; Done waits for the queue, then hands over pages in order', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
     final a = shot('a', hold: true);
     final b = shot('b', hold: true);
     bloc
@@ -93,7 +101,7 @@ void main() {
   });
 
   test('a blurry photo raises a notice; Retake puts the next shot in its place', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
     final a = shot('a');
     final b = shot('b');
     final c = shot('c');
@@ -121,7 +129,7 @@ void main() {
   });
 
   test('ID card keeps front / back when the back is retaken', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.idCard);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.idCard);
     final f = shot('front');
     final back = shot('back');
     sharpnessFor[back] = 1;
@@ -141,7 +149,7 @@ void main() {
   });
 
   test('removing a capture while it waits in the queue skips it and deletes the file', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
     final a = shot('a', hold: true);
     final b = shot('b');
     bloc
@@ -180,7 +188,7 @@ void main() {
         onPrepared: any(named: 'onPrepared'),
       ),
     ).thenAnswer((_) async => const Left(ImageProcessingFailure('x')));
-    final bloc = ScanSessionBloc(prepare, prefs, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
     bloc.add(SessionCaptured(shot('a')));
     await pump();
     expect(bloc.state.notice?.kind, NoticeKind.unreadable);
@@ -207,7 +215,7 @@ void main() {
       cb?.call(0, const AutoEditsResult(edits: PageEdits(), detected: true, sharpness: 500, brightness: CaptureChecks.darkThreshold - 1));
       return Right([ScanPage(id: path, documentId: '', originalPath: path, edits: const PageEdits(), order: 0)]);
     });
-    final bloc = ScanSessionBloc(prepare, prefs, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, null);
     expect(bloc.state.mode, ScanMode.document, reason: 'camera always opens in Document');
     bloc.add(SessionCaptured(shot('dark1')));
     await pump();
@@ -221,6 +229,20 @@ void main() {
     bloc.add(SessionCaptured(shot('dark2')));
     await pump();
     expect(bloc.state.notice, isNull);
+    await bloc.close();
+  });
+
+  test('P0-3: the page stack shows the cropped page, never the photo', () async {
+    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final a = shot('a', hold: true);
+    bloc.add(SessionCaptured(a));
+    await pump();
+    expect(bloc.state.captures.single.thumb, isNull, reason: 'placeholder while processing');
+    gates[a]!.complete();
+    await pump();
+    final c = bloc.state.captures.single;
+    expect(c.thumb, '$a.quick.jpg');
+    expect(c.thumb, isNot(a));
     await bloc.close();
   });
 }

@@ -476,4 +476,19 @@ void main() {
       await bloc.close();
     });
   });
+
+  test('P0-3: the Adjust strip gets a crop-only preview for every page', () async {
+    final second = page.copyWith(id: 'p2', order: 1);
+    final args = EditorArgs(pages: [page, second], mode: ScanMode.document);
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), args)
+      ..add(EditorStarted(args));
+    await settle();
+    for (final pg in [page, second]) {
+      final shown = bloc.state.quickPreviews[pg.id];
+      expect(shown, files.quickPath(pg.id, pg.originalPath, pg.edits));
+      expect(shown, isNot(bloc.state.basePreviews[pg.id]));
+      expect(shown, isNot(pg.originalPath));
+    }
+    await bloc.close();
+  });
 }

@@ -15,6 +15,7 @@ class Capture extends Equatable {
     this.page,
     this.sharpness,
     this.brightness,
+    this.thumb,
   });
 
   final String id;
@@ -36,15 +37,16 @@ class Capture extends Equatable {
   final double? sharpness;
   final double? brightness;
 
-  /// Small image for the page stack: the 1200 px preview once ready.
-  String? thumbPath(FileStore files) =>
-      page == null ? null : files.basePreviewPath(page!.id, page!.originalPath);
+  /// Small image for the page stack (P0-3): the crop-only 600 px preview
+  /// once it's ready, never the uncropped photo; null shows a placeholder.
+  final String? thumb;
 
   Capture copyWith({
     CaptureStatus? status,
     ScanPage? page,
     double? sharpness,
     double? brightness,
+    String? thumb,
   }) =>
       Capture(
         id,
@@ -56,10 +58,11 @@ class Capture extends Equatable {
         page: page ?? this.page,
         sharpness: sharpness ?? this.sharpness,
         brightness: brightness ?? this.brightness,
+        thumb: thumb ?? this.thumb,
       );
 
   @override
-  List<Object?> get props => [id, path, side, guide, capture, status, page, sharpness, brightness];
+  List<Object?> get props => [id, path, side, guide, capture, status, page, sharpness, brightness, thumb];
 }
 
 /// A post-capture prompt for one capture (round 3, A3).
