@@ -637,5 +637,6 @@
     }
   },
   "photoPaperLabel": "Paper",
-  "homeIdCard": "ID Card"
+  "homeIdCard": "ID Card",
+  "folderOffice": "Office"
 }

@@ -1188,4 +1188,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get homeIdCard => 'ID Card';
+
+  @override
+  String get folderOffice => 'Office';
 }

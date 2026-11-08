@@ -128,6 +128,7 @@ String folderLabel(BuildContext context, DocFolder f) {
     DocFolder.ids => l.folderIds,
     DocFolder.education => l.folderEducation,
     DocFolder.receipts => l.folderReceipts,
+    DocFolder.office => l.folderOffice,
     DocFolder.other => l.folderOther,
   };
 }

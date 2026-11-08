@@ -1,5 +1,6 @@
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -99,7 +100,7 @@ Future<void> moveToFolderFlow(
   final picked = await showChoiceSheet<DocFolder>(
     context,
     title: l.menuMoveToFolder,
-    values: const [DocFolder.bills, DocFolder.ids, DocFolder.education, DocFolder.receipts, DocFolder.other],
+    values: FolderChips.order,
     selected: doc.folder,
     labelOf: (f) => folderLabel(context, f),
   );

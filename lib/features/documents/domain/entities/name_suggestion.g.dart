@@ -28,4 +28,5 @@ const _$DocFolderEnumMap = {
   DocFolder.ids: 'ids',
   DocFolder.education: 'education',
   DocFolder.receipts: 'receipts',
+  DocFolder.office: 'office',
 };

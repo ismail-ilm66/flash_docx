@@ -80,4 +80,29 @@ TOTAL             740   CASH 1000   CHANGE 260
   test('a bill with no readable date falls back to the scan date', () {
     expect(doc('SNGPL gas bill  consumer no 123')!.title, 'Gas bill – Nov 2026');
   });
+
+  group('Office (round 5, P1-2)', () {
+    test('a letter: Letter – date', () {
+      final s = doc('Ref No: HR/2026/114\nDated: 05-11-2026\nTo whom it may concern\nSubject: Experience certificate\nYours sincerely')!;
+      expect(s.folder, DocFolder.office);
+      expect(s.title, 'Letter – 05 Nov 2026');
+    });
+
+    test('a salary slip: month and year', () {
+      final s = doc('ACME TEXTILES LTD\nSALARY SLIP for the month of October 2026\nBasic Pay 85,000  Allowances 12,000\nDeductions 4,300  Net Pay 92,700')!;
+      expect(s.folder, DocFolder.office);
+      expect(s.title, 'Salary slip – Oct 2026');
+    });
+
+    test('an office order / notification', () {
+      final s = doc('GOVERNMENT OF THE PUNJAB\nNOTIFICATION\nNo. SO(E)/2026  Dated 02/11/2026\nOFFICE ORDER: Mr. X is transferred')!;
+      expect(s.folder, DocFolder.office);
+      expect(s.title, 'Notification – 02 Nov 2026');
+    });
+
+    test('"newsletter" is not a letter; a bill with "Subject:" stays a bill', () {
+      expect(doc('Our spring newsletter is out — see you at the fair!'), isNull);
+      expect(doc('LESCO  BILL MONTH OCT 26  UNITS CONSUMED 312  Subject: arrears')!.folder, DocFolder.bills);
+    });
+  });
 }

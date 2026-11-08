@@ -2187,6 +2187,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'ID Card'**
   String get homeIdCard;
+
+  /// No description provided for @folderOffice.
+  ///
+  /// In en, this message translates to:
+  /// **'Office'**
+  String get folderOffice;
 }
 
 class _AppLocalizationsDelegate

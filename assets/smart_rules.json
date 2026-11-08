@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "notes": "Smart names (round 4, feature 3). Keywords score 2, hints score 1; a rule needs 2. Ties go to the earlier rule. Titles: {name}, {date} (05 Nov 2026), {monthYear} (Oct 2026), {year}, {chapter}.",
+  "notes": "Smart names (round 4, feature 3). Keywords score 2, hints score 1; a rule needs 2. Ties go to the earlier rule. Titles: {name}, {date} (05 Nov 2026), {monthYear} (Oct 2026), {year}, {chapter}. Office rules come after Bills, Education and Receipts so a bill or receipt with 'Subject:' stays a bill or receipt.",
   "rules": [
     {
       "folder": "bills",
@@ -158,6 +158,62 @@
         "subtotal",
         "qty",
         "change"
+      ]
+    },
+    {
+      "folder": "office",
+      "name": "Salary slip",
+      "kind": "a salary slip",
+      "title": "{name} – {monthYear}",
+      "keywords": [
+        "salary slip",
+        "pay slip",
+        "payslip",
+        "salary statement"
+      ],
+      "hints": [
+        "basic pay",
+        "net pay",
+        "gross pay",
+        "deductions",
+        "allowance",
+        "employee code"
+      ]
+    },
+    {
+      "folder": "office",
+      "name": "Notification",
+      "kind": "an office notification",
+      "title": "{name} – {date}",
+      "keywords": [
+        "notification",
+        "office order"
+      ],
+      "hints": [
+        "subject:",
+        "ref no",
+        "dated",
+        "competent authority"
+      ]
+    },
+    {
+      "folder": "office",
+      "name": "Letter",
+      "kind": "a letter",
+      "title": "{name} – {date}",
+      "keywords": [
+        "to whom it may concern",
+        "dear sir",
+        "dear madam",
+        "memo",
+        "letter"
+      ],
+      "hints": [
+        "subject:",
+        "ref no",
+        "yours sincerely",
+        "yours faithfully",
+        "regards"
       ]
     }
   ],

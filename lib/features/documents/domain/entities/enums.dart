@@ -21,8 +21,9 @@ enum ActivityType {
   photoSheet,
 }
 
-/// Home folders (round 4, feature 3). Stored by index: append only.
-enum DocFolder { other, bills, ids, education, receipts }
+/// Home folders (round 4, feature 3). Stored by index: append only (office
+/// came in round 5). Display order is `FolderChips.order`.
+enum DocFolder { other, bills, ids, education, receipts, office }
 
 extension ScanModeX on ScanMode {
   bool get supportsPrintLayout =>
