@@ -2217,6 +2217,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Hold flat · text should fill the frame'**
   String get cameraHintExtractText;
+
+  /// No description provided for @photoLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open this photo. Take it again.'**
+  String get photoLoadFailed;
 }
 
 class _AppLocalizationsDelegate

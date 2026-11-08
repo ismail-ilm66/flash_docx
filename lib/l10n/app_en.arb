@@ -642,5 +642,6 @@
   "cameraHintPassport": "Fit the open data page in the frame",
   "cameraHintPassportPhoto": "Plain wall behind · face the camera · even light",
   "cameraHintSignature": "Sign on white paper · fill the frame",
-  "cameraHintExtractText": "Hold flat · text should fill the frame"
+  "cameraHintExtractText": "Hold flat · text should fill the frame",
+  "photoLoadFailed": "Couldn't open this photo. Take it again."
 }

@@ -412,6 +412,9 @@ void main() {
     await real(tester);
     expect(find.text(l.photoTopOfHead), findsOneWidget);
     expectNothingCutOff(tester, 'Passport photo crop');
+    // P1-3.5: both look and are enabled once the photo is placed.
+    expect(tester.widget<PrimaryButton>(find.widgetWithText(PrimaryButton, l.photoMakeSheet)).onPressed, isNotNull);
+    expect(tester.widget<TopBarTextAction>(find.widgetWithText(TopBarTextAction, l.adjustNext)).onPressed, isNotNull);
 
     // Pan the photo; the frame stays covered.
     await tester.dragFrom(tester.getCenter(find.text(l.photoTopOfHead)) - const Offset(60, -40), const Offset(-40, -40));

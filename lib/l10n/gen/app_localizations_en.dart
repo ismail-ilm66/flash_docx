@@ -1204,4 +1204,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraHintExtractText => 'Hold flat · text should fill the frame';
+
+  @override
+  String get photoLoadFailed => 'Couldn\'t open this photo. Take it again.';
 }

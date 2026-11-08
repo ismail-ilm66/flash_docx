@@ -104,6 +104,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   PhotoPlacement? _placement;
   Rect? _frame;
   bool _saving = false;
+  bool _loadFailed = false;
 
   // Gesture state.
   PhotoPlacement? _start;
@@ -124,12 +125,20 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   }
 
   Future<void> _loadSize() async {
-    final s = await getIt<ImageProcessor>().imageSize(_photo);
-    if (!mounted) return;
-    setState(() {
-      _image = Size(s.width.toDouble(), s.height.toDouble());
-      _placement = null; // placed on the next layout
-    });
+    try {
+      final s = await getIt<ImageProcessor>().imageSize(_photo);
+      if (!mounted) return;
+      setState(() {
+        _image = Size(s.width.toDouble(), s.height.toDouble());
+        _placement = null; // placed on the next layout
+        _frame = null;
+        _loadFailed = false;
+      });
+    } on Object catch (e) {
+      // Never an endless grey stage (P1-3.4): say so and offer Retake.
+      debugPrint('[photo] size failed: $e');
+      if (mounted) setState(() => _loadFailed = true);
+    }
   }
 
   /// Fits the frame into the stage, leaving room for the guide labels.
@@ -153,7 +162,8 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   void _place(Rect frame) {
     final image = _image!;
     final saved = widget.args.page?.edits.crop;
-    final keepOld = _placement == null && saved != null && _frame == null;
+    // The saved crop belongs to the saved photo, not to a retake.
+    final keepOld = _placement == null && saved != null && _frame == null && _photo == widget.args.photoPath;
     final p = keepOld
         ? PhotoPlacement.fromCrop(saved, image, frame)
         : _placement == null || _frame == null
@@ -177,6 +187,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       _image = null;
       _placement = null;
       _frame = null;
+      _loadFailed = false;
     });
     await _loadSize();
   }
@@ -325,12 +336,24 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
               Expanded(
                 child: ColoredBox(
                   color: c.stage,
-                  child: _image == null
+                  child: _loadFailed
+                      ? _LoadFailed(onRetake: _retake)
+                      : _image == null
                       ? const Center(child: CircularProgressIndicator())
                       : LayoutBuilder(
                           builder: (context, box) {
                             final frame = _frameFor(box.biggest);
-                            if (_frame != frame) _place(frame);
+                            if (_frame != frame) {
+                              final first = _placement == null;
+                              _place(frame);
+                              // The top bar and the button were built before
+                              // this placement: rebuild them enabled (P1-3.5).
+                              if (first) {
+                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                  if (mounted) setState(() {});
+                                });
+                              }
+                            }
                             final p = _placement!;
                             return GestureDetector(
                               onScaleStart: (d) {
@@ -360,9 +383,11 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                     height: _image!.height * p.scale,
                                     child: Image.file(
                                       File(_photo),
+                                      key: ValueKey(_photo),
                                       fit: BoxFit.fill,
                                       gaplessPlayback: true,
                                       cacheWidth: 1600,
+                                      errorBuilder: (context, _, _) => _LoadFailed(onRetake: _retake),
                                     ),
                                   ),
                                   Positioned.fill(
@@ -590,6 +615,30 @@ class _GuideLabel extends StatelessWidget {
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The photo couldn't be opened: say so, and offer Retake.
+class _LoadFailed extends StatelessWidget {
+  const _LoadFailed({required this.onRetake});
+  final VoidCallback onRetake;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Space.x6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(l.photoLoadFailed, textAlign: TextAlign.center, style: context.text.bodyMedium),
+            const SizedBox(height: Space.x3),
+            SecondaryButton(label: l.photoRetake, expand: false, onPressed: onRetake),
+          ],
         ),
       ),
     );
