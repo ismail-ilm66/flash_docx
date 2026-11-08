@@ -623,16 +623,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String printSheetFronts(int n) {
-    return 'Sheet $n · Fronts';
-  }
-
-  @override
-  String printSheetBacks(int n) {
-    return 'Sheet $n · Backs';
-  }
-
-  @override
   String printSheetCaption(String w, String h) {
     return 'A4 · cards at real size, $w × $h mm';
   }
@@ -1207,4 +1197,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoLoadFailed => 'Couldn\'t open this photo. Take it again.';
+
+  @override
+  String printSheetN(int n) {
+    return 'Sheet $n';
+  }
+
+  @override
+  String printImageCaption(String w, String h) {
+    return 'Image $w × $h mm · cards at real size';
+  }
 }

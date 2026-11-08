@@ -100,23 +100,29 @@ void main() {
   });
 
   group('image', () {
-    test('is one front above one back, whatever copies says', () {
-      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.image, 8)).pages.single;
-      expect(items.length, 2);
+    test('tight image: front above back, 4 mm gap and border, no A4 (P1-6)', () {
+      final s = spec(PrintKind.idCard, PrintOutput.image, 8);
+      final items = PrintLayoutCalculator.layout(s).pages.single;
+      expect(items.length, 2, reason: 'whatever copies says');
+      expect((items[0].x, items[0].y, items[0].w, items[0].h), (4.0, 4.0, 85.6, 54.0));
       expect(items[0].isBack, isFalse);
       expect(items[1].isBack, isTrue);
-      expect(items[1].y, greaterThan(items[0].y + items[0].h));
-      expect(items[1].x, items[0].x);
-      expect(items[0].w, 85.6);
-      expect(items[0].h, 54);
+      expect((items[1].x, items[1].y), (4.0, 4.0 + 54 + 4));
+      final page = PrintLayoutCalculator.pageSize(s);
+      expect(page.w, closeTo(93.6, 1e-9));
+      expect(page.h, closeTo(120, 1e-9));
     });
 
-    test('content box wraps the cards with a 6 mm margin', () {
-      final items = PrintLayoutCalculator.layout(spec(PrintKind.idCard, PrintOutput.image, 1)).pages.single;
-      final box = PrintLayoutCalculator.contentBox(items);
-      expect(box.w, closeTo(85.6 + 12, 1e-9));
-      expect(box.h, closeTo(54 * 2 + PrintLayoutCalculator.gap * 2 + 12, 1e-9));
-      expect(box.x, closeTo(items[0].x - 6, 1e-9));
+    test('passport: the data page alone with the border, 133 × 96 mm', () {
+      final s = spec(PrintKind.passport, PrintOutput.image, 1, back: false);
+      expect(PrintLayoutCalculator.layout(s).pages.single, hasLength(1));
+      final page = PrintLayoutCalculator.pageSize(s);
+      expect((page.w, page.h), (133.0, 96.0));
+    });
+
+    test('the PDFs stay on A4', () {
+      final page = PrintLayoutCalculator.pageSize(spec(PrintKind.idCard, PrintOutput.pdfOnePage, 2));
+      expect((page.w, page.h), (210.0, 297.0));
     });
   });
 

@@ -20,7 +20,15 @@ import 'package:injectable/injectable.dart';
 /// and shares / saves it.
 @injectable
 class BuildPrintLayout {
-  BuildPrintLayout(this._processor, this._pdf, this._sheet, this._files, this._share, this._save, this._repo);
+  BuildPrintLayout(
+    this._processor,
+    this._pdf,
+    this._sheet,
+    this._files,
+    this._share,
+    this._save,
+    this._repo,
+  );
 
   static int dpiFor(ExportQuality q) => q == ExportQuality.high ? 600 : 300;
 
@@ -60,25 +68,37 @@ class BuildPrintLayout {
     try {
       final File file;
       if (output == PrintOutput.image) {
-        final spec = PrintLayoutSpec(kind: kind, output: output, copies: copies, frontPath: '', backPath: backPage == null ? null : '', title: doc.title);
+        final spec = PrintLayoutSpec(
+          kind: kind,
+          output: output,
+          copies: copies,
+          frontPath: '',
+          backPath: backPage == null ? null : '',
+          title: doc.title,
+        );
         file = File(
           await _sheet.render(
             spec,
-            front: (originalPath: frontPage.originalPath, edits: frontPage.edits),
-            back: backPage == null ? null : (originalPath: backPage.originalPath, edits: backPage.edits),
+            front: (
+              originalPath: frontPage.originalPath,
+              edits: frontPage.edits,
+            ),
+            back: backPage == null
+                ? null
+                : (originalPath: backPage.originalPath, edits: backPage.edits),
             dpi: dpi,
             outputPath: _files.exportPath('$base.jpg'),
           ),
         );
       } else {
         Future<String> side(ScanPage p, String name) => _processor.renderCard(
-              p.originalPath,
-              p.edits,
-              widthMm: card.w,
-              heightMm: card.h,
-              dpi: dpi,
-              outputPath: _files.exportPath('print_${doc.id}/$name.jpg'),
-            );
+          p.originalPath,
+          p.edits,
+          widthMm: card.w,
+          heightMm: card.h,
+          dpi: dpi,
+          outputPath: _files.exportPath('print_${doc.id}/$name.jpg'),
+        );
         final front = await side(frontPage, 'front');
         final back = backPage == null ? null : await side(backPage, 'back');
         final spec = PrintLayoutSpec(
@@ -90,7 +110,10 @@ class BuildPrintLayout {
           title: doc.title,
           cutGuides: cutGuides,
         );
-        file = await _pdf.printSheet(spec, outputPath: _files.exportPath('$base.pdf'));
+        file = await _pdf.printSheet(
+          spec,
+          outputPath: _files.exportPath('$base.pdf'),
+        );
       }
       final Either<Failure, Unit> r;
       if (target == ExportTarget.share) {
@@ -105,7 +128,11 @@ class BuildPrintLayout {
         return const Right(unit);
       });
     } catch (e) {
-      return Left(output == PrintOutput.image ? ImageProcessingFailure(e.toString()) : PdfFailure(e.toString()));
+      return Left(
+        output == PrintOutput.image
+            ? ImageProcessingFailure(e.toString())
+            : PdfFailure(e.toString()),
+      );
     }
   }
 }

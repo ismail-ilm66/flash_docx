@@ -1222,18 +1222,6 @@ abstract class AppLocalizations {
   /// **'Share {format}'**
   String shareButtonFormat(String format);
 
-  /// No description provided for @printSheetFronts.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheet {n} · Fronts'**
-  String printSheetFronts(int n);
-
-  /// No description provided for @printSheetBacks.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheet {n} · Backs'**
-  String printSheetBacks(int n);
-
   /// No description provided for @printSheetCaption.
   ///
   /// In en, this message translates to:
@@ -2223,6 +2211,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t open this photo. Take it again.'**
   String get photoLoadFailed;
+
+  /// No description provided for @printSheetN.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n}'**
+  String printSheetN(int n);
+
+  /// No description provided for @printImageCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'Image {w} × {h} mm · cards at real size'**
+  String printImageCaption(String w, String h);
 }
 
 class _AppLocalizationsDelegate

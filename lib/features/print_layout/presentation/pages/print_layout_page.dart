@@ -8,6 +8,7 @@ import 'package:flash_dox/features/print_layout/presentation/cubit/print_layout_
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/rewards/presentation/unlock_dialog.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
+import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -126,6 +127,7 @@ class _PrintViewState extends State<_PrintView> {
         );
         final layout = PrintLayoutCalculator.layout(spec);
         final sheets = layout.pages.length;
+        final page = PrintLayoutCalculator.pageSize(spec);
         final sheet = _sheet.clamp(0, sheets - 1);
         final card = PrintLayoutCalculator.cardSize(kind);
         final pages = doc.sortedPages;
@@ -135,7 +137,6 @@ class _PrintViewState extends State<_PrintView> {
         final backPage = pages.length > 1
             ? (s.swapSides ? pages.first : pages[1])
             : null;
-        final duplex = s.output == PrintOutput.pdfDoubleSided && sheets > 1;
         final scale = l.printTipScale;
         final flip = l.printTipFlip;
 
@@ -174,41 +175,38 @@ class _PrintViewState extends State<_PrintView> {
                     padding: const EdgeInsets.symmetric(vertical: Space.x3),
                     child: Column(
                       children: [
+                        // P1-6: one compact pill for every multi-sheet preview.
                         if (sheets > 1)
-                          Wrap(
-                            alignment: WrapAlignment.center,
-                            spacing: 6,
-                            runSpacing: 6,
-                            children: [
-                              for (var i = 0; i < sheets; i++) ...[
-                                _SheetChip(
-                                  label: duplex
-                                      ? (i.isEven
-                                            ? l.printSheetFronts(i + 1)
-                                            : l.printSheetBacks(i + 1))
-                                      : l.pageOfTotal(i + 1, sheets),
-                                  selected: i == sheet,
-                                  onTap: () => _goSheet(i),
-                                ),
-                              ],
-                            ],
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Space.x4,
+                            ),
+                            child: SegmentedPills<int>(
+                              values: [for (var i = 0; i < sheets; i++) i],
+                              selected: sheet,
+                              height: 36,
+                              labelSize: 12,
+                              labelOf: (i) => l.printSheetN(i + 1),
+                              onChanged: _goSheet,
+                            ),
                           ),
+                        // The same large, pinch-zoomable viewer for all three
+                        // outputs (P1-6), like the document viewer.
                         Expanded(
-                          child: PageView.builder(
+                          child: ZoomablePages(
                             controller: _pageCtrl,
                             itemCount: sheets,
                             onPageChanged: (i) => setState(() => _sheet = i),
                             itemBuilder: (context, i) => Padding(
                               padding: const EdgeInsets.symmetric(
-                                horizontal: Space.x6,
+                                horizontal: Space.x3,
                                 vertical: Space.x3,
                               ),
                               child: Center(
                                 child: AspectRatio(
-                                  aspectRatio:
-                                      PrintLayoutCalculator.sheetW /
-                                      PrintLayoutCalculator.sheetH,
+                                  aspectRatio: page.w / page.h,
                                   child: _SheetPreview(
+                                    pageWidth: page.w,
                                     items: layout.pages[i],
                                     cutGuides:
                                         s.cutGuides &&
@@ -222,7 +220,9 @@ class _PrintViewState extends State<_PrintView> {
                           ),
                         ),
                         Text(
-                          l.printSheetCaption(_mm(card.w), _mm(card.h)),
+                          s.output == PrintOutput.image
+                              ? l.printImageCaption(_mm(page.w), _mm(page.h))
+                              : l.printSheetCaption(_mm(card.w), _mm(card.h)),
                           style: context.text.labelSmall?.copyWith(
                             color: c.muted,
                             fontWeight: FontWeight.w500,
@@ -482,48 +482,6 @@ class _BoldParts extends StatelessWidget {
   }
 }
 
-class _SheetChip extends StatelessWidget {
-  const _SheetChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: Radii.pillR,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: selected ? c.text : Colors.transparent,
-            borderRadius: Radii.pillR,
-            border: Border.all(color: selected ? c.text : c.borderStrong),
-          ),
-          child: Text(
-            label,
-            style: context.text.labelMedium?.copyWith(
-              color: selected ? (c.isDark ? c.bg : c.surface) : c.text,
-              fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CopiesButton extends StatelessWidget {
   const _CopiesButton({
     required this.n,
@@ -595,11 +553,15 @@ class _CopiesButton extends StatelessWidget {
 /// Scaled-down drawing of one sheet, using page thumbnails.
 class _SheetPreview extends StatelessWidget {
   const _SheetPreview({
+    required this.pageWidth,
     required this.items,
     required this.frontPath,
     this.backPath,
     this.cutGuides = false,
   });
+
+  /// Millimetres across: A4 for the PDFs, the tight image otherwise.
+  final double pageWidth;
   final List<PlacedItem> items;
   final String? frontPath;
   final String? backPath;
@@ -609,7 +571,7 @@ class _SheetPreview extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, box) {
-        final k = box.maxWidth / PrintLayoutCalculator.sheetW;
+        final k = box.maxWidth / pageWidth;
         return Container(
           decoration: const BoxDecoration(
             color: Colors.white,

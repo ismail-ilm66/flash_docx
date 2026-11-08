@@ -28,6 +28,7 @@ import 'package:flash_dox/features/signature/presentation/pages/sign_document_pa
 import 'package:flash_dox/features/signature/presentation/widgets/draw_pad.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
+import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -316,6 +317,15 @@ void main() {
     router.go(Routes.print(card.id));
     await settle(tester);
     expectNothingCutOff(tester, 'Print');
+    // P1-6: each output in the same zoomable viewer; sheets in a pill.
+    for (final output in [l.printOutputDoubleSided, l.printOutputOnePage, l.printOutputImage]) {
+      await tester.tap(find.text(output));
+      await settle(tester);
+      expect(find.byType(ZoomablePages), findsOneWidget, reason: output);
+      expectNothingCutOff(tester, 'Print, $output');
+      if (output == l.printOutputDoubleSided) expect(find.text(l.printSheetN(2)), findsOneWidget);
+    }
+    expect(find.text(l.printImageCaption('93.6', '120')), findsOneWidget, reason: 'tight image, not A4');
     await close(tester);
   });
 

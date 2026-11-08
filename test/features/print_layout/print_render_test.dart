@@ -61,7 +61,7 @@ void main() {
   test('the one-image sheet has the pixel size of its DPI and is encoded once from the originals', () async {
     final renderer = SheetImageRenderer(IsolateRunner());
     const spec = PrintLayoutSpec(kind: PrintKind.idCard, output: PrintOutput.image, copies: 1, frontPath: '', backPath: '');
-    final box = PrintLayoutCalculator.contentBox(PrintLayoutCalculator.layout(spec).pages.first);
+    final box = PrintLayoutCalculator.pageSize(spec);
     for (final dpi in [300, 600]) {
       final out = await renderer.render(
         spec,

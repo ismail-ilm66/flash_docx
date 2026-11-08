@@ -74,13 +74,14 @@ class PrintLayoutState extends Equatable {
   bool get qualityGated => !highQualityUnlocked;
 
   PrintKind? get kind => switch (document?.mode) {
-        ScanMode.idCard => PrintKind.idCard,
-        ScanMode.passport => PrintKind.passport,
-        _ => null,
-      };
+    ScanMode.idCard => PrintKind.idCard,
+    ScanMode.passport => PrintKind.passport,
+    _ => null,
+  };
 
-  List<int> get allowedCopies =>
-      kind == null ? const [1] : PrintLayoutCalculator.allowedCopies(kind!, output);
+  List<int> get allowedCopies => kind == null
+      ? const [1]
+      : PrintLayoutCalculator.allowedCopies(kind!, output);
 
   List<PrintOutput> get allowedOutputs => document?.mode == ScanMode.passport
       ? const [PrintOutput.image, PrintOutput.pdfDoubleSided]
@@ -100,32 +101,43 @@ class PrintLayoutState extends Equatable {
     int? sheet,
     ExportQuality? quality,
     bool? highQualityUnlocked,
-  }) =>
-      PrintLayoutState(
-        document: document ?? this.document,
-        output: output ?? this.output,
-        copies: copies ?? this.copies,
-        status: status ?? this.status,
-        moreCopiesUnlocked: moreCopiesUnlocked ?? this.moreCopiesUnlocked,
-        failure: failure,
-        cutGuides: cutGuides ?? this.cutGuides,
-        swapSides: swapSides ?? this.swapSides,
-        sheet: sheet ?? this.sheet,
-        quality: quality ?? this.quality,
-        highQualityUnlocked: highQualityUnlocked ?? this.highQualityUnlocked,
-      );
+  }) => PrintLayoutState(
+    document: document ?? this.document,
+    output: output ?? this.output,
+    copies: copies ?? this.copies,
+    status: status ?? this.status,
+    moreCopiesUnlocked: moreCopiesUnlocked ?? this.moreCopiesUnlocked,
+    failure: failure,
+    cutGuides: cutGuides ?? this.cutGuides,
+    swapSides: swapSides ?? this.swapSides,
+    sheet: sheet ?? this.sheet,
+    quality: quality ?? this.quality,
+    highQualityUnlocked: highQualityUnlocked ?? this.highQualityUnlocked,
+  );
 
   @override
-  List<Object?> get props =>
-      [document, output, copies, status, moreCopiesUnlocked, failure, cutGuides, swapSides, sheet, quality, highQualityUnlocked];
+  List<Object?> get props => [
+    document,
+    output,
+    copies,
+    status,
+    moreCopiesUnlocked,
+    failure,
+    cutGuides,
+    swapSides,
+    sheet,
+    quality,
+    highQualityUnlocked,
+  ];
 
-  bool get hasBack => kind == PrintKind.idCard && (document?.pages.length ?? 0) > 1;
+  bool get hasBack =>
+      kind == PrintKind.idCard && (document?.pages.length ?? 0) > 1;
 }
 
 @injectable
 class PrintLayoutCubit extends Cubit<PrintLayoutState> {
   PrintLayoutCubit(this._getDoc, this._build, @factoryParam String documentId)
-      : super(const PrintLayoutState()) {
+    : super(const PrintLayoutState()) {
     unawaited(_load(documentId));
   }
 
@@ -139,22 +151,35 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
       (doc) => emit(
         state.copyWith(
           document: doc,
-          output: doc.mode == ScanMode.passport ? PrintOutput.image : PrintOutput.pdfDoubleSided,
+          output: doc.mode == ScanMode.passport
+              ? PrintOutput.image
+              : PrintOutput.pdfDoubleSided,
         ),
       ),
     );
   }
 
   void setOutput(PrintOutput o) {
-    final allowed = state.kind == null ? const [1] : PrintLayoutCalculator.allowedCopies(state.kind!, o);
-    emit(state.copyWith(output: o, copies: allowed.contains(state.copies) ? state.copies : allowed.first, status: const PrintIdle(), sheet: 0));
+    final allowed = state.kind == null
+        ? const [1]
+        : PrintLayoutCalculator.allowedCopies(state.kind!, o);
+    emit(
+      state.copyWith(
+        output: o,
+        copies: allowed.contains(state.copies) ? state.copies : allowed.first,
+        status: const PrintIdle(),
+        sheet: 0,
+      ),
+    );
   }
 
-  void setCopies(int n) => emit(state.copyWith(copies: n, status: const PrintIdle()));
+  void setCopies(int n) =>
+      emit(state.copyWith(copies: n, status: const PrintIdle()));
 
   void setCutGuides(bool on) => emit(state.copyWith(cutGuides: on));
 
-  void setQuality(ExportQuality q) => emit(state.copyWith(quality: q, status: const PrintIdle()));
+  void setQuality(ExportQuality q) =>
+      emit(state.copyWith(quality: q, status: const PrintIdle()));
 
   void unlockHighQuality() => emit(state.copyWith(highQualityUnlocked: true));
 
@@ -181,7 +206,9 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
     );
     emit(
       r.fold(
-        (f) => state.copyWith(status: f is CancelledFailure ? const PrintIdle() : PrintFailed(f)),
+        (f) => state.copyWith(
+          status: f is CancelledFailure ? const PrintIdle() : PrintFailed(f),
+        ),
         (_) => state.copyWith(status: PrintDone(target)),
       ),
     );

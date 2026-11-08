@@ -13,7 +13,8 @@ typedef CardSource = ({String originalPath, PageEdits edits});
 
 /// Renders the layout as one image at `dpi` (300 Standard / 600 High),
 /// straight from the original photos and encoded once (round 3, A2 / P1-9).
-/// The image output is cropped to the cards plus a 6 mm white margin.
+/// The image output is the tight image: the cards with a 4 mm white border
+/// and gap, no A4 page (P1-6).
 @lazySingleton
 class SheetImageRenderer {
   SheetImageRenderer(this._runner);
@@ -27,12 +28,22 @@ class SheetImageRenderer {
     CardSource? back,
     int dpi = 300,
     int jpegQuality = 92,
-  }) =>
-      _runner.run(_render, _Msg(spec, front, back, dpi, outputPath, jpegQuality), debugLabel: 'sheetImage');
+  }) => _runner.run(
+    _render,
+    _Msg(spec, front, back, dpi, outputPath, jpegQuality),
+    debugLabel: 'sheetImage',
+  );
 }
 
 class _Msg {
-  const _Msg(this.spec, this.front, this.back, this.dpi, this.out, this.quality);
+  const _Msg(
+    this.spec,
+    this.front,
+    this.back,
+    this.dpi,
+    this.out,
+    this.quality,
+  );
   final PrintLayoutSpec spec;
   final CardSource front;
   final CardSource? back;
@@ -44,11 +55,21 @@ class _Msg {
 String _render(_Msg m) {
   int px(double mm) => (mm / 25.4 * m.dpi).round();
   final layout = PrintLayoutCalculator.layout(m.spec);
-  final box = PrintLayoutCalculator.contentBox(layout.pages.first);
+  final page = PrintLayoutCalculator.pageSize(m.spec);
   final card = PrintLayoutCalculator.cardSize(m.spec.kind);
-  cv.Mat side(CardSource s) =>
-      pipe.renderCard(s.originalPath, s.edits, widthMm: card.w, heightMm: card.h, dpi: m.dpi);
-  final sheet = cv.Mat.fromScalar(px(box.h), px(box.w), cv.MatType.CV_8UC3, cv.Scalar.all(255));
+  cv.Mat side(CardSource s) => pipe.renderCard(
+    s.originalPath,
+    s.edits,
+    widthMm: card.w,
+    heightMm: card.h,
+    dpi: m.dpi,
+  );
+  final sheet = cv.Mat.fromScalar(
+    px(page.h),
+    px(page.w),
+    cv.MatType.CV_8UC3,
+    cv.Scalar.all(255),
+  );
   final front = side(m.front);
   final back = m.back == null ? null : side(m.back!);
   try {
@@ -56,14 +77,16 @@ String _render(_Msg m) {
       final src = it.isBack ? (back ?? front) : front;
       final w = px(it.w);
       final h = px(it.h);
-      final rot = it.rotated ? cv.rotate(src, cv.ROTATE_90_COUNTERCLOCKWISE) : src;
+      final rot = it.rotated
+          ? cv.rotate(src, cv.ROTATE_90_COUNTERCLOCKWISE)
+          : src;
       final placed = cv.resize(
         rot,
         (w, h),
         interpolation: rot.cols > w ? cv.INTER_AREA : cv.INTER_CUBIC,
       );
       if (!identical(rot, src)) rot.dispose();
-      final roi = sheet.region(cv.Rect(px(it.x - box.x), px(it.y - box.y), w, h));
+      final roi = sheet.region(cv.Rect(px(it.x), px(it.y), w, h));
       placed.copyTo(roi);
       roi.dispose();
       placed.dispose();

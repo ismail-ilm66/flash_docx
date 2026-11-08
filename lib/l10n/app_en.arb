@@ -288,22 +288,6 @@
       }
     }
   },
-  "printSheetFronts": "Sheet {n} · Fronts",
-  "@printSheetFronts": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "printSheetBacks": "Sheet {n} · Backs",
-  "@printSheetBacks": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "printSheetCaption": "A4 · cards at real size, {w} × {h} mm",
   "@printSheetCaption": {
     "placeholders": {
@@ -643,5 +627,24 @@
   "cameraHintPassportPhoto": "Plain wall behind · face the camera · even light",
   "cameraHintSignature": "Sign on white paper · fill the frame",
   "cameraHintExtractText": "Hold flat · text should fill the frame",
-  "photoLoadFailed": "Couldn't open this photo. Take it again."
+  "photoLoadFailed": "Couldn't open this photo. Take it again.",
+  "printSheetN": "Sheet {n}",
+  "@printSheetN": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "printImageCaption": "Image {w} × {h} mm · cards at real size",
+  "@printImageCaption": {
+    "placeholders": {
+      "w": {
+        "type": "String"
+      },
+      "h": {
+        "type": "String"
+      }
+    }
+  }
 }

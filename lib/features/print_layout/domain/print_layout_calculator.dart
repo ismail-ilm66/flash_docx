@@ -26,7 +26,8 @@ class PlacedItem {
   final bool isBack;
 
   @override
-  String toString() => 'PlacedItem($x, $y, $w×$h${rotated ? ' r' : ''}${isBack ? ' back' : ''})';
+  String toString() =>
+      'PlacedItem($x, $y, $w×$h${rotated ? ' r' : ''}${isBack ? ' back' : ''})';
 }
 
 class SheetLayout {
@@ -42,10 +43,26 @@ abstract final class PrintLayoutCalculator {
   static const double sheetH = PaperMm.a4Height;
   static const double gap = 6;
 
+  /// The Image output's border and front-to-back gap (P1-6).
+  static const double imageBorder = 4;
+  static const double imageGap = 4;
+
+  /// The page the layout is drawn on: A4 for the PDFs, the tight image
+  /// (card 93.6 × 120 mm, passport 133 × 96 mm) for the Image output.
+  static ({double w, double h}) pageSize(PrintLayoutSpec spec) {
+    if (spec.output != PrintOutput.image) return (w: sheetW, h: sheetH);
+    final c = cardSize(spec.kind);
+    final sides = spec.hasBack ? 2 : 1;
+    return (
+      w: c.w + 2 * imageBorder,
+      h: sides * c.h + (sides - 1) * imageGap + 2 * imageBorder,
+    );
+  }
+
   static ({double w, double h}) cardSize(PrintKind k) => switch (k) {
-        PrintKind.idCard => (w: CardMm.id1Width, h: CardMm.id1Height),
-        PrintKind.passport => (w: CardMm.id3Width, h: CardMm.id3Height),
-      };
+    PrintKind.idCard => (w: CardMm.id1Width, h: CardMm.id1Height),
+    PrintKind.passport => (w: CardMm.id3Width, h: CardMm.id3Height),
+  };
 
   /// Copies offered per kind and output. The image output is always one
   /// front-above-back image, so it has no copies choice.
@@ -97,7 +114,16 @@ abstract final class PrintLayoutCalculator {
         var x = originX + col * (w + gap);
         final y = originY + r * (h + gap);
         if (mirror) x = sheetW - x - w;
-        items.add(PlacedItem(x: x, y: y, w: w, h: h, rotated: g.rotated, isBack: isBack));
+        items.add(
+          PlacedItem(
+            x: x,
+            y: y,
+            w: w,
+            h: h,
+            rotated: g.rotated,
+            isBack: isBack,
+          ),
+        );
       }
     }
     return items;
@@ -113,7 +139,13 @@ abstract final class PrintLayoutCalculator {
     return [
       for (var i = 0; i < copies; i++) ...[
         PlacedItem(x: originX, y: originY + i * (c.h + gap), w: c.w, h: c.h),
-        PlacedItem(x: originX + c.w + gap, y: originY + i * (c.h + gap), w: c.w, h: c.h, isBack: true),
+        PlacedItem(
+          x: originX + c.w + gap,
+          y: originY + i * (c.h + gap),
+          w: c.w,
+          h: c.h,
+          isBack: true,
+        ),
       ],
     ];
   }
@@ -123,9 +155,23 @@ abstract final class PrintLayoutCalculator {
     final copies = spec.copies;
     switch (spec.output) {
       case PrintOutput.image:
-        // One front above one back (or just the front), centred on A4.
-        if (!spec.hasBack) return SheetLayout([_gridItems(kind, 1, isBack: false)]);
-        return SheetLayout([_stackedFrontBack(kind, 1)]);
+        // A tight image for WhatsApp / email (round 5, P1-6): front above
+        // back (or the front alone) with a 4 mm gap and a 4 mm white
+        // border; no A4 page. See [pageSize].
+        final c = cardSize(kind);
+        return SheetLayout([
+          [
+            PlacedItem(x: imageBorder, y: imageBorder, w: c.w, h: c.h),
+            if (spec.hasBack)
+              PlacedItem(
+                x: imageBorder,
+                y: imageBorder + c.h + imageGap,
+                w: c.w,
+                h: c.h,
+                isBack: true,
+              ),
+          ],
+        ]);
       case PrintOutput.pdfDoubleSided:
         final fronts = _gridItems(kind, copies, isBack: false);
         if (!spec.hasBack) return SheetLayout([fronts]);
@@ -134,59 +180,11 @@ abstract final class PrintLayoutCalculator {
         final backs = _gridItems(kind, copies, isBack: true, mirror: true);
         return SheetLayout([fronts, backs]);
       case PrintOutput.pdfOnePage:
-        if (!spec.hasBack) return SheetLayout([_gridItems(kind, copies, isBack: false)]);
+        if (!spec.hasBack) {
+          return SheetLayout([_gridItems(kind, copies, isBack: false)]);
+        }
         return SheetLayout([_pairItems(kind, copies)]);
     }
-  }
-
-  /// Front grid in the top half, back grid in the bottom half.
-  static List<PlacedItem> _stackedFrontBack(PrintKind kind, int copies) {
-    final g = grid(kind, copies);
-    final c = cardSize(kind);
-    final w = g.rotated ? c.h : c.w;
-    final h = g.rotated ? c.w : c.h;
-    // Use the layout of `copies` per side, but limit rows so both halves fit.
-    final groupW = g.cols * w + (g.cols - 1) * gap;
-    final groupH = g.rows * h + (g.rows - 1) * gap;
-    final totalH = groupH * 2 + gap * 2;
-    final originX = (sheetW - groupW) / 2;
-    final originY = (sheetH - totalH) / 2;
-    final items = <PlacedItem>[];
-    for (final (side, isBack) in [(0, false), (1, true)]) {
-      var n = 0;
-      for (var r = 0; r < g.rows; r++) {
-        for (var col = 0; col < g.cols; col++) {
-          if (n++ >= copies) break;
-          items.add(
-            PlacedItem(
-              x: originX + col * (w + gap),
-              y: originY + side * (groupH + gap * 2) + r * (h + gap),
-              w: w,
-              h: h,
-              rotated: g.rotated,
-              isBack: isBack,
-            ),
-          );
-        }
-      }
-    }
-    return items;
-  }
-
-  /// Bounding box of all items on a page plus [margin] on each side, in mm.
-  /// Used to crop the image output to the content instead of a full A4.
-  static ({double x, double y, double w, double h}) contentBox(List<PlacedItem> items, {double margin = 6}) {
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = 0.0;
-    var maxY = 0.0;
-    for (final it in items) {
-      if (it.x < minX) minX = it.x;
-      if (it.y < minY) minY = it.y;
-      if (it.x + it.w > maxX) maxX = it.x + it.w;
-      if (it.y + it.h > maxY) maxY = it.y + it.h;
-    }
-    return (x: minX - margin, y: minY - margin, w: maxX - minX + 2 * margin, h: maxY - minY + 2 * margin);
   }
 
   /// Crop marks: for each item, four L-shaped corner marks drawn just
@@ -216,22 +214,14 @@ abstract final class PrintLayoutCalculator {
     }
     return marks;
   }
-
-  /// Does a stacked image layout fit the sheet? (ID card × 8 does not.)
-  static bool fitsStacked(PrintKind kind, int copies) {
-    final g = grid(kind, copies);
-    final c = cardSize(kind);
-    final h = g.rotated ? c.w : c.h;
-    final groupH = g.rows * h + (g.rows - 1) * gap;
-    return groupH * 2 + gap * 2 <= sheetH;
-  }
 }
 
 /// Photo paper for passport photos (feature 5).
 enum PhotoPaper {
   a4(PaperMm.a4Width, PaperMm.a4Height, 5),
   // Photo paper prints nearly to the edge: 3 mm fits the usual 2 × 3.
-  fourBySix(PaperMm.photo4x6Width, PaperMm.photo4x6Height, 3);
+  fourBySix(PaperMm.photo4x6Width, PaperMm.photo4x6Height, 3)
+  ;
 
   const PhotoPaper(this.widthMm, this.heightMm, this.marginMm);
   final double widthMm;
@@ -264,9 +254,16 @@ class PrintItemSpec {
 
 abstract final class PhotoSheetCalculator {
   /// Most columns and rows of [w] × [h] mm items that fit on [paper].
-  static ({int cols, int rows}) capacity(double w, double h, PhotoPaper paper, {double gap = 4, double? margin}) {
+  static ({int cols, int rows}) capacity(
+    double w,
+    double h,
+    PhotoPaper paper, {
+    double gap = 4,
+    double? margin,
+  }) {
     final m = margin ?? paper.marginMm;
-    int fit(double space, double item) => ((space - 2 * m + gap) / (item + gap)).floor().clamp(0, 99);
+    int fit(double space, double item) =>
+        ((space - 2 * m + gap) / (item + gap)).floor().clamp(0, 99);
     return (cols: fit(paper.widthMm, w), rows: fit(paper.heightMm, h));
   }
 
@@ -278,13 +275,22 @@ abstract final class PhotoSheetCalculator {
   /// Copies offered: 4 · 8 · 12 · 16 (those that fit) and Full.
   static List<int> counts(double w, double h, PhotoPaper paper) {
     final max = full(w, h, paper);
-    return [...const [4, 8, 12, 16].where((n) => n < max), if (max > 0) max];
+    return [
+      ...const [4, 8, 12, 16].where((n) => n < max),
+      if (max > 0) max,
+    ];
   }
 
   /// Items filled row by row from the top-left of a centred grid. A partly
   /// filled sheet keeps the full sheet's grid, so cutting stays the same.
   static List<PlacedItem> layout(PrintItemSpec s) {
-    final cap = capacity(s.widthMm, s.heightMm, s.paper, gap: s.gapMm, margin: s.marginMm);
+    final cap = capacity(
+      s.widthMm,
+      s.heightMm,
+      s.paper,
+      gap: s.gapMm,
+      margin: s.marginMm,
+    );
     final n = s.count.clamp(0, cap.cols * cap.rows);
     if (n == 0) return const [];
     final cols = math.min(cap.cols, n);
@@ -293,7 +299,9 @@ abstract final class PhotoSheetCalculator {
     final groupH = rows * s.heightMm + (rows - 1) * s.gapMm;
     final x0 = (s.paper.widthMm - groupW) / 2;
     // Top-aligned on the sheet so the rest of the paper stays usable.
-    final y0 = n == cap.cols * cap.rows ? (s.paper.heightMm - groupH) / 2 : s.marginMm;
+    final y0 = n == cap.cols * cap.rows
+        ? (s.paper.heightMm - groupH) / 2
+        : s.marginMm;
     return [
       for (var i = 0; i < n; i++)
         PlacedItem(
