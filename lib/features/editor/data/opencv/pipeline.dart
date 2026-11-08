@@ -1020,26 +1020,190 @@ cv.Mat levelsL(cv.Mat bgr, double loPct, double hiPct, {double span = 252}) {
 }
 
 /// "Auto (colour)": clean, bright page, colours kept. For paper documents.
+///
+/// Round 5, P0-2 (reference `filter_auto_color`): after the denoise every step
+/// works in float32 and the image is rounded to 8-bit once, at the end.
+/// Rounding between steps and then stretching contrast is what drew grey
+/// "marble" patches and contour lines on plain paper.
 cv.Mat autoFilter(cv.Mat bgr) {
   final dn = denoise(bgr);
-  final wb = grayWorldWb(dn, 0.6);
+  final m = cv.mean(dn);
+  final means = [m.val1, m.val2, m.val3];
+  final avg = (means[0] + means[1] + means[2]) / 3;
+  final ch8 = cv.split(dn);
   dn.dispose();
-  final ch = cv.split(wb);
-  final norm = [for (var i = 0; i < 3; i++) _normalizeIllumination(ch[i], scale: 245, blend: 0.75)];
-  ch.dispose();
-  wb.dispose();
-  final merged = cv.merge(cv.VecMat.fromList(norm));
-  for (final n in norm) {
-    n.dispose();
+  final f = <cv.Mat>[];
+  for (var i = 0; i < 3; i++) {
+    // Gray-world white balance (strength 0.6), in float.
+    final c = ch8[i].convertTo(cv.MatType.CV_32FC1, alpha: 1 + 0.6 * (avg / math.max(means[i], 1.0) - 1));
+    // Shadow removal: divide by the smooth background (clamped divisor), blend 75 %.
+    final c8 = c.convertTo(cv.MatType.CV_8UC1, beta: _trunc);
+    final bg = background(c8);
+    final floor = cv.Mat.fromScalar(bg.rows, bg.cols, cv.MatType.CV_32FC1, cv.Scalar.all(40));
+    final bgc = cv.max(bg, floor);
+    final norm = cv.divide(c, bgc, scale: 245);
+    f.add(cv.addWeighted(norm, 0.75, c, 0.25, 0));
+    for (final x in [c, c8, bg, floor, bgc, norm]) {
+      x.dispose();
+    }
   }
-  final lv = levelsL(merged, 1, 99.5); // global contrast; CLAHE here caused banding
+  ch8.dispose();
+  final merged = cv.merge(cv.VecMat.fromList(f));
+  for (final x in f) {
+    x.dispose();
+  }
+  // To float Lab (L 0..100).
+  final unit = merged.convertTo(cv.MatType.CV_32FC3, alpha: 1 / 255);
   merged.dispose();
-  final sat = saturate(lv, 1.10);
-  lv.dispose();
-  final out = unsharp(sat, 0.35, 1.2);
-  sat.dispose();
+  final clipped = _clip(unit, 0, 1);
+  unit.dispose();
+  final lab = cv.cvtColor(clipped, cv.COLOR_BGR2Lab);
+  clipped.dispose();
+  final labCh = cv.split(lab);
+  lab.dispose();
+  // Global levels on L (1 / 99.5 %).
+  final [lo, hi] = _percentiles(labCh[0], const [1, 99.5]);
+  final k = 99.0 / math.max(1e-3, hi - lo);
+  final stretched = labCh[0].convertTo(cv.MatType.CV_32FC1, alpha: k, beta: -lo * k);
+  final l = _clip(stretched, 0, 100);
+  stretched.dispose();
+  final w = whitenPaper(l, labCh[1], labCh[2]);
+  if (!identical(w.l, l)) l.dispose();
+  // Neutral paper, +10 % colour elsewhere.
+  final cA = w.chroma == null ? labCh[1].convertTo(cv.MatType.CV_32FC1, alpha: 1.10) : cv.multiply(labCh[1], w.chroma!, scale: 1.10);
+  final cB = w.chroma == null ? labCh[2].convertTo(cv.MatType.CV_32FC1, alpha: 1.10) : cv.multiply(labCh[2], w.chroma!, scale: 1.10);
+  w.chroma?.dispose();
+  final lab2 = cv.merge(cv.VecMat.fromList([w.l, cA, cB]));
+  for (final x in [w.l, cA, cB]) {
+    x.dispose();
+  }
+  labCh.dispose();
+  final bgrF = cv.cvtColor(lab2, cv.COLOR_Lab2BGR);
+  lab2.dispose();
+  final f255 = bgrF.convertTo(cv.MatType.CV_32FC3, alpha: 255);
+  bgrF.dispose();
+  // Unsharp, then the only rounding.
+  final blur = cv.gaussianBlur(f255, (0, 0), 1.2);
+  final sharp = cv.addWeighted(f255, 1.35, blur, -0.35, 0);
+  final out = sharp.convertTo(cv.MatType.CV_8UC3);
+  for (final x in [f255, blur, sharp]) {
+    x.dispose();
+  }
   return out;
 }
+
+/// Reference `_whiten_paper` (P0-2), on float Lab channels: if the page is
+/// mostly plain paper with dark text (few mid-tones), push the paper to pure
+/// white with a smoothstep from 70 % of the paper level, so there's no
+/// visible edge or step; text below that keeps its weight. Photos and
+/// packaging have many mid-tones, and the effect fades out (never a hard
+/// switch). Returns the new L and the chroma multiplier (null = unchanged).
+/// Statistics come from a ≤ 1000 px sample; the curve runs at full size.
+({cv.Mat l, cv.Mat? chroma}) whitenPaper(cv.Mat l, cv.Mat a, cv.Mat b) {
+  final chroma = cv.magnitude(a, b);
+  final ls = _sample(l);
+  final cs = _sample(chroma);
+  final p40 = _percentileOf(Float32List.fromList(ls), 40);
+  final paper = Float32List.fromList([
+    for (var i = 0; i < ls.length; i++)
+      if (cs[i] < 12 && ls[i] > p40) ls[i],
+  ]);
+  if (paper.isEmpty) {
+    chroma.dispose();
+    return (l: l, chroma: null);
+  }
+  final pL = _percentileOf(paper, 15);
+  var midCount = 0;
+  for (final v in ls) {
+    if (v > 0.35 * pL && v < 0.80 * pL) midCount++;
+  }
+  final mid = midCount / ls.length;
+  final strength = ((0.10 - mid) / 0.03).clamp(0.0, 1.0);
+  if (strength == 0) {
+    chroma.dispose();
+    return (l: l, chroma: null);
+  }
+  final t0 = 0.70 * pL;
+  final span = math.max(1e-3, pL - t0);
+  // x = clip((L − t0) / span, 0, 1); s = x²(3 − 2x) · strength.
+  final xr = l.convertTo(cv.MatType.CV_32FC1, alpha: 1 / span, beta: -t0 / span);
+  final x = _clip(xr, 0, 1);
+  final x2 = cv.multiply(x, x);
+  final term = x.convertTo(cv.MatType.CV_32FC1, alpha: -2, beta: 3);
+  final s = cv.multiply(x2, term, scale: strength);
+  // L2 = L + s · (100 − L)
+  final room = l.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 100);
+  final lift = cv.multiply(s, room);
+  final l2 = cv.add(l, lift);
+  // k = 1 − 0.8 · s · (chroma < 20): fade the paper tint to neutral.
+  final (_, pale) = cv.threshold(chroma, 20, 1, cv.THRESH_BINARY_INV);
+  final sPale = cv.multiply(s, pale);
+  final k = sPale.convertTo(cv.MatType.CV_32FC1, alpha: -0.8, beta: 1);
+  for (final m in [chroma, xr, x, x2, term, s, room, lift, pale, sPale]) {
+    m.dispose();
+  }
+  return (l: l2, chroma: k);
+}
+
+/// Clamps a float Mat to [lo, hi].
+cv.Mat _clip(cv.Mat f, double lo, double hi) {
+  final (_, top) = cv.threshold(f, hi, hi, cv.THRESH_TRUNC);
+  final floor = cv.Mat.fromScalar(f.rows, f.cols, f.type, cv.Scalar.all(lo));
+  final out = cv.max(top, floor);
+  top.dispose();
+  floor.dispose();
+  return out;
+}
+
+/// Every pixel of a one-channel float Mat taken on a grid so at most about
+/// a million values are read (nearest neighbour keeps the distribution).
+Float32List _sample(cv.Mat f32) {
+  final long = math.max(f32.cols, f32.rows);
+  final small = long > 1000
+      ? cv.resize(f32, ((f32.cols * 1000 / long).round(), (f32.rows * 1000 / long).round()), interpolation: cv.INTER_NEAREST)
+      : f32.clone();
+  final bytes = small.data;
+  final out = Float32List.fromList(bytes.buffer.asFloat32List(bytes.offsetInBytes, small.rows * small.cols));
+  small.dispose();
+  return out;
+}
+
+/// Percentiles of a float Mat, from a sample.
+List<double> _percentiles(cv.Mat f32, List<double> pcts) {
+  final v = _sample(f32);
+  return [for (final p in pcts) _percentileOf(v, p)];
+}
+
+/// numpy-style percentile from a 4096-bin histogram (linear time; within
+/// 1/4096 of the value range, far below one output level).
+double _percentileOf(Float32List values, double p) {
+  if (values.isEmpty) return 0;
+  var lo = values[0];
+  var hi = values[0];
+  for (final v in values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (hi - lo < 1e-6) return lo;
+  const bins = 4096;
+  final width = (hi - lo) / bins;
+  final hist = Int32List(bins);
+  for (final v in values) {
+    hist[math.min(bins - 1, ((v - lo) / width).floor())]++;
+  }
+  final target = p / 100 * (values.length - 1);
+  var acc = 0;
+  for (var i = 0; i < bins; i++) {
+    final next = acc + hist[i];
+    if (next > target) {
+      // Spread the bin's values evenly across it.
+      return lo + width * (i + (target - acc + 0.5) / hist[i]);
+    }
+    acc = next;
+  }
+  return hi;
+}
+
 
 /// "ID colour" (default in ID / passport): no background whitening — a card
 /// is not white paper. Clean, sharp, true colours.

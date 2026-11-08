@@ -88,6 +88,14 @@ def _candidate_maps(small: np.ndarray) -> list[tuple[str, np.ndarray]]:
     k = cv.getStructuringElement(cv.MORPH_RECT, (5, 5))
     edges = cv.morphologyEx(edges, cv.MORPH_CLOSE, k, iterations=2)
     edges = cv.dilate(edges, k, iterations=1)
+    # D) Smooth regions: on busy backgrounds (patterned cloth, wood grain) the page is
+    # the big area with almost no edges. Invert the edge map and open it so thin gaps
+    # in the pattern disappear and the page remains as one blob.
+    smooth = cv.bitwise_not(edges)
+    k3 = cv.getStructuringElement(cv.MORPH_RECT, (15, 15))
+    smooth = cv.morphologyEx(smooth, cv.MORPH_OPEN, k3)
+    smooth = cv.dilate(smooth, k, iterations=1)   # give back the rim eaten by the edge dilation
+    maps.append(("smooth", smooth))
     # Close shapes that run off the photo (page partly outside the frame):
     cv.rectangle(edges, (0, 0), (edges.shape[1] - 1, edges.shape[0] - 1), 255, 2)
     maps.append(("edges", edges))
@@ -106,6 +114,20 @@ def _candidate_maps(small: np.ndarray) -> list[tuple[str, np.ndarray]]:
     ts = cv.morphologyEx(ts, cv.MORPH_OPEN, k2)
     ts = cv.morphologyEx(ts, cv.MORPH_CLOSE, k2, iterations=2)
     maps.append(("lowsat", ts))
+
+    # E) Smooth AND pale: on a busy, colourful background (patterned cloth) the page is
+    # the only area that is both smooth and low-saturation/bright. Blurry background
+    # areas are smooth but coloured, so the AND removes them.
+    smooth_map = dict(maps)["smooth"]
+    for name, pale in (("smooth+lowsat", ts), ("smooth+bright", th)):
+        combo = cv.bitwise_and(smooth_map, pale)
+        # A strong opening (≈ 5% of the short side) cuts thin bridges between the page
+        # and pale patches of background; the page itself is far wider and survives.
+        ko = max(15, (min(small.shape[:2]) // 10) | 1)
+        kbig = cv.getStructuringElement(cv.MORPH_ELLIPSE, (ko, ko))
+        combo = cv.morphologyEx(combo, cv.MORPH_OPEN, kbig)
+        combo = cv.morphologyEx(combo, cv.MORPH_CLOSE, k2, iterations=2)
+        maps.append((name, combo))
     return maps
 
 
@@ -157,6 +179,12 @@ def detect_document(bgr: np.ndarray, mode: str = "document"):
                 continue
             solidity = min(1.0, area / max(1.0, qa))
             score = frac ** 0.5 * rect * (0.5 + 0.5 * solidity)
+            # Corners sitting on the photo border are usually the border itself
+            # (busy backgrounds merge with the frame) -> strong penalty per corner.
+            # Only the edge map has an artificial border line, so only penalise there;
+            # in region maps a page that really touches the photo edge is genuine.
+            if name == "edges":
+                score *= 0.45 ** on_border
             if target:
                 a = _aspect(q)
                 score *= max(0.05, 1.0 - abs(a - target) / target * 2.5)
@@ -268,19 +296,61 @@ def _background(gray_or_ch: np.ndarray) -> np.ndarray:
 
 
 def filter_auto_color(bgr: np.ndarray) -> np.ndarray:
-    """Default 'Auto': clean, bright page, colours kept. For paper documents."""
+    """Default 'Auto': clean, bright page, colours kept. For paper documents.
+    IMPORTANT: every step after the denoise works in float and the image is rounded to
+    8-bit only once, at the end. Rounding between steps and then stretching contrast is
+    what makes the grey 'marble' / contour lines on plain paper."""
     img = _denoise(bgr)
-    img = _gray_world_wb(img, 0.6)
     f = img.astype(np.float32)
-    out = np.empty_like(f)
+    # gray-world white balance (strength 0.6)
+    mean = f.reshape(-1, 3).mean(0)
+    f *= 1.0 + 0.6 * (mean.mean() / np.maximum(mean, 1.0) - 1.0)
+    # shadow removal: divide by the smooth background (clamped divisor), blend 75%
     for ch in range(3):
-        bg = _background(img[:, :, ch]).astype(np.float32)
-        norm = f[:, :, ch] / np.maximum(bg, 40.0) * 245.0            # clamped divisor -> no noise blow-up
-        out[:, :, ch] = 0.75 * norm + 0.25 * f[:, :, ch]             # blend, keeps natural look
-    img = np.clip(out, 0, 255).astype(np.uint8)
-    img = _levels_L(img, 1, 99.5)               # global contrast; CLAHE here causes banding
-    img = _saturate(img, 1.10)
-    return _unsharp(img, 0.35, 1.2)
+        bg = _background(np.clip(f[:, :, ch], 0, 255).astype(np.uint8))
+        f[:, :, ch] = 0.75 * (f[:, :, ch] / np.maximum(bg, 40.0) * 245.0) + 0.25 * f[:, :, ch]
+    # to float Lab (L 0..100)
+    lab = cv.cvtColor(np.clip(f / 255.0, 0, 1), cv.COLOR_BGR2LAB)
+    L = lab[:, :, 0]
+    lo, hi = np.percentile(L, (1, 99.5))
+    L = np.clip((L - lo) / max(1e-3, hi - lo) * 99.0, 0, 100)        # global levels
+    L, chroma_k = _whiten_paper(L, lab[:, :, 1], lab[:, :, 2])
+    lab[:, :, 0] = L
+    lab[:, :, 1] *= chroma_k * 1.10                                   # neutral paper, +10% colour elsewhere
+    lab[:, :, 2] *= chroma_k * 1.10
+    out = cv.cvtColor(lab, cv.COLOR_LAB2BGR) * 255.0
+    out = np.clip(out + 0.35 * (out - cv.GaussianBlur(out, (0, 0), 1.2)), 0, 255)   # unsharp
+    return (out + 0.5).astype(np.uint8)                               # the ONLY rounding
+
+
+WHITEN_DEBUG = False
+
+
+def _whiten_paper(L: np.ndarray, a: np.ndarray, b: np.ndarray):
+    """Float Lab in, (new L, chroma multiplier) out. If the page is mostly plain paper,
+    push the paper to pure white with a soft ramp so no edge or step is visible. Text
+    and coloured areas are kept. Small brightness waves left on paper otherwise show
+    as grey 'marble' patches."""
+    chroma = np.sqrt(a * a + b * b)
+    paperish = (chroma < 12) & (L > np.percentile(L, 40))
+    pL = float(np.percentile(L[paperish], 15))   # nearly all paper is brighter than this
+    # Gate: a text page is paper + dark ink with few mid-tones. Photos, packaging and
+    # pale printed letters have many mid-tones -> fade the effect out, never a hard switch.
+    mid = float(((L > 0.35 * pL) & (L < 0.80 * pL)).mean())
+    strength = float(np.clip((0.10 - mid) / 0.03, 0.0, 1.0))   # mid<=0.07 full, >=0.10 off
+    if WHITEN_DEBUG:
+        print(f"    whiten: mid={mid:.3f} strength={strength:.2f}")
+    if strength == 0.0:
+        return L, np.ones_like(L)
+    t0 = 0.70 * pL
+    # Smoothstep from t0 (unchanged) to pL (white). Below t0: unchanged, so text keeps its
+    # weight. The curve and its slope are continuous -> no contour lines.
+    x = np.clip((L - t0) / max(1e-3, pL - t0), 0, 1)
+    s = x * x * (3 - 2 * x)
+    s *= strength
+    L2 = L + s * (100.0 - L)
+    k = 1.0 - 0.8 * s * (chroma < 20)          # fade paper tint to neutral
+    return L2, k
 
 
 def _levels_L(bgr: np.ndarray, lo_pct: float, hi_pct: float) -> np.ndarray:

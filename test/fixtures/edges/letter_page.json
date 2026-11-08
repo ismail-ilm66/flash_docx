@@ -1,0 +1,21 @@
+{
+ "tl": [
+  0.13,
+  0.15875
+ ],
+ "tr": [
+  0.81833,
+  0.13375
+ ],
+ "br": [
+  0.86833,
+  0.84
+ ],
+ "bl": [
+  0.18,
+  0.865
+ ],
+ "source": "reference detect_document (owner photo)",
+ "map": "edges",
+ "score": 0.6916
+}

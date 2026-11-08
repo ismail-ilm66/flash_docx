@@ -12,8 +12,9 @@ import 'package:path/path.dart' as p;
 /// `python3 tool/reference/dump_reference.py` into test/fixtures/reference/.
 ///
 /// Filters are compared on the reference's own warp, so only the filter code
-/// is under test. Measured on the two owner photos: mean |Δ| ≤ 0.18 levels, p99 ≤ 3
-/// (OCR and B&W print identical). Limits leave a little headroom.
+/// is under test. Measured on the two owner photos and a plain letter page
+/// (round 5): mean |Δ| ≤ 0.16 levels, p99 ≤ 3 (OCR and B&W print identical).
+/// Limits leave a little headroom; the round 5 plan asks for mean ≤ 3.
 void main() {
   final refDir = Directory('test/fixtures/reference');
   final names = refDir.existsSync()
@@ -109,6 +110,23 @@ void main() {
     expect(out.cols / out.rows, closeTo(CardAspect.id1, 0.01));
     out.dispose();
     img.dispose();
+  });
+
+  test('P0-2: Auto leaves plain paper white, no grey marble', () {
+    final warp = cv.imread(p.join(refDir.path, 'letter_page_warp.png'));
+    final out = pipe.autoFilter(warp);
+    final gray = cv.cvtColor(out, cv.COLOR_BGR2GRAY);
+    var paper = 0;
+    var band = 0;
+    for (final v in gray.data) {
+      if (v > 200) paper++;
+      if (v > 200 && v < 250) band++;
+    }
+    // Before the float rewrite 95 % of the paper sat in this grey band.
+    expect(band / paper, lessThan(0.03));
+    for (final m in [warp, out, gray]) {
+      m.dispose();
+    }
   });
 }
 
