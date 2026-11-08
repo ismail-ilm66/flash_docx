@@ -1,9 +1,13 @@
+import 'dart:async';
 import 'dart:io';
 
-import 'package:flash_dox/app/router/routes.dart';
+import 'package:flash_dox/app/di/injection.dart';
+import 'package:flash_dox/app/router/app_router.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flash_dox/shared/widgets/zoomable_pages.dart';
@@ -65,9 +69,19 @@ class _EnhanceViewState extends State<_EnhanceView> {
 
   void _onSaved(BuildContext context, PageEditorState s) {
     final id = s.savedDocumentId!;
-    if (s.args.isNewDocument) {
-      context.go(Routes.home);
-      context.push(Routes.viewer(id));
+    final route = routeAfterSave(isNewDocument: s.args.isNewDocument, documentId: id, tool: s.args.tool);
+    if (route.goHome != null) {
+      final router = GoRouter.of(context)..go(route.goHome!);
+      unawaited(router.push(route.viewer!));
+      final tool = route.tool;
+      // Made for a tool (P1-4): open it on the new document, over its viewer.
+      if (tool != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          final doc = (await getIt<GetDocument>()(id)).toNullable();
+          final ctx = rootNavigatorKey.currentContext;
+          if (doc != null && ctx != null && ctx.mounted) await openTool(ctx, tool, doc);
+        });
+      }
     } else {
       // Pop Enhance and Adjust edges back to the viewer.
       context

@@ -11,6 +11,7 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
@@ -52,9 +53,13 @@ class CameraArgs {
     this.retakeSide,
     this.returnPages = false,
     this.hint,
+    this.tool,
   });
 
   final CameraHint? hint;
+
+  /// A scan made for a Home tool (P1-4), handed on to the editor.
+  final ToolTarget? tool;
 
   final ScanMode? mode;
 
@@ -471,6 +476,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       mode: s.mode,
       documentId: widget.args.addToDocumentId,
       addingPages: widget.args.addToDocumentId != null,
+      tool: widget.args.tool,
     );
     context.pushReplacement(Routes.adjust, extra: args);
   }

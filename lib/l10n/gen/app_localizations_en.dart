@@ -832,9 +832,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolExtractText => 'Extract text';
 
   @override
-  String get pickDocumentTitle => 'Pick a document';
-
-  @override
   String get pickDocumentEmpty => 'No documents yet. Scan one first.';
 
   @override
@@ -1207,4 +1204,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String printImageCaption(String w, String h) {
     return 'Image $w × $h mm · cards at real size';
   }
+
+  @override
+  String get pickTitleSign => 'Pick a document to sign, or scan a new one';
+
+  @override
+  String get pickTitleShrink => 'Pick a document to shrink, or scan a new one';
+
+  @override
+  String get pickTitleText =>
+      'Pick a document to read text from, or scan a new one';
+
+  @override
+  String get pickScanNew => 'Scan new';
+
+  @override
+  String get pickFromPhotos => 'From photos';
+
+  @override
+  String get pickOrDocument => 'Or pick a document';
 }

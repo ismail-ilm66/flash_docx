@@ -1,4 +1,5 @@
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 
 /// What the editor screens operate on.
 ///
@@ -15,7 +16,11 @@ class EditorArgs {
     this.addingPages = false,
     this.initialIndex = 0,
     this.startAtEnhance = false,
+    this.tool,
   });
+
+  /// A new scan made for a Home tool: Done opens the tool (P1-4).
+  final ToolTarget? tool;
 
   final List<ScanPage> pages;
   final ScanMode mode;
@@ -38,5 +43,6 @@ class EditorArgs {
         addingPages: addingPages,
         initialIndex: initialIndex ?? this.initialIndex,
         startAtEnhance: startAtEnhance ?? this.startAtEnhance,
+        tool: tool,
       );
 }

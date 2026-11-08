@@ -12,7 +12,9 @@ import 'package:flash_dox/features/documents/data/db/app_database.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/suggestion_banner.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
@@ -265,7 +267,9 @@ void main() {
     expectNothingCutOff(tester, 'Tools');
     await tester.tap(find.text(l.toolExtractText));
     await settle(tester);
-    expect(find.text(l.pickDocumentTitle), findsOneWidget);
+    expect(find.text(l.pickTitleText), findsOneWidget);
+    expect(find.text(l.pickScanNew), findsOneWidget);
+    expect(find.text(l.pickFromPhotos), findsOneWidget);
     // Newest first.
     final titles = tester.widgetList<DocumentTile>(find.byType(DocumentTile)).map((t) => t.document.title).toList();
     expect(titles.take(2), ['ID card', 'Lease']);
@@ -275,6 +279,23 @@ void main() {
     await settle(tester);
     expect(find.byType(AppBottomSheet), findsNothing);
     expect(find.byType(ExtractedTextPage), findsOneWidget);
+    await close(tester);
+  });
+
+  testWidgets('P1-4: the tool picker returns Scan new / From photos / a document', (tester) async {
+    await pumpApp(tester);
+    await settle(tester);
+    final ctx = tester.element(find.byType(Scaffold).first);
+    for (final (label, want) in [(l.pickScanNew, PickScanNew), (l.pickFromPhotos, PickFromPhotos), ('Lease', PickedDocument)]) {
+      ToolPick? got;
+      unawaited(showPickDocumentSheet(ctx, tool: ToolTarget.sign).then((r) => got = r));
+      await settle(tester);
+      expect(find.text(l.pickTitleSign), findsOneWidget);
+      expectNothingCutOff(tester, 'Pick, sign');
+      await tester.tap(find.descendant(of: find.byType(AppBottomSheet), matching: find.text(label)));
+      await settle(tester);
+      expect(got.runtimeType, want);
+    }
     await close(tester);
   });
 

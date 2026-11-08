@@ -422,7 +422,6 @@
   "toolSign": "Sign document",
   "toolShrinkPdf": "Shrink PDF",
   "toolExtractText": "Extract text",
-  "pickDocumentTitle": "Pick a document",
   "pickDocumentEmpty": "No documents yet. Scan one first.",
   "shareMaxSize": "Max file size",
   "shareMaxSizeHint": "For upload limits on forms and portals",
@@ -646,5 +645,11 @@
         "type": "String"
       }
     }
-  }
+  },
+  "pickTitleSign": "Pick a document to sign, or scan a new one",
+  "pickTitleShrink": "Pick a document to shrink, or scan a new one",
+  "pickTitleText": "Pick a document to read text from, or scan a new one",
+  "pickScanNew": "Scan new",
+  "pickFromPhotos": "From photos",
+  "pickOrDocument": "Or pick a document"
 }

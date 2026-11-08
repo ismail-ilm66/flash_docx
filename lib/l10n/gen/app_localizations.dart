@@ -1558,12 +1558,6 @@ abstract class AppLocalizations {
   /// **'Extract text'**
   String get toolExtractText;
 
-  /// No description provided for @pickDocumentTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Pick a document'**
-  String get pickDocumentTitle;
-
   /// No description provided for @pickDocumentEmpty.
   ///
   /// In en, this message translates to:
@@ -2223,6 +2217,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Image {w} × {h} mm · cards at real size'**
   String printImageCaption(String w, String h);
+
+  /// No description provided for @pickTitleSign.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a document to sign, or scan a new one'**
+  String get pickTitleSign;
+
+  /// No description provided for @pickTitleShrink.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a document to shrink, or scan a new one'**
+  String get pickTitleShrink;
+
+  /// No description provided for @pickTitleText.
+  ///
+  /// In en, this message translates to:
+  /// **'Pick a document to read text from, or scan a new one'**
+  String get pickTitleText;
+
+  /// No description provided for @pickScanNew.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan new'**
+  String get pickScanNew;
+
+  /// No description provided for @pickFromPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'From photos'**
+  String get pickFromPhotos;
+
+  /// No description provided for @pickOrDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'Or pick a document'**
+  String get pickOrDocument;
 }
 
 class _AppLocalizationsDelegate

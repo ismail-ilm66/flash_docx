@@ -2,6 +2,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
+import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
 
 /// Standard bottom sheet with a drag handle, optional title and padded body.
@@ -62,11 +63,12 @@ class AppBottomSheet extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    // Never cut off (round 5, P2): wraps, then shrinks.
+                    FitText(
                       title!,
+                      textAlign: TextAlign.start,
+                      maxLines: 3,
                       style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
                     if (subtitle != null) ...[
                       const SizedBox(height: 2),

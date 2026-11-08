@@ -8,19 +8,17 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/share_in_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
-import 'package:flash_dox/features/export/domain/entities/export_options.dart';
-import 'package:flash_dox/features/export/presentation/max_size_sheet.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
-import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -71,7 +69,7 @@ class _HomeViewState extends State<_HomeView> {
     await _startImport(paths, copySource: false);
   }
 
-  Future<void> _importFrom({required bool gallery}) async {
+  Future<void> _importFrom({required bool gallery, ToolTarget? tool}) async {
     final svc = getIt<ImportService>();
     final r = gallery ? await svc.fromGallery() : await svc.fromFiles();
     if (!mounted) return;
@@ -79,11 +77,11 @@ class _HomeViewState extends State<_HomeView> {
       (f) async {
         if (f is! CancelledFailure) context.showSnack(failureMessage(context, f), error: true);
       },
-      _startImport,
+      (paths) => _startImport(paths, tool: tool),
     );
   }
 
-  Future<void> _startImport(List<String> paths, {bool copySource = true}) async {
+  Future<void> _startImport(List<String> paths, {bool copySource = true, ToolTarget? tool}) async {
     if (_importing) return;
     setState(() => _importing = true);
     const mode = ScanMode.document;
@@ -92,7 +90,7 @@ class _HomeViewState extends State<_HomeView> {
     setState(() => _importing = false);
     r.fold(
       (f) => context.showSnack(failureMessage(context, f), error: true),
-      (pages) => context.push(Routes.adjust, extra: EditorArgs(pages: pages, mode: mode)),
+      (pages) => context.push(Routes.adjust, extra: EditorArgs(pages: pages, mode: mode, tool: tool)),
     );
   }
 
@@ -150,39 +148,32 @@ class _HomeViewState extends State<_HomeView> {
     final l = context.l10n;
     return [
       HomeTool(icon: AppIcons.portrait, label: l.toolPassportPhoto, onTap: () => startPassportPhoto(context)),
-      HomeTool(
-        icon: AppIcons.signature,
-        label: l.toolSign,
-        onTap: () => _withPickedDocument(context, l.toolSign, (d) => openSignFlow(context, d.id)),
-      ),
-      HomeTool(
-        icon: AppIcons.shrink,
-        label: l.toolShrinkPdf,
-        onTap: () => _withPickedDocument(context, l.toolShrinkPdf, (d) async {
-          final limit = await showMaxSizeSheet(context, 500000);
-          if (limit == null || !context.mounted) return;
-          await showShareSheet(
-            context,
-            d,
-            options: (o) => o.copyWith(format: ExportFormat.pdf, layout: ExportLayout.separate, maxBytes: limit.bytes),
-          );
-        }),
-      ),
-      HomeTool(
-        icon: AppIcons.text,
-        label: l.toolExtractText,
-        onTap: () => _withPickedDocument(context, l.toolExtractText, (d) => context.push(Routes.text(d.id))),
-      ),
+      HomeTool(icon: AppIcons.signature, label: l.toolSign, onTap: () => _runTool(context, ToolTarget.sign)),
+      HomeTool(icon: AppIcons.shrink, label: l.toolShrinkPdf, onTap: () => _runTool(context, ToolTarget.shrink)),
+      HomeTool(icon: AppIcons.text, label: l.toolExtractText, onTap: () => _runTool(context, ToolTarget.extractText)),
     ];
   }
 
-  Future<void> _withPickedDocument(
-    BuildContext context,
-    String title,
-    FutureOr<void> Function(ScanDocument) then,
-  ) async {
-    final d = await showPickDocumentSheet(context, title: title);
-    if (d != null && context.mounted) await then(d);
+  /// A Home tool (P1-4): pick a document, or scan / import a new one that
+  /// goes straight to the tool after Done.
+  Future<void> _runTool(BuildContext context, ToolTarget tool) async {
+    final pick = await showPickDocumentSheet(context, tool: tool);
+    if (pick == null || !context.mounted) return;
+    switch (pick) {
+      case PickedDocument(:final document):
+        await openTool(context, tool, document);
+      case PickScanNew():
+        await context.push(
+          Routes.camera,
+          extra: CameraArgs(
+            mode: ScanMode.document,
+            tool: tool,
+            hint: tool == ToolTarget.extractText ? CameraHint.extractText : null,
+          ),
+        );
+      case PickFromPhotos():
+        await _importFrom(gallery: true, tool: tool);
+    }
   }
 
   void _scan(BuildContext context, ScanMode? mode) =>
