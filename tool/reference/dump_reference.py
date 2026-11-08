@@ -8,6 +8,8 @@ For each photo in test/fixtures/edges/*.jpg:
   * reference/<name>_bw.png          filter_bw_print(warp)
   * reference/<name>_ocr.png         ocr_image(warp)
   * reference/<name>_overlay.jpg     photo with the detected quad, for review
+  * reference/<name>_small.png       the downscaled photo detection works on
+  * reference/<name>_map_<map>.png   each candidate map on it (round 5, P0-4)
 Run: python3 tool/reference/dump_reference.py
 """
 import glob, json, os, sys
@@ -49,6 +51,11 @@ for p in sorted(glob.glob(os.path.join(edges, '*.jpg'))):
     cv.imwrite(os.path.join(out, f'{name}_id.png'), ref.filter_id_color(warped))
     cv.imwrite(os.path.join(out, f'{name}_bw.png'), ref.filter_bw_print(warped))
     cv.imwrite(os.path.join(out, f'{name}_ocr.png'), ref.ocr_image(warped))
+    s = ref.DETECT_LONG_EDGE / max(h, w)
+    small = cv.resize(img, (int(w * s), int(h * s)), interpolation=cv.INTER_AREA) if s < 1 else img.copy()
+    cv.imwrite(os.path.join(out, f'{name}_small.png'), small)
+    for mname, bmap in ref._candidate_maps(small):
+        cv.imwrite(os.path.join(out, f'{name}_map_{mname.replace("+", "_")}.png'), bmap)
     vis = img.copy()
     cv.polylines(vis, [q.astype(np.int32)], True, (0, 220, 0), 4)
     cv.imwrite(os.path.join(out, f'{name}_overlay.jpg'), vis)

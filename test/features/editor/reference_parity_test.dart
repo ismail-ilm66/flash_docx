@@ -85,6 +85,24 @@ void main() {
         });
       }
 
+      test('every candidate map matches the reference (P0-4)', () {
+        final small = cv.imread(p.join(refDir.path, '${name}_small.png'));
+        final maps = pipe.candidateMaps(small);
+        expect(maps.map((m) => m.$1), ['smooth', 'edges', 'bright', 'lowsat', 'smooth+lowsat', 'smooth+bright']);
+        for (final (mapName, got) in maps) {
+          final expected = cv.imread(p.join(refDir.path, '${name}_map_${mapName.replaceAll('+', '_')}.png'), flags: cv.IMREAD_GRAYSCALE);
+          final diff = cv.absDiff(got, expected);
+          final differing = cv.countNonZero(diff) / (diff.rows * diff.cols);
+          // ignore: avoid_print
+          print('$name map $mapName: ${(differing * 100).toStringAsFixed(2)} % pixels differ');
+          expect(differing, lessThan(0.001), reason: mapName);
+          for (final m in [got, expected, diff]) {
+            m.dispose();
+          }
+        }
+        small.dispose();
+      });
+
       test('detection matches the reference corners', () {
         final meta = jsonDecode(File('test/fixtures/edges/$name.json').readAsStringSync()) as Map<String, dynamic>;
         final refCorners = (meta['reference_found'] ?? meta) as Map<String, dynamic>;

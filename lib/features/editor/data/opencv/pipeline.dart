@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:opencv_dart/opencv.dart' as cv;
 
 // ---------------------------------------------------------------------------
@@ -332,6 +333,11 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
       if (rect < 0.55) continue;
       final solidity = math.min(1.0, area / math.max(1.0, qa));
       var score = math.sqrt(frac) * rect * (0.5 + 0.5 * solidity);
+      // Corners on the photo border are usually the border itself (busy
+      // backgrounds merge with the frame). Only the edges map has an
+      // artificial border line; in region maps a page touching the edge is
+      // genuine (P0-4).
+      if (name == 'edges') score *= math.pow(0.45, onBorder).toDouble();
       if (target != null) {
         final a = quadAspect(q);
         score *= math.max(0.05, 1.0 - (a - target).abs() / target * 2.5);
@@ -371,6 +377,23 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
 
 /// The three binary maps from the reference: edges, bright regions (Otsu on
 /// LAB-L) and low-saturation regions (inverse Otsu on HSV-S).
+/// OpenCV's default border for morphology (`morphologyDefaultBorderValue()`,
+/// DBL_MAX) leaves the photo edge out of erosion and dilation. dartcv4 passes
+/// 0 instead, which ate regions touching the edge and broke parity with the
+/// reference there (round 5, P0-4).
+final cv.Scalar _neutralBorder = cv.Scalar.all(double.maxFinite);
+
+cv.Mat _morph(cv.Mat src, int op, cv.Mat kernel, {int iterations = 1}) =>
+    cv.morphologyEx(src, op, kernel, iterations: iterations, borderValue: _neutralBorder);
+
+cv.Mat _dilate(cv.Mat src, cv.Mat kernel) => cv.dilate(src, kernel, borderValue: _neutralBorder);
+
+/// The binary maps detection searches, in the reference's order (ties go to
+/// the earlier map). Round 5, P0-4 adds "smooth" (the page is the big area
+/// with no edges on a busy background) and its combinations with "pale".
+@visibleForTesting
+List<(String, cv.Mat)> candidateMaps(cv.Mat small) => _candidateMaps(small);
+
 List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
   final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
   final lab = cv.cvtColor(small, cv.COLOR_BGR2Lab);
@@ -384,12 +407,21 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
   final hi = math.min(255.0, math.max(40.0, 1.33 * m)).toInt();
   final edges = cv.canny(blur, lo.toDouble(), hi.toDouble());
   final k = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
-  final closed = cv.morphologyEx(edges, cv.MORPH_CLOSE, k, iterations: 2);
-  final dil = cv.dilate(closed, k);
+  final closed = _morph(edges, cv.MORPH_CLOSE, k, iterations: 2);
+  final dil = _dilate(closed, k);
+  // D) Smooth regions: on busy backgrounds (patterned cloth, wood grain) the
+  // page is the big area with almost no edges. Invert the edges and open, so
+  // thin gaps in the pattern vanish and the page stays one blob; dilate to
+  // give back the rim the edge dilation ate.
+  final inverted = cv.bitwiseNOT(dil);
+  final k3 = cv.getStructuringElement(cv.MORPH_RECT, (15, 15));
+  final smoothOpen = _morph(inverted, cv.MORPH_OPEN, k3);
+  final smooth = _dilate(smoothOpen, k);
+  maps.add(('smooth', smooth));
   // Close shapes that run off the photo (page partly outside the frame).
   cv.rectangle(dil, cv.Rect(0, 0, dil.cols, dil.rows), cv.Scalar.all(255), thickness: 2);
   maps.add(('edges', dil));
-  for (final x in [blur, edges, closed]) {
+  for (final x in [blur, edges, closed, inverted, k3, smoothOpen]) {
     x.dispose();
   }
 
@@ -397,8 +429,8 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
   cv.Mat regions(cv.Mat channel, int type) {
     final b = cv.gaussianBlur(channel, (7, 7), 0);
     final (_, th) = cv.threshold(b, 0, 255, type | cv.THRESH_OTSU);
-    final opened = cv.morphologyEx(th, cv.MORPH_OPEN, k2);
-    final out = cv.morphologyEx(opened, cv.MORPH_CLOSE, k2, iterations: 2);
+    final opened = _morph(th, cv.MORPH_OPEN, k2);
+    final out = _morph(opened, cv.MORPH_CLOSE, k2, iterations: 2);
     for (final x in [b, th, opened]) {
       x.dispose();
     }
@@ -407,14 +439,29 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
 
   // B) Pale paper / card on a darker surface.
   final labCh = cv.split(lab);
-  maps.add(('bright', regions(labCh[0], cv.THRESH_BINARY)));
+  final bright = regions(labCh[0], cv.THRESH_BINARY);
+  maps.add(('bright', bright));
   labCh.dispose();
   // C) White / grey paper on a colourful surface.
   final hsvCh = cv.split(hsv);
-  maps.add(('lowsat', regions(hsvCh[1], cv.THRESH_BINARY_INV)));
+  final lowsat = regions(hsvCh[1], cv.THRESH_BINARY_INV);
+  maps.add(('lowsat', lowsat));
   hsvCh.dispose();
 
-  for (final x in [gray, lab, hsv, k, k2]) {
+  // E) Smooth AND pale: on a busy, colourful background the page is the only
+  // area that is both. A strong opening (about a tenth of the short side)
+  // cuts thin bridges to pale patches of background; the page survives.
+  final ko = math.max(15, (math.min(small.rows, small.cols) ~/ 10) | 1);
+  final kBig = cv.getStructuringElement(cv.MORPH_ELLIPSE, (ko, ko));
+  for (final (name, pale) in [('smooth+lowsat', lowsat), ('smooth+bright', bright)]) {
+    final both = cv.bitwiseAND(smooth, pale);
+    final opened = _morph(both, cv.MORPH_OPEN, kBig);
+    maps.add((name, _morph(opened, cv.MORPH_CLOSE, k2, iterations: 2)));
+    both.dispose();
+    opened.dispose();
+  }
+
+  for (final x in [gray, lab, hsv, k, k2, kBig]) {
     x.dispose();
   }
   return maps;
@@ -975,7 +1022,7 @@ cv.Mat background(cv.Mat ch8) {
   final s = 400.0 / math.max(h, w);
   final small = cv.resize(ch8, (math.max(1, (w * s).toInt()), math.max(1, (h * s).toInt())), interpolation: cv.INTER_AREA);
   final k = cv.getStructuringElement(cv.MORPH_RECT, (9, 9));
-  final dil = cv.dilate(small, k);
+  final dil = _dilate(small, k);
   final med = cv.medianBlur(dil, 21);
   final f = med.convertTo(cv.MatType.CV_32FC1);
   final g = cv.gaussianBlur(f, (0, 0), 6);
@@ -1427,7 +1474,7 @@ void signatureFromPhoto(String src, String out, {int maxLongEdge = 1600}) {
   final norm = _normalizeIllumination(gray, scale: 255);
   final (_, ink) = cv.threshold(norm, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
   final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3));
-  final clean = cv.morphologyEx(ink, cv.MORPH_OPEN, k);
+  final clean = _morph(ink, cv.MORPH_OPEN, k);
   final alpha = cv.gaussianBlur(clean, (3, 3), 0);
   try {
     // Bounding box of the ink.
