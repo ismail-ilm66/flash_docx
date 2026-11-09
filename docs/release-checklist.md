@@ -10,7 +10,7 @@ Placeholders to replace before a store release.
 | App icon | default Flutter icon still in place |
 | Design icons | done: the canvas's stroke set is in `assets/icons/`; entries still on Material fallbacks in `shared/widgets/app_icons.dart` have no `asset:` |
 | Splash | the in-app splash is drawn from `assets/images/brand_mark.svg`; `assets/splash/splash_icon.png` (native splash) is still a placeholder; replace it and rerun `dart run flutter_native_splash:create` |
-| Android signing | `buildTypes.release` still signs with the debug key |
+| Android signing | wired: `android/key.properties` (gitignored, template in `key.properties.example`) + `android/upload-keystore.jks`; without them release falls back to the debug key with a Gradle warning |
 | iOS share-in | needs a Share Extension target in Xcode; Android share-in is done natively in `MainActivity.kt` |
 
 ## Build (round 4, checked 6 Nov 2026)
@@ -27,8 +27,8 @@ Placeholders to replace before a store release.
   (OpenCV 10.5 MB, ML Kit OCR 10.6 MB, Flutter 10.6 MB, app 7.8 MB per arm64 alone).
   Play's per-ABI split of the App Bundle sends a phone only its own ABI, about 45 MB
   uncompressed for arm64. Check the real download size in Play Console › App size.
-- **Still the owner's:** upload keystore + `key.properties` (release still signs with the debug
-  key), final package name, privacy policy URL, store graphics.
+- **Still the owner's:** back up the upload keystore and its password outside the repo; final
+  package name, privacy policy URL, store graphics.
 
 ## Rewarded ads (off for v1)
 
