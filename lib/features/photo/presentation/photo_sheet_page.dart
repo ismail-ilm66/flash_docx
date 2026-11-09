@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
@@ -13,18 +14,23 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
+import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
+import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
+import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:fpdart/fpdart.dart' hide State;
 
 /// Print resolution for the photos on the sheet.
 const _dpi = 300;
 
 /// Passport photo, step 2 (feature 5, artboard *Print sheet*): the photo at
-/// real size on A4 or 4 × 6 in, 4 · 8 · 12 · 16 · Full copies, dashed cut
-/// lines, then a PDF to share or save.
+/// real size on A4 or 4 × 6 in, 4 · 8 · 12 · 16 copies, dashed cut lines,
+/// then a PDF to share or save. Or one photo on its own (JPG / PNG, pixel
+/// size, max file size) for forms that want an upload.
 class PhotoSheetPage extends StatefulWidget {
   const PhotoSheetPage({required this.documentId, super.key});
 
@@ -39,6 +45,10 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
   PhotoPaper _paper = PhotoPaper.a4;
   int? _count;
   bool _cutLines = true;
+  bool _single = false;
+
+  /// Single photo export; made the first time that mode opens.
+  ExportBloc? _exportBloc;
 
   /// The photo rendered at print size; also the preview.
   String? _photo;
@@ -48,6 +58,22 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
   void initState() {
     super.initState();
     unawaited(_load());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_exportBloc?.close());
+    super.dispose();
+  }
+
+  void _setSingle(bool single) {
+    final doc = _doc;
+    if (single && _exportBloc == null && doc != null) {
+      getIt<RewardGate>().preload();
+      _exportBloc = getIt<ExportBloc>(param1: doc)
+        ..add(const ExportSheetOpened());
+    }
+    setState(() => _single = single);
   }
 
   ScanPage? get _page => _doc?.cover;
@@ -146,6 +172,84 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
     }
   }
 
+  /// The photo on its own above the share options (JPG / PNG, image size,
+  /// max file size, Save / Share).
+  List<Widget> _singleMode(BuildContext context) {
+    final c = context.colors;
+    final size = _size;
+    return [
+      _StageSlot(
+        child: ColoredBox(
+          color: c.stage,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Space.x6,
+              Space.x4,
+              Space.x6,
+              Space.x2,
+            ),
+            child: Column(
+              children: [
+                Expanded(
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: size.widthMm / size.heightMm,
+                      child: DecoratedBox(
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Color(0x40000000),
+                              blurRadius: 20,
+                              offset: Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: _photo == null
+                            ? const Center(child: CircularProgressIndicator())
+                            : Image.file(
+                                File(_photo!),
+                                fit: BoxFit.fill,
+                                cacheWidth: 600,
+                                gaplessPlayback: true,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Space.x2),
+                Text(
+                  context.l10n.photoSingleCaption,
+                  textAlign: TextAlign.center,
+                  style: context.text.labelSmall?.copyWith(
+                    color: c.muted,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      if (_exportBloc != null)
+        DecoratedBox(
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: c.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 18),
+              child: BlocProvider.value(
+                value: _exportBloc!,
+                child: const SharePanel(inline: true),
+              ),
+            ),
+          ),
+        ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -154,243 +258,267 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
     final counts = _counts;
     return AppScaffold(
       topBar: AppTopBar(
-        title: l.photoSheetTitle,
+        title: _single ? l.photoModeSingle : l.photoSheetTitle,
         subtitle: _doc == null ? null : l.photoStepSheet(_sizeLabel(_size)),
       ),
       body: Stack(
         children: [
           _Body(
+            scroll: _single,
             children: [
-              _StageSlot(
-                child: ColoredBox(
-                  color: c.stage,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.x6,
-                      Space.x4,
-                      Space.x6,
-                      Space.x2,
-                    ),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: Center(
-                            child: AspectRatio(
-                              aspectRatio: _paper.widthMm / _paper.heightMm,
-                              child: LayoutBuilder(
-                                builder: (context, box) {
-                                  final k = box.maxWidth / _paper.widthMm;
-                                  return DecoratedBox(
-                                    decoration: const BoxDecoration(
-                                      color: Colors.white,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Color(0x40000000),
-                                          blurRadius: 20,
-                                          offset: Offset(0, 6),
-                                        ),
-                                      ],
-                                    ),
-                                    child: _photo == null
-                                        ? const Center(
-                                            child: CircularProgressIndicator(),
-                                          )
-                                        : Stack(
-                                            children: [
-                                              for (final it in items)
-                                                Positioned(
-                                                  left: it.x * k,
-                                                  top: it.y * k,
-                                                  width: it.w * k,
-                                                  height: it.h * k,
-                                                  child: DecoratedBox(
-                                                    position: DecorationPosition
-                                                        .foreground,
-                                                    decoration: BoxDecoration(
-                                                      border: _cutLines
-                                                          ? Border.all(
-                                                              color:
-                                                                  const Color(
-                                                                    0xFF9FA3AA,
-                                                                  ),
-                                                              width: 0.6,
-                                                            )
-                                                          : null,
-                                                    ),
-                                                    child: Image.file(
-                                                      File(_photo!),
-                                                      fit: BoxFit.fill,
-                                                      cacheWidth: 240,
-                                                      gaplessPlayback: true,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Space.x4,
+                  Space.x2,
+                  Space.x4,
+                  Space.x2,
+                ),
+                child: SegmentedPills<bool>(
+                  values: const [false, true],
+                  selected: _single,
+                  labelOf: (v) => v ? l.photoModeSingle : l.photoModeSheet,
+                  onChanged: _doc == null ? (_) {} : _setSingle,
+                ),
+              ),
+              if (_single)
+                ..._singleMode(context)
+              else
+                _StageSlot(
+                  child: ColoredBox(
+                    color: c.stage,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.x6,
+                        Space.x4,
+                        Space.x6,
+                        Space.x2,
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: _paper.widthMm / _paper.heightMm,
+                                child: LayoutBuilder(
+                                  builder: (context, box) {
+                                    final k = box.maxWidth / _paper.widthMm;
+                                    return DecoratedBox(
+                                      decoration: const BoxDecoration(
+                                        color: Colors.white,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Color(0x40000000),
+                                            blurRadius: 20,
+                                            offset: Offset(0, 6),
+                                          ),
+                                        ],
+                                      ),
+                                      child: _photo == null
+                                          ? const Center(
+                                              child:
+                                                  CircularProgressIndicator(),
+                                            )
+                                          : Stack(
+                                              children: [
+                                                for (final it in items)
+                                                  Positioned(
+                                                    left: it.x * k,
+                                                    top: it.y * k,
+                                                    width: it.w * k,
+                                                    height: it.h * k,
+                                                    child: DecoratedBox(
+                                                      position:
+                                                          DecorationPosition
+                                                              .foreground,
+                                                      decoration: BoxDecoration(
+                                                        border: _cutLines
+                                                            ? Border.all(
+                                                                color:
+                                                                    const Color(
+                                                                      0xFF9FA3AA,
+                                                                    ),
+                                                                width: 0.6,
+                                                              )
+                                                            : null,
+                                                      ),
+                                                      child: Image.file(
+                                                        File(_photo!),
+                                                        fit: BoxFit.fill,
+                                                        cacheWidth: 240,
+                                                        gaplessPlayback: true,
+                                                      ),
                                                     ),
                                                   ),
-                                                ),
-                                            ],
-                                          ),
-                                  );
-                                },
+                                              ],
+                                            ),
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: Space.x2),
-                        Text(
-                          l.photoSheetCaption(
-                            _paperName(context, _paper),
-                            items.length,
+                          const SizedBox(height: Space.x2),
+                          Text(
+                            l.photoSheetCaption(
+                              _paperName(context, _paper),
+                              items.length,
+                            ),
+                            textAlign: TextAlign.center,
+                            style: context.text.labelSmall?.copyWith(
+                              color: c.muted,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                          textAlign: TextAlign.center,
-                          style: context.text.labelSmall?.copyWith(
-                            color: c.muted,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: c.border)),
-                ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.x4,
-                      14,
-                      Space.x4,
-                      18,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SectionLabel(
-                          l.photoCopies,
-                          padding: const EdgeInsets.only(bottom: Space.x2),
-                        ),
-                        Wrap(
-                          spacing: Space.x2,
-                          runSpacing: Space.x2,
-                          children: [
-                            for (final n in counts)
-                              OptionChip(
-                                label: '$n',
-                                selected: n == _effectiveCount,
-                                onTap: () => setState(() => _count = n),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: Space.x3),
-                        SectionLabel(
-                          l.photoPaperLabel,
-                          padding: const EdgeInsets.only(bottom: Space.x2),
-                        ),
-                        Row(
-                          children: [
-                            for (final (i, p) in PhotoPaper.values.indexed) ...[
-                              if (i > 0) const SizedBox(width: Space.x2),
-                              Expanded(
-                                child: OptionCard(
-                                  height: 56,
-                                  title: _paperName(context, p),
-                                  subtitle: l.photoUpTo(
-                                    PhotoSheetCalculator.full(
-                                      _size.widthMm,
-                                      _size.heightMm,
-                                      p,
+              if (!_single)
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    border: Border(top: BorderSide(color: c.border)),
+                  ),
+                  child: SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.x4,
+                        14,
+                        Space.x4,
+                        18,
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          SectionLabel(
+                            l.photoCopies,
+                            padding: const EdgeInsets.only(bottom: Space.x2),
+                          ),
+                          Wrap(
+                            spacing: Space.x2,
+                            runSpacing: Space.x2,
+                            children: [
+                              for (final n in counts)
+                                OptionChip(
+                                  label: '$n',
+                                  selected: n == _effectiveCount,
+                                  onTap: () => setState(() => _count = n),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(height: Space.x3),
+                          SectionLabel(
+                            l.photoPaperLabel,
+                            padding: const EdgeInsets.only(bottom: Space.x2),
+                          ),
+                          Row(
+                            children: [
+                              for (final (i, p)
+                                  in PhotoPaper.values.indexed) ...[
+                                if (i > 0) const SizedBox(width: Space.x2),
+                                Expanded(
+                                  child: OptionCard(
+                                    height: 56,
+                                    title: _paperName(context, p),
+                                    // The most copies offered, not the
+                                    // most that fit (no "Full" choice).
+                                    subtitle: l.photoUpTo(
+                                      PhotoSheetCalculator.counts(
+                                        _size.widthMm,
+                                        _size.heightMm,
+                                        p,
+                                      ).fold(0, max),
                                     ),
+                                    selected: _paper == p,
+                                    onTap: () => setState(() => _paper = p),
                                   ),
-                                  selected: _paper == p,
-                                  onTap: () => setState(() => _paper = p),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: Space.x2),
+                          Row(
+                            children: [
+                              Switch.adaptive(
+                                value: _cutLines,
+                                onChanged: (v) => setState(() => _cutLines = v),
+                              ),
+                              const SizedBox(width: Space.x1),
+                              Expanded(
+                                child: Text(
+                                  l.photoCutLines,
+                                  style: context.text.labelMedium,
                                 ),
                               ),
                             ],
-                          ],
-                        ),
-                        const SizedBox(height: Space.x2),
-                        Row(
-                          children: [
-                            Switch.adaptive(
-                              value: _cutLines,
-                              onChanged: (v) => setState(() => _cutLines = v),
+                          ),
+                          Container(
+                            margin: const EdgeInsets.only(
+                              top: Space.x1,
+                              bottom: Space.x3,
                             ),
-                            const SizedBox(width: Space.x1),
-                            Expanded(
-                              child: Text(
-                                l.photoCutLines,
-                                style: context.text.labelMedium,
-                              ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Space.x3,
+                              vertical: 10,
                             ),
-                          ],
-                        ),
-                        Container(
-                          margin: const EdgeInsets.only(
-                            top: Space.x1,
-                            bottom: Space.x3,
+                            decoration: BoxDecoration(
+                              color: c.accentSoft,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AppIcon(
+                                  AppIcons.print,
+                                  size: 18,
+                                  color: c.accentText,
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    l.photoPrintTip,
+                                    style: context.text.bodySmall?.copyWith(
+                                      height: 1.45,
+                                      color: c.text,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: Space.x3,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.accentSoft,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
-                              AppIcon(
-                                AppIcons.print,
-                                size: 18,
-                                color: c.accentText,
+                              Expanded(
+                                child: SecondaryButton(
+                                  label: l.shareSaveToPhone,
+                                  icon: AppIcons.save,
+                                  dense: true,
+                                  onPressed: _photo == null || _working
+                                      ? null
+                                      : () => _export(share: false),
+                                ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Text(
-                                  l.photoPrintTip,
-                                  style: context.text.bodySmall?.copyWith(
-                                    height: 1.45,
-                                    color: c.text,
-                                  ),
+                                child: PrimaryButton(
+                                  label: l.photoSharePdf,
+                                  icon: AppIcons.share,
+                                  dense: true,
+                                  loading: _working,
+                                  onPressed: _photo == null
+                                      ? null
+                                      : () => _export(share: true),
                                 ),
                               ),
                             ],
                           ),
-                        ),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: SecondaryButton(
-                                label: l.shareSaveToPhone,
-                                icon: AppIcons.save,
-                                dense: true,
-                                onPressed: _photo == null || _working
-                                    ? null
-                                    : () => _export(share: false),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: PrimaryButton(
-                                label: l.photoSharePdf,
-                                icon: AppIcons.share,
-                                dense: true,
-                                loading: _working,
-                                onPressed: _photo == null
-                                    ? null
-                                    : () => _export(share: true),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
         ],
@@ -411,13 +539,16 @@ class _StageSlot extends StatelessWidget {
 /// the controls need most of a small screen, so the page scrolls and the
 /// preview gets a fixed height (like Print).
 class _Body extends StatelessWidget {
-  const _Body({required this.children});
+  const _Body({required this.children, this.scroll = false});
   final List<Widget> children;
+
+  /// Always scroll (the single photo's options are taller than a sheet's).
+  final bool scroll;
 
   @override
   Widget build(BuildContext context) {
     final large = MediaQuery.textScalerOf(context).scale(10) > 13;
-    if (!large) {
+    if (!large && !scroll) {
       return Column(
         children: [
           for (final c in children) c is _StageSlot ? Expanded(child: c) : c,
@@ -428,7 +559,9 @@ class _Body extends StatelessWidget {
       child: Column(
         children: [
           for (final c in children)
-            c is _StageSlot ? SizedBox(height: 360, child: c) : c,
+            c is _StageSlot
+                ? SizedBox(height: scroll ? 300 : 360, child: c)
+                : c,
         ],
       ),
     );

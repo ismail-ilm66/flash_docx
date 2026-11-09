@@ -356,7 +356,7 @@ void main() {
     });
   }
 
-  testWidgets('Passport photo: no segmentation, no White / Light blue', (tester) async {
+  testWidgets('Passport photo: no segmentation, no White / Dark blue', (tester) async {
     getIt
       ..unregister<ImageProcessor>()
       ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new)
@@ -535,7 +535,7 @@ void main() {
     await real(tester);
     expect(find.text(l.photoTopOfHead), findsOneWidget);
     expectNothingCutOff(tester, 'Passport photo crop');
-    // Background: Original · White · Light blue, previewed on the stage.
+    // Background: Original · White · Dark blue, previewed on the stage.
     expect(find.text(l.photoBackgroundDarkBlue), findsOneWidget);
     await tester.ensureVisible(find.text(l.photoBackgroundWhite));
     await tester.tap(find.text(l.photoBackgroundWhite));
@@ -551,7 +551,7 @@ void main() {
     await tester.pump();
     await tester.tap(find.text(l.photoMakeSheet));
     await real(tester);
-    expect(find.text(l.photoSheetTitle), findsOneWidget);
+    expect(find.text(l.photoStepSheet('35 × 45 mm')), findsOneWidget);
     expect(find.text(l.photoSheetCaption(l.photoPaperA4, 12)), findsOneWidget);
     expectNothingCutOff(tester, 'Print sheet');
 
@@ -559,6 +559,25 @@ void main() {
     await tester.pump();
     expect(find.text(l.photoSheetCaption(l.photoPaper4x6, 6)), findsOneWidget, reason: '12 does not fit: Full (6)');
     expectNothingCutOff(tester, 'Print sheet, 4 × 6');
+
+    // One photo to upload: JPG / PNG, pixel size and max file size, no PDF.
+    await tester.tap(find.text(l.photoModeSingle));
+    await real(tester);
+    expect(find.text(l.photoSingleCaption), findsOneWidget);
+    expect(find.text(l.photoCopies), findsNothing);
+    expect(find.text(l.sharePdf), findsNothing);
+    expect(find.text(l.shareJpg), findsOneWidget);
+    expect(find.text(l.sharePng), findsOneWidget);
+    expectNothingCutOff(tester, 'Single photo');
+    await tester.scrollUntilVisible(find.text(l.shareImageSize), 200, scrollable: find.byType(Scrollable).first);
+    expect(find.text(l.shareMaxSize), findsOneWidget);
+    expect(find.text(l.shareButtonFormat(l.shareJpg)), findsOneWidget);
+    expectNothingCutOff(tester, 'Single photo, options');
+    await tester.ensureVisible(find.text(l.photoModeSheet));
+    await tester.pump();
+    await tester.tap(find.text(l.photoModeSheet));
+    await real(tester);
+    expect(find.text(l.photoSheetCaption(l.photoPaper4x6, 6)), findsOneWidget, reason: 'back to the sheet as it was');
 
     final docs = (await tester.runAsync(() => getIt<DocumentRepository>().watchAll().first))!;
     final saved = docs.firstWhere((d) => d.mode == ScanMode.photo);

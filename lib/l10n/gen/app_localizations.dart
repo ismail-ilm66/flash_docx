@@ -2104,6 +2104,24 @@ abstract class AppLocalizations {
   /// **'Share PDF'**
   String get photoSharePdf;
 
+  /// No description provided for @photoModeSheet.
+  ///
+  /// In en, this message translates to:
+  /// **'Print sheet'**
+  String get photoModeSheet;
+
+  /// No description provided for @photoModeSingle.
+  ///
+  /// In en, this message translates to:
+  /// **'Single photo'**
+  String get photoModeSingle;
+
+  /// No description provided for @photoSingleCaption.
+  ///
+  /// In en, this message translates to:
+  /// **'One photo to send or upload'**
+  String get photoSingleCaption;
+
   /// No description provided for @photoDefaultTitle.
   ///
   /// In en, this message translates to:

@@ -572,6 +572,9 @@
   "photoCutLines": "Cut lines",
   "photoPrintTip": "Print at 100% / Actual size. Photo shops can print the 4 × 6 sheet on glossy photo paper.",
   "photoSharePdf": "Share PDF",
+  "photoModeSheet": "Print sheet",
+  "photoModeSingle": "Single photo",
+  "photoSingleCaption": "One photo to send or upload",
   "photoDefaultTitle": "Passport photo - {date}",
   "@photoDefaultTitle": {
     "placeholders": {

@@ -154,4 +154,27 @@ void main() {
     await shot(tester, 'print');
     await close(tester);
   }, skip: !File('store/sample_docs/idfront.jpg').existsSync());
+
+  testWidgets('passport photo sheet and single photo', (tester) async {
+    final path = getIt<FileStore>().newCapturePath('face');
+    File('store/sample_docs/idfront.jpg').copySync(path);
+    final photo = (await tester.runAsync(
+      () => getIt<CreateDocument>()(
+        mode: ScanMode.photo,
+        pages: [ScanPage(id: 'ph', documentId: '', originalPath: path, edits: const PageEdits(photoWidthMm: 35, photoHeightMm: 45), order: 0)],
+        title: 'Passport photo',
+      ),
+    ))!
+        .getOrElse((f) => throw StateError('$f'));
+    await pumpApp(tester, Routes.photoSheet(photo.id));
+    await real(tester);
+    await shot(tester, 'photo_sheet');
+    await tester.tap(find.text('Single photo'));
+    await real(tester);
+    await shot(tester, 'photo_single');
+    await tester.drag(find.byType(Scrollable).first, const Offset(0, -600));
+    await real(tester, rounds: 5);
+    await shot(tester, 'photo_single_options');
+    await close(tester);
+  }, skip: !File('store/sample_docs/idfront.jpg').existsSync());
 }

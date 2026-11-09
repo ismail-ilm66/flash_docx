@@ -1134,6 +1134,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoSharePdf => 'Share PDF';
 
   @override
+  String get photoModeSheet => 'Print sheet';
+
+  @override
+  String get photoModeSingle => 'Single photo';
+
+  @override
+  String get photoSingleCaption => 'One photo to send or upload';
+
+  @override
   String photoDefaultTitle(String date) {
     return 'Passport photo - $date';
   }
