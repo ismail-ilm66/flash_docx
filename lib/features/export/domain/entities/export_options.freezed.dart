@@ -17,7 +17,9 @@ mixin _$ExportOptions {
  ExportFormat get format; ExportQuality get quality; PdfPageSize get pageSize; String get fileName; ExportLayout get layout;/// Max file size (feature 2), PDF only: shrink until the file is at most
 /// this many bytes. null = no limit.
  int? get maxBytes;/// The user agreed to black and white because colour couldn't fit.
- bool get grayscaleToFit;
+ bool get grayscaleToFit;/// Passport photo: exact pixel size an online form asks for (null =
+/// full resolution). A different shape is centre-cropped to fill it.
+ int? get pixelWidth; int? get pixelHeight;
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +30,16 @@ $ExportOptionsCopyWith<ExportOptions> get copyWith => _$ExportOptionsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight)';
 }
 
 
@@ -48,7 +50,7 @@ abstract mixin class $ExportOptionsCopyWith<$Res>  {
   factory $ExportOptionsCopyWith(ExportOptions value, $Res Function(ExportOptions) _then) = _$ExportOptionsCopyWithImpl;
 @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight
 });
 
 
@@ -65,7 +67,7 @@ class _$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,}) {
   return _then(_self.copyWith(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
@@ -74,7 +76,9 @@ as PdfPageSize,fileName: null == fileName ? _self.fileName : fileName // ignore:
 as String,layout: null == layout ? _self.layout : layout // ignore: cast_nullable_to_non_nullable
 as ExportLayout,maxBytes: freezed == maxBytes ? _self.maxBytes : maxBytes // ignore: cast_nullable_to_non_nullable
 as int?,grayscaleToFit: null == grayscaleToFit ? _self.grayscaleToFit : grayscaleToFit // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,pixelWidth: freezed == pixelWidth ? _self.pixelWidth : pixelWidth // ignore: cast_nullable_to_non_nullable
+as int?,pixelHeight: freezed == pixelHeight ? _self.pixelHeight : pixelHeight // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -86,7 +90,7 @@ as bool,
 
 
 class _ExportOptions extends ExportOptions {
-  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.a4, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false}): super._();
+  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.a4, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false, this.pixelWidth, this.pixelHeight}): super._();
   
 
 @override@JsonKey() final  ExportFormat format;
@@ -99,6 +103,10 @@ class _ExportOptions extends ExportOptions {
 @override final  int? maxBytes;
 /// The user agreed to black and white because colour couldn't fit.
 @override@JsonKey() final  bool grayscaleToFit;
+/// Passport photo: exact pixel size an online form asks for (null =
+/// full resolution). A different shape is centre-cropped to fill it.
+@override final  int? pixelWidth;
+@override final  int? pixelHeight;
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -110,16 +118,16 @@ _$ExportOptionsCopyWith<_ExportOptions> get copyWith => __$ExportOptionsCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight)';
 }
 
 
@@ -130,7 +138,7 @@ abstract mixin class _$ExportOptionsCopyWith<$Res> implements $ExportOptionsCopy
   factory _$ExportOptionsCopyWith(_ExportOptions value, $Res Function(_ExportOptions) _then) = __$ExportOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight
 });
 
 
@@ -147,7 +155,7 @@ class __$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,}) {
   return _then(_ExportOptions(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
@@ -156,7 +164,9 @@ as PdfPageSize,fileName: null == fileName ? _self.fileName : fileName // ignore:
 as String,layout: null == layout ? _self.layout : layout // ignore: cast_nullable_to_non_nullable
 as ExportLayout,maxBytes: freezed == maxBytes ? _self.maxBytes : maxBytes // ignore: cast_nullable_to_non_nullable
 as int?,grayscaleToFit: null == grayscaleToFit ? _self.grayscaleToFit : grayscaleToFit // ignore: cast_nullable_to_non_nullable
-as bool,
+as bool,pixelWidth: freezed == pixelWidth ? _self.pixelWidth : pixelWidth // ignore: cast_nullable_to_non_nullable
+as int?,pixelHeight: freezed == pixelHeight ? _self.pixelHeight : pixelHeight // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

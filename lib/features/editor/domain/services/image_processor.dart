@@ -71,6 +71,10 @@ abstract interface class ImageProcessor {
   /// `[orient]` line.
   Future<String> normalizeCapture(String path, CaptureMeta? capture);
 
+  /// [src] at exactly [width] × [height] px (cover, centre crop) at
+  /// [outputPath] (JPEG or PNG by extension). Background lane.
+  Future<String> resizeExact(String src, int width, int height, {required String outputPath, int jpegQuality = 92});
+
   /// Writes 8-bit gray pixels as a PNG (a segmentation mask).
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath);
 

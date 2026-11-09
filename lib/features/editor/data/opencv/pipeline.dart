@@ -1458,6 +1458,20 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
   return out;
 }
 
+/// Scales [img] to cover [width] × [height] (area averaging when shrinking)
+/// and crops the centre: exactly that size, nothing stretched.
+cv.Mat coverResize(cv.Mat img, int width, int height) {
+  final s = math.max(width / img.cols, height / img.rows);
+  final w = math.max(width, (img.cols * s).round());
+  final h = math.max(height, (img.rows * s).round());
+  final scaled = cv.resize(img, (w, h), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC);
+  final roi = scaled.region(cv.Rect((w - width) ~/ 2, (h - height) ~/ 2, width, height));
+  final out = roi.clone();
+  roi.dispose();
+  scaled.dispose();
+  return out;
+}
+
 /// Writes 8-bit gray [data] (row-major, [width] × [height]) as a PNG.
 void writeGray(Uint8List data, int width, int height, String path) {
   final m = cv.Mat.fromList(height, width, cv.MatType.CV_8UC1, data);

@@ -89,4 +89,16 @@ void main() {
     a.dispose();
     b.dispose();
   });
+
+  test('coverResize: exactly the asked size, centre-cropped, nothing stretched', () {
+    final img = cv.imread(photo); // 1200 × 1600
+    final square = pipe.coverResize(img, 600, 600);
+    expect((square.cols, square.rows), (600, 600));
+    // The disc (person) is centred in x and stays round: same width as height.
+    final small = pipe.coverResize(img, 413, 531);
+    expect((small.cols, small.rows), (413, 531));
+    for (final m in [img, square, small]) {
+      m.dispose();
+    }
+  });
 }

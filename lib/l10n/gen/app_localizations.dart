@@ -2343,6 +2343,54 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Light blue'**
   String get photoBackgroundLightBlue;
+
+  /// No description provided for @shareImageSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Image size'**
+  String get shareImageSize;
+
+  /// No description provided for @shareImageSizeHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Exact pixels for online forms'**
+  String get shareImageSizeHint;
+
+  /// No description provided for @imageSizeFull.
+  ///
+  /// In en, this message translates to:
+  /// **'Full resolution'**
+  String get imageSizeFull;
+
+  /// No description provided for @imageSizePrint.
+  ///
+  /// In en, this message translates to:
+  /// **'Print size (300 DPI) · {w} × {h} px'**
+  String imageSizePrint(int w, int h);
+
+  /// No description provided for @imageSizePx.
+  ///
+  /// In en, this message translates to:
+  /// **'{w} × {h} px'**
+  String imageSizePx(int w, int h);
+
+  /// No description provided for @imageSizeCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get imageSizeCustom;
+
+  /// No description provided for @imageSizeWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Width (px)'**
+  String get imageSizeWidth;
+
+  /// No description provided for @imageSizeHeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Height (px)'**
+  String get imageSizeHeight;
 }
 
 class _AppLocalizationsDelegate

@@ -7,6 +7,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
+import 'package:flash_dox/features/export/presentation/image_size_sheet.dart';
 import 'package:flash_dox/features/export/presentation/max_size_sheet.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/rewards/presentation/unlock_dialog.dart';
@@ -223,12 +224,44 @@ class _ShareSheetState extends State<_ShareSheet> {
                   ),
                 ],
               ),
-              if (ExportDocument.shrinks(
-                s.document,
-                o.copyWith(maxBytes: o.maxBytes ?? 0),
-              )) ...[
+              // Passport photo: the exact pixels an online form asks for.
+              if (s.document.mode == ScanMode.photo) ...[
                 const SizedBox(height: Space.x3),
-                _MaxSizeRow(
+                _SettingRow(
+                  title: l.shareImageSize,
+                  hint: l.shareImageSizeHint,
+                  value: imageSizeLabel(
+                    context,
+                    o.hasPixelSize
+                        ? (width: o.pixelWidth!, height: o.pixelHeight!)
+                        : null,
+                  ),
+                  onTap: () async {
+                    final e = s.document.cover?.edits;
+                    final picked = await showImageSizeSheet(
+                      context,
+                      current: o.hasPixelSize
+                          ? (width: o.pixelWidth!, height: o.pixelHeight!)
+                          : null,
+                      widthMm: e?.photoWidthMm ?? 35,
+                      heightMm: e?.photoHeightMm ?? 45,
+                    );
+                    if (picked == null || !context.mounted) return;
+                    final cur = context.read<ExportBloc>().state.options;
+                    _update(
+                      cur.copyWith(
+                        pixelWidth: picked.size?.width,
+                        pixelHeight: picked.size?.height,
+                      ),
+                    );
+                  },
+                ),
+              ],
+              if (ExportDocument.canShrink(s.document, o)) ...[
+                const SizedBox(height: Space.x3),
+                _SettingRow(
+                  title: l.shareMaxSize,
+                  hint: l.shareMaxSizeHint,
                   value: maxSizeLabel(context, o.maxBytes),
                   onTap: () async {
                     final picked = await showMaxSizeSheet(
@@ -384,14 +417,22 @@ List<Widget> _result(BuildContext context, ExportPrep prep, ExportOptions o) {
 }
 
 /// "Max file size · Under 500 KB ›" (artboard *Export*).
-class _MaxSizeRow extends StatelessWidget {
-  const _MaxSizeRow({required this.value, required this.onTap});
+/// A setting that opens its own sheet: title, hint, current value ›
+/// (artboard *Export*: Max file size; also Image size for photos).
+class _SettingRow extends StatelessWidget {
+  const _SettingRow({
+    required this.title,
+    required this.hint,
+    required this.value,
+    required this.onTap,
+  });
+  final String title;
+  final String hint;
   final String value;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final l = context.l10n;
     final c = context.colors;
     return InkWell(
       onTap: onTap,
@@ -410,7 +451,7 @@ class _MaxSizeRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   FitText(
-                    l.shareMaxSize,
+                    title,
                     textAlign: TextAlign.start,
                     style: context.text.titleSmall?.copyWith(
                       fontSize: 14,
@@ -419,7 +460,7 @@ class _MaxSizeRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    l.shareMaxSizeHint,
+                    hint,
                     style: context.text.labelSmall?.copyWith(
                       fontSize: 11,
                       color: c.muted,

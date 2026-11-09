@@ -339,6 +339,41 @@ void main() {
       expect(ExportDocument.shrinks(doc, const ExportOptions()), isFalse);
     });
 
+    test('a passport photo at an exact pixel size (JPG, PNG, and with a size limit)', () async {
+      final photo = doc.copyWith(mode: ScanMode.photo, pages: [doc.sortedPages.first]);
+      when(
+        () => proc.resizeExact(any(), any(), any(), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')),
+      ).thenAnswer((inv) async {
+        final out = inv.namedArguments[#outputPath] as String;
+        File(out)
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync([7]);
+        return out;
+      });
+      for (final format in [ExportFormat.jpg, ExportFormat.png]) {
+        final r = await export.prepare(photo, ExportOptions(format: format, pixelWidth: 600, pixelHeight: 771));
+        final file = r.getOrElse((f) => throw StateError('$f')).files.single;
+        expect(file.path, endsWith('600x771.${format.name}'));
+      }
+      verify(
+        () => proc.resizeExact(any(), 600, 771, outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')),
+      ).called(2);
+
+      stubShrink([const ShrinkFits(ShrinkStep(771, 60), 90000)]);
+      await export.prepare(photo, const ExportOptions(format: ExportFormat.jpg, pixelWidth: 600, pixelHeight: 771, maxBytes: 100000));
+      final minEdge = verify(
+        () => proc.shrinkPages(
+          any(),
+          targetBytes: any(named: 'targetBytes'),
+          overheadBytes: any(named: 'overheadBytes'),
+          grayscale: any(named: 'grayscale'),
+          outputs: any(named: 'outputs'),
+          minEdge: captureAny(named: 'minEdge'),
+        ),
+      ).captured;
+      expect(minEdge, [771], reason: 'the size is kept; only the quality drops');
+    });
+
     test('a passport photo shrinks as a JPG: no PDF, small sizes allowed, never black and white', () async {
       final photo = doc.copyWith(mode: ScanMode.photo, pages: [doc.sortedPages.first]);
       expect(ExportDocument.canShrink(photo, const ExportOptions(format: ExportFormat.jpg)), isTrue);

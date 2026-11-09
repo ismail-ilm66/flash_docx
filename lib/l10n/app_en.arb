@@ -687,5 +687,33 @@
   "photoBackgroundLabel": "Background",
   "photoBackgroundOriginal": "Original",
   "photoBackgroundWhite": "White",
-  "photoBackgroundLightBlue": "Light blue"
+  "photoBackgroundLightBlue": "Light blue",
+  "shareImageSize": "Image size",
+  "shareImageSizeHint": "Exact pixels for online forms",
+  "imageSizeFull": "Full resolution",
+  "imageSizePrint": "Print size (300 DPI) · {w} × {h} px",
+  "@imageSizePrint": {
+    "placeholders": {
+      "w": {
+        "type": "int"
+      },
+      "h": {
+        "type": "int"
+      }
+    }
+  },
+  "imageSizePx": "{w} × {h} px",
+  "@imageSizePx": {
+    "placeholders": {
+      "w": {
+        "type": "int"
+      },
+      "h": {
+        "type": "int"
+      }
+    }
+  },
+  "imageSizeCustom": "Custom",
+  "imageSizeWidth": "Width (px)",
+  "imageSizeHeight": "Height (px)"
 }

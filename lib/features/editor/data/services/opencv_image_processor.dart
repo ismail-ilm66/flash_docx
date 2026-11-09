@@ -136,6 +136,10 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<String> resizeExact(String src, int width, int height, {required String outputPath, int jpegQuality = 92}) =>
+      _runner.run(exactInIsolate, (src, width, height, outputPath, jpegQuality), debugLabel: 'exactSize');
+
+  @override
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath) =>
       _runner.run(grayInIsolate, (data, width, height, outputPath), debugLabel: 'mask', priority: JobPriority.interactive);
 
@@ -492,6 +496,19 @@ String photoInIsolate(PhotoMsg m) {
 }
 
 String normalizeInIsolate((String, CaptureMeta?) m) => pipe.normalizeCapture(m.$1, m.$2);
+
+String exactInIsolate((String, int, int, String, int) m) {
+  final img = cv.imread(m.$1);
+  final out = pipe.coverResize(img, m.$2, m.$3);
+  img.dispose();
+  try {
+    File(m.$4).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.$4, quality: m.$5);
+    return m.$4;
+  } finally {
+    out.dispose();
+  }
+}
 
 void grayInIsolate((Uint8List, int, int, String) m) => pipe.writeGray(m.$1, m.$2, m.$3, m.$4);
 

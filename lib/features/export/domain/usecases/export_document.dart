@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
@@ -241,6 +242,21 @@ class ExportDocument {
           }
           rendered.add(cached);
         }
+        // A passport photo at the exact pixel size a form asks for.
+        if (options.isImage &&
+            doc.mode == ScanMode.photo &&
+            options.hasPixelSize) {
+          rendered[i] = await _processor.resizeExact(
+            rendered[i],
+            options.pixelWidth!,
+            options.pixelHeight!,
+            outputPath: p.join(
+              staging,
+              'page_${i + 1}_${options.pixelWidth}x${options.pixelHeight}.${options.extension}',
+            ),
+            jpegQuality: jpegQ,
+          );
+        }
         onStep?.call(i + 1, total);
       }
     } catch (e) {
@@ -300,7 +316,22 @@ class ExportDocument {
           );
           File(tmp).renameSync(base);
         }
-        bases.add(base);
+        // An exact pixel size is fixed first; the search then only lowers
+        // the JPEG quality (its edges never go below that size).
+        bases.add(
+          options.isImage && options.hasPixelSize
+              ? await _processor.resizeExact(
+                  base,
+                  options.pixelWidth!,
+                  options.pixelHeight!,
+                  outputPath: p.join(
+                    staging,
+                    'base_${i + 1}_${options.pixelWidth}x${options.pixelHeight}.jpg',
+                  ),
+                  jpegQuality: _baseQuality,
+                )
+              : base,
+        );
         onStep?.call(i + 1, total);
       }
       if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
@@ -322,7 +353,11 @@ class ExportDocument {
           overheadBytes: overhead,
           grayscale: !image && options.grayscaleToFit,
           outputs: outputs,
-          minEdge: image ? ShrinkToFit.photoMinEdge : ShrinkToFit.minEdge,
+          minEdge: !image
+              ? ShrinkToFit.minEdge
+              : options.hasPixelSize
+              ? math.max(options.pixelWidth!, options.pixelHeight!)
+              : ShrinkToFit.photoMinEdge,
         );
         switch (outcome) {
           case ShrinkNeedsGrayscale(:final smallestBytes):

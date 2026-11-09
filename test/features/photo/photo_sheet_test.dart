@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flash_dox/features/export/presentation/image_size_sheet.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
@@ -82,6 +83,18 @@ void main() {
       final back = PhotoPlacement.fromCrop(q, image, frame).cropFor(image, frame);
       expect(back.tl.x, closeTo(q.tl.x, 1e-9));
       expect(back.br.y, closeTo(q.br.y, 1e-9));
+    });
+  });
+
+  group('pixel sizes for online forms', () {
+    test('print size at 300 DPI, then common widths in the photo shape', () {
+      expect(pixelSizePresets(35, 45), [
+        (width: 413, height: 531),
+        (width: 600, height: 771),
+        (width: 900, height: 1157),
+        (width: 1200, height: 1543),
+      ]);
+      expect(pixelSizePresets(50.8, 50.8).first, (width: 600, height: 600));
     });
   });
 }

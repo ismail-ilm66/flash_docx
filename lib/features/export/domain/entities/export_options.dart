@@ -39,10 +39,17 @@ abstract class ExportOptions with _$ExportOptions {
 
     /// The user agreed to black and white because colour couldn't fit.
     @Default(false) bool grayscaleToFit,
+
+    /// Passport photo: exact pixel size an online form asks for (null =
+    /// full resolution). A different shape is centre-cropped to fill it.
+    int? pixelWidth,
+    int? pixelHeight,
   }) = _ExportOptions;
   const ExportOptions._();
 
   bool get isImage => format != ExportFormat.pdf;
+
+  bool get hasPixelSize => pixelWidth != null && pixelHeight != null;
   String get extension => switch (format) {
     ExportFormat.pdf => 'pdf',
     ExportFormat.jpg => 'jpg',

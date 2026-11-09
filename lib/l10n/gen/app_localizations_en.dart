@@ -1274,4 +1274,32 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoBackgroundLightBlue => 'Light blue';
+
+  @override
+  String get shareImageSize => 'Image size';
+
+  @override
+  String get shareImageSizeHint => 'Exact pixels for online forms';
+
+  @override
+  String get imageSizeFull => 'Full resolution';
+
+  @override
+  String imageSizePrint(int w, int h) {
+    return 'Print size (300 DPI) · $w × $h px';
+  }
+
+  @override
+  String imageSizePx(int w, int h) {
+    return '$w × $h px';
+  }
+
+  @override
+  String get imageSizeCustom => 'Custom';
+
+  @override
+  String get imageSizeWidth => 'Width (px)';
+
+  @override
+  String get imageSizeHeight => 'Height (px)';
 }
