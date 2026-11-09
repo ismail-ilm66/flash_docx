@@ -8,7 +8,7 @@ import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:path/path.dart' as p;
 
 /// Host timings for the per-photo work, to compare before/after changes.
-/// Run with: flutter test test/bench --tags bench
+/// Run with: flutter test test/bench --tags bench --run-skipped
 void main() {
   test('pipeline timings on a 12 MP photo', tags: ['bench'], () {
     final tmp = Directory.systemTemp.createTempSync('bench');

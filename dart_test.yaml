@@ -3,4 +3,7 @@ tags:
     description: Pixel goldens recorded on macOS.
   bench:
     description: Host timings, not run in CI.
-    skip: "run with --tags bench"
+    skip: "run with --tags bench --run-skipped"
+  screens:
+    description: Real-screen PNGs into build/screens, for checking layouts by eye.
+    skip: "run with --tags screens --run-skipped --update-goldens"

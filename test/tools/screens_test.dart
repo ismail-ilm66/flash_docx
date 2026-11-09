@@ -27,7 +27,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Screenshots of real screens with the real image pipeline, for checking
 /// a layout against its artboard. Not part of the normal run:
-///   flutter test test/tools/screens_test.dart --tags screens --update-goldens
+///   flutter test test/tools/screens_test.dart --tags screens --run-skipped --update-goldens
 /// writes build/screens/*.png.
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
