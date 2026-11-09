@@ -21,9 +21,9 @@ enum ActivityType {
   photoSheet,
 }
 
-/// Passport photo background (round 5 follow-up). Stored by name in the
-/// page's edits JSON.
-enum PhotoBackground { original, white, lightBlue }
+/// Passport photo background. Stored by name in the page's edits JSON; an
+/// old "lightBlue" (first build) reads as dark blue.
+enum PhotoBackground { original, white, darkBlue }
 
 /// Home folders (round 4, feature 3). Stored by index: append only (office
 /// came in round 5). Display order is `FolderChips.order`.

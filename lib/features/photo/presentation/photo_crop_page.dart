@@ -242,7 +242,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       _mask = mask;
       _segmentable = true;
     });
-    for (final bg in [PhotoBackground.white, PhotoBackground.lightBlue]) {
+    for (final bg in [PhotoBackground.white, PhotoBackground.darkBlue]) {
       try {
         final out = await getIt<ImageProcessor>().previewWithBackground(
           photo,
@@ -633,14 +633,14 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                             l.photoBackgroundOriginal,
                                           PhotoBackground.white =>
                                             l.photoBackgroundWhite,
-                                          PhotoBackground.lightBlue =>
-                                            l.photoBackgroundLightBlue,
+                                          PhotoBackground.darkBlue =>
+                                            l.photoBackgroundDarkBlue,
                                         },
                                         swatch: switch (bg) {
                                           PhotoBackground.original => null,
                                           PhotoBackground.white => Colors.white,
-                                          PhotoBackground.lightBlue =>
-                                            const Color(0xFFCFE3F5),
+                                          PhotoBackground.darkBlue =>
+                                            const Color(0xFF1F4E8C),
                                         },
                                         selected: _background == bg,
                                         // Ready once the person is found.

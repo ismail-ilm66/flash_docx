@@ -25,7 +25,11 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
   photoWidthMm: (json['photoWidthMm'] as num?)?.toDouble(),
   photoHeightMm: (json['photoHeightMm'] as num?)?.toDouble(),
   photoBackground:
-      $enumDecodeNullable(_$PhotoBackgroundEnumMap, json['photoBackground']) ??
+      $enumDecodeNullable(
+        _$PhotoBackgroundEnumMap,
+        json['photoBackground'],
+        unknownValue: PhotoBackground.darkBlue,
+      ) ??
       PhotoBackground.original,
   backgroundMaskPath: json['backgroundMaskPath'] as String?,
 );
@@ -57,5 +61,5 @@ const _$FilterTypeEnumMap = {
 const _$PhotoBackgroundEnumMap = {
   PhotoBackground.original: 'original',
   PhotoBackground.white: 'white',
-  PhotoBackground.lightBlue: 'lightBlue',
+  PhotoBackground.darkBlue: 'darkBlue',
 };

@@ -1273,9 +1273,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoBackgroundWhite => 'White';
 
   @override
-  String get photoBackgroundLightBlue => 'Light blue';
-
-  @override
   String get shareImageSize => 'Image size';
 
   @override
@@ -1302,4 +1299,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get imageSizeHeight => 'Height (px)';
+
+  @override
+  String get photoBackgroundDarkBlue => 'Dark blue';
 }

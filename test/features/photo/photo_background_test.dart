@@ -43,7 +43,7 @@ void main() {
   test('white and light blue replace the wall, not the person', () {
     for (final (bg, want) in [
       (PhotoBackground.white, [255, 255, 255]),
-      (PhotoBackground.lightBlue, [245, 227, 207]),
+      (PhotoBackground.darkBlue, [140, 78, 31]),
     ]) {
       final out = pipe.renderEdits(
         photo,
@@ -113,5 +113,10 @@ void main() {
     final square = pipe.renderEdits(photo, const PageEdits(crop: crop, filter: FilterType.original, outputAspect: 1));
     expect(square.cols / square.rows, closeTo(1, 0.01));
     square.dispose();
+  });
+
+  test('a photo saved as light blue (first build) still loads, as dark blue', () {
+    final e = PageEdits.fromJson(const {'photoBackground': 'lightBlue'});
+    expect(e.photoBackground, PhotoBackground.darkBlue);
   });
 }

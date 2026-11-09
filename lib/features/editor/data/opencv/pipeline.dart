@@ -1412,11 +1412,12 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   return out;
 }
 
-/// Background colours (BGR): white, and the artboard's light blue #CFE3F5.
+/// Background colours (BGR): white, and a deep passport-studio blue
+/// #1F4E8C.
 cv.Scalar? photoBackgroundColor(PhotoBackground b) => switch (b) {
       PhotoBackground.original => null,
       PhotoBackground.white => cv.Scalar(255, 255, 255),
-      PhotoBackground.lightBlue => cv.Scalar(245, 227, 207),
+      PhotoBackground.darkBlue => cv.Scalar(140, 78, 31),
     };
 
 /// Passport photo: the person mask (whole upright photo) warped with the

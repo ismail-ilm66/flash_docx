@@ -25,7 +25,7 @@ mixin _$PageEdits {
  double? get photoWidthMm; double? get photoHeightMm;/// Passport photo background: the person mask for the whole upright
 /// photo (8-bit PNG, any size) and the colour behind them. Applied as
 /// the crop is rendered, so every output gets it.
- PhotoBackground get photoBackground; String? get backgroundMaskPath;
+@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground get photoBackground; String? get backgroundMaskPath;
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -58,7 +58,7 @@ abstract mixin class $PageEditsCopyWith<$Res>  {
   factory $PageEditsCopyWith(PageEdits value, $Res Function(PageEdits) _then) = _$PageEditsCopyWithImpl;
 @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm, PhotoBackground photoBackground, String? backgroundMaskPath
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath
 });
 
 
@@ -112,7 +112,7 @@ $QuadCopyWith<$Res>? get crop {
 @JsonSerializable()
 
 class _PageEdits extends PageEdits {
-  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect, final  List<PageOverlay> overlays = const <PageOverlay>[], this.photoWidthMm, this.photoHeightMm, this.photoBackground = PhotoBackground.original, this.backgroundMaskPath}): _overlays = overlays,super._();
+  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect, final  List<PageOverlay> overlays = const <PageOverlay>[], this.photoWidthMm, this.photoHeightMm, @JsonKey(unknownEnumValue: PhotoBackground.darkBlue) this.photoBackground = PhotoBackground.original, this.backgroundMaskPath}): _overlays = overlays,super._();
   factory _PageEdits.fromJson(Map<String, dynamic> json) => _$PageEditsFromJson(json);
 
 /// null = full image.
@@ -141,7 +141,7 @@ class _PageEdits extends PageEdits {
 /// Passport photo background: the person mask for the whole upright
 /// photo (8-bit PNG, any size) and the colour behind them. Applied as
 /// the crop is rendered, so every output gets it.
-@override@JsonKey() final  PhotoBackground photoBackground;
+@override@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) final  PhotoBackground photoBackground;
 @override final  String? backgroundMaskPath;
 
 /// Create a copy of PageEdits
@@ -177,7 +177,7 @@ abstract mixin class _$PageEditsCopyWith<$Res> implements $PageEditsCopyWith<$Re
   factory _$PageEditsCopyWith(_PageEdits value, $Res Function(_PageEdits) _then) = __$PageEditsCopyWithImpl;
 @override @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm, PhotoBackground photoBackground, String? backgroundMaskPath
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath
 });
 
 
