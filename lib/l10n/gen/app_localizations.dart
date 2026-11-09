@@ -2283,6 +2283,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'3 second timer off'**
   String get cameraTimerOff;
+
+  /// No description provided for @printSheetFronts.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} · Fronts'**
+  String printSheetFronts(int n);
+
+  /// No description provided for @printSheetBacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} · Backs'**
+  String printSheetBacks(int n);
 }
 
 class _AppLocalizationsDelegate

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
@@ -127,6 +129,7 @@ class _PrintViewState extends State<_PrintView> {
         );
         final layout = PrintLayoutCalculator.layout(spec);
         final sheets = layout.pages.length;
+        final duplex = s.output == PrintOutput.pdfDoubleSided && sheets > 1;
         final page = PrintLayoutCalculator.pageSize(spec);
         final sheet = _sheet.clamp(0, sheets - 1);
         final card = PrintLayoutCalculator.cardSize(kind);
@@ -181,13 +184,20 @@ class _PrintViewState extends State<_PrintView> {
                             padding: const EdgeInsets.symmetric(
                               horizontal: Space.x4,
                             ),
-                            child: SegmentedPills<int>(
-                              values: [for (var i = 0; i < sheets; i++) i],
-                              selected: sheet,
-                              height: 36,
-                              labelSize: 12,
-                              labelOf: (i) => l.printSheetN(i + 1),
-                              onChanged: _goSheet,
+                            child: Wrap(
+                              alignment: WrapAlignment.center,
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (var i = 0; i < sheets; i++)
+                                  _SheetChip(
+                                    label: duplex
+                                        ? (i.isEven ? l.printSheetFronts(i + 1) : l.printSheetBacks(i + 1))
+                                        : l.printSheetN(i + 1),
+                                    selected: i == sheet,
+                                    onTap: () => _goSheet(i),
+                                  ),
+                              ],
                             ),
                           ),
                         // The same large, pinch-zoomable viewer for all three
@@ -211,8 +221,9 @@ class _PrintViewState extends State<_PrintView> {
                                     cutGuides:
                                         s.cutGuides &&
                                         s.output != PrintOutput.image,
-                                    frontPath: frontPage.listImagePath,
-                                    backPath: backPage?.listImagePath,
+                                    // The real cards, rendered as they print.
+                                    frontPath: s.previews[frontPage.id],
+                                    backPath: backPage == null ? null : s.previews[backPage.id],
                                   ),
                                 ),
                               ),
@@ -251,8 +262,8 @@ class _PrintViewState extends State<_PrintView> {
                               for (final (i, n) in s.allowedCopies.indexed) ...[
                                 if (i > 0) const SizedBox(width: Space.x2),
                                 Expanded(
-                                  child: _CopiesButton(
-                                    n: n,
+                                  child: _ChoiceButton(
+                                    label: '$n',
                                     selected: s.copies == n,
                                     locked: s.copiesGated(n),
                                     onTap: () => _pickCopies(context, n),
@@ -269,21 +280,25 @@ class _PrintViewState extends State<_PrintView> {
                           l.shareQuality,
                           padding: const EdgeInsets.only(bottom: Space.x2),
                         ),
-                        Wrap(
-                          spacing: Space.x2,
-                          runSpacing: Space.x2,
+                        // One row of two equal buttons, like the copies.
+                        Row(
                           children: [
-                            OptionChip(
-                              label: l.printQualityStandard,
-                              selected: s.quality == ExportQuality.standard,
-                              onTap: () =>
-                                  cubit.setQuality(ExportQuality.standard),
+                            Expanded(
+                              child: _ChoiceButton(
+                                label: l.printQualityStandard,
+                                selected: s.quality == ExportQuality.standard,
+                                locked: false,
+                                onTap: () => cubit.setQuality(ExportQuality.standard),
+                              ),
                             ),
-                            OptionChip(
-                              label: l.printQualityHigh,
-                              selected: s.quality == ExportQuality.high,
-                              gated: s.qualityGated,
-                              onTap: () => _pickHighQuality(context),
+                            const SizedBox(width: Space.x2),
+                            Expanded(
+                              child: _ChoiceButton(
+                                label: l.printQualityHigh,
+                                selected: s.quality == ExportQuality.high,
+                                locked: s.qualityGated,
+                                onTap: () => _pickHighQuality(context),
+                              ),
                             ),
                           ],
                         ),
@@ -482,15 +497,16 @@ class _BoldParts extends StatelessWidget {
   }
 }
 
-class _CopiesButton extends StatelessWidget {
-  const _CopiesButton({
-    required this.n,
+/// A square-cornered choice (copies, quality), artboard *Print layout*.
+class _ChoiceButton extends StatelessWidget {
+  const _ChoiceButton({
+    required this.label,
     required this.selected,
     required this.locked,
     required this.onTap,
   });
 
-  final int n;
+  final String label;
   final bool selected;
   final bool locked;
   final VoidCallback onTap;
@@ -501,7 +517,7 @@ class _CopiesButton extends StatelessWidget {
     return Semantics(
       button: true,
       selected: selected,
-      label: locked ? '$n, ${context.l10n.unlockTitle}' : '$n',
+      label: locked ? '$label, ${context.l10n.unlockTitle}' : label,
       excludeSemantics: true,
       child: InkWell(
         onTap: onTap,
@@ -520,10 +536,12 @@ class _CopiesButton extends StatelessWidget {
                     ? Border.all(color: c.accent, width: 2)
                     : Border.all(color: c.borderStrong),
               ),
-              child: Text(
-                '$n',
+              padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+              child: FitText(
+                label,
+                maxLines: 1,
                 style: context.text.titleSmall?.copyWith(
-                  fontSize: 15,
+                  fontSize: label.length > 3 ? 13 : 15,
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -598,11 +616,7 @@ class _SheetPreview extends StatelessWidget {
                   height: it.h * k,
                   child: RotatedBox(
                     quarterTurns: it.rotated ? 3 : 0,
-                    child: PageImage(
-                      path: it.isBack ? (backPath ?? frontPath) : frontPath,
-                      radius: 3,
-                      cacheWidth: 240,
-                    ),
+                    child: _CardImage(path: it.isBack ? (backPath ?? frontPath) : frontPath),
                   ),
                 ),
             ],
@@ -631,4 +645,64 @@ class _CropMarksPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CropMarksPainter old) =>
       old.items != items || old.k != k;
+}
+
+/// "Sheet 1 · Fronts" (artboard *Print layout*): filled when shown.
+class _SheetChip extends StatelessWidget {
+  const _SheetChip({required this.label, required this.selected, required this.onTap});
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      child: Material(
+        color: selected ? c.text : Colors.transparent,
+        shape: StadiumBorder(side: selected ? BorderSide.none : BorderSide(color: c.border)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            child: Text(
+              label,
+              style: context.text.labelMedium?.copyWith(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                color: selected ? c.bg : c.text,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// One card on the preview sheet: the rendered card, or a quiet loading
+/// state while it renders (never a template card).
+class _CardImage extends StatelessWidget {
+  const _CardImage({required this.path});
+  final String? path;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = path;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(3),
+      child: p == null
+          ? const ColoredBox(
+              color: Color(0xFFE9EEF2),
+              child: Center(
+                child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 1.6, color: Color(0xFF9AA6B2))),
+              ),
+            )
+          : Image.file(File(p), fit: BoxFit.fill, gaplessPlayback: true, cacheWidth: 600),
+    );
+  }
 }

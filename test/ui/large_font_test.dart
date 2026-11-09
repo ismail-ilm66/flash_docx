@@ -344,7 +344,7 @@ void main() {
       await settle(tester);
       expect(find.byType(ZoomablePages), findsOneWidget, reason: output);
       expectNothingCutOff(tester, 'Print, $output');
-      if (output == l.printOutputDoubleSided) expect(find.text(l.printSheetN(2)), findsOneWidget);
+      if (output == l.printOutputDoubleSided) expect(find.text(l.printSheetBacks(2)), findsOneWidget);
     }
     expect(find.text(l.printImageCaption('93.6', '120')), findsOneWidget, reason: 'tight image, not A4');
     await close(tester);

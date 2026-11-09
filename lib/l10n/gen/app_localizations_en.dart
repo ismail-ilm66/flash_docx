@@ -1238,4 +1238,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraTimerOff => '3 second timer off';
+
+  @override
+  String printSheetFronts(int n) {
+    return 'Sheet $n · Fronts';
+  }
+
+  @override
+  String printSheetBacks(int n) {
+    return 'Sheet $n · Backs';
+  }
 }

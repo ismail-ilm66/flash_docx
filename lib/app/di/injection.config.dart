@@ -249,17 +249,19 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.GetStorageUsed>(),
       ),
     );
-    gh.lazySingleton<_i242.ThemeCubit>(
-      () => _i242.ThemeCubit(
-        gh<_i567.PrefsService>(),
-        gh<_i990.NightModeService>(),
-      ),
-    );
     gh.factoryParam<_i603.PrintLayoutCubit, String, dynamic>(
       (documentId, _) => _i603.PrintLayoutCubit(
         gh<_i310.GetDocument>(),
         gh<_i60.BuildPrintLayout>(),
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
         documentId,
+      ),
+    );
+    gh.lazySingleton<_i242.ThemeCubit>(
+      () => _i242.ThemeCubit(
+        gh<_i567.PrefsService>(),
+        gh<_i990.NightModeService>(),
       ),
     );
     gh.lazySingleton<_i120.PageRenderService>(

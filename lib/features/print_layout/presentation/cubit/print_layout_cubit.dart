@@ -1,14 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
+import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
 import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layout.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
@@ -53,7 +57,12 @@ class PrintLayoutState extends Equatable {
     this.sheet = 0,
     this.quality = ExportQuality.standard,
     this.highQualityUnlocked = !rewardedAdsEnabled,
+    this.previews = const {},
   });
+
+  /// Each card side as it will print, small (page id → image), for the
+  /// preview: the real card, never a placeholder.
+  final Map<String, String> previews;
 
   final ScanDocument? document;
   final PrintOutput output;
@@ -101,6 +110,7 @@ class PrintLayoutState extends Equatable {
     int? sheet,
     ExportQuality? quality,
     bool? highQualityUnlocked,
+    Map<String, String>? previews,
   }) => PrintLayoutState(
     document: document ?? this.document,
     output: output ?? this.output,
@@ -113,6 +123,7 @@ class PrintLayoutState extends Equatable {
     sheet: sheet ?? this.sheet,
     quality: quality ?? this.quality,
     highQualityUnlocked: highQualityUnlocked ?? this.highQualityUnlocked,
+    previews: previews ?? this.previews,
   );
 
   @override
@@ -128,6 +139,7 @@ class PrintLayoutState extends Equatable {
     sheet,
     quality,
     highQualityUnlocked,
+    previews,
   ];
 
   bool get hasBack =>
@@ -136,26 +148,53 @@ class PrintLayoutState extends Equatable {
 
 @injectable
 class PrintLayoutCubit extends Cubit<PrintLayoutState> {
-  PrintLayoutCubit(this._getDoc, this._build, @factoryParam String documentId)
+  PrintLayoutCubit(this._getDoc, this._build, this._processor, this._files, @factoryParam String documentId)
     : super(const PrintLayoutState()) {
     unawaited(_load(documentId));
   }
 
   final GetDocument _getDoc;
   final BuildPrintLayout _build;
+  final ImageProcessor _processor;
+  final FileStore _files;
+
+  /// Preview resolution: sharp on a phone screen, quick to render.
+  static const _previewDpi = 150;
+
+  /// Renders each card side the way the export does (crop, real card shape,
+  /// filter), at preview size.
+  Future<void> _renderPreviews(ScanDocument doc) async {
+    final kind = state.kind;
+    if (kind == null) return;
+    final card = PrintLayoutCalculator.cardSize(kind);
+    for (final page in doc.sortedPages.take(2)) {
+      if (isClosed) return;
+      final out = _files.exportPath('print_preview_${page.id}_${Object.hash(page.originalPath, page.edits).toUnsigned(32)}.jpg');
+      try {
+        if (!File(out).existsSync()) {
+          await _processor.renderCard(page.originalPath, page.edits, widthMm: card.w, heightMm: card.h, dpi: _previewDpi, outputPath: out);
+        }
+        if (isClosed) return;
+        emit(state.copyWith(previews: {...state.previews, page.id: out}));
+      } on Object catch (e) {
+        debugPrint('[print] preview: $e');
+      }
+    }
+  }
 
   Future<void> _load(String id) async {
     final r = await _getDoc(id);
     r.fold(
       (f) => emit(state.copyWith(failure: f)),
-      (doc) => emit(
-        state.copyWith(
-          document: doc,
-          output: doc.mode == ScanMode.passport
-              ? PrintOutput.image
-              : PrintOutput.pdfDoubleSided,
-        ),
-      ),
+      (doc) {
+        emit(
+          state.copyWith(
+            document: doc,
+            output: doc.mode == ScanMode.passport ? PrintOutput.image : PrintOutput.pdfDoubleSided,
+          ),
+        );
+        unawaited(_renderPreviews(doc));
+      },
     );
   }
 

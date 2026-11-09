@@ -656,5 +656,21 @@
   "mySignatureExpand": "Expand",
   "cameraFlip": "Switch camera",
   "cameraTimerOn": "3 second timer on",
-  "cameraTimerOff": "3 second timer off"
+  "cameraTimerOff": "3 second timer off",
+  "printSheetFronts": "Sheet {n} · Fronts",
+  "@printSheetFronts": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "printSheetBacks": "Sheet {n} · Backs",
+  "@printSheetBacks": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  }
 }
