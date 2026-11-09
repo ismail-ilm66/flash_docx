@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 /// Share Extension: accepts images, copies them into the App Group inbox and
 /// opens the main app via `flashdox://share`. No UI of its own.
 final class ShareViewController: UIViewController {
-  private let appGroup = "group.com.flashdox.app"
+  private let appGroup = "group.com.swtnoa.flashdox"
 
   override func viewDidLoad() {
     super.viewDidLoad()

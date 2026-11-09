@@ -102,7 +102,7 @@ void main() {
       ..devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     tester.binding.defaultBinaryMessenger.setMockStreamHandler(
-      const EventChannel('com.flashdox.app/share_in/events'),
+      const EventChannel('com.swtnoa.flashdox/share_in/events'),
       MockStreamHandler.inline(onListen: (_, _) {}),
     );
     final router = buildRouter(initialLocation: location);

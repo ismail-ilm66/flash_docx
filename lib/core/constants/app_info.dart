@@ -2,9 +2,9 @@ abstract final class AppInfo {
   static const String name = 'Flash Dox';
 
   /// Publisher wordmark shown on the splash and in Settings.
-  static const String publisher = 'SWATNOA';
-  static const String androidPackage = 'com.flashdox.app';
-  static const String iosBundleId = 'com.flashdox.app';
+  static const String publisher = 'SWTNOA';
+  static const String androidPackage = 'com.swtnoa.flashdox';
+  static const String iosBundleId = 'com.swtnoa.flashdox';
 
   /// GitHub Pages, from `site/` in this repo (see site/README.md).
   static const String siteUrl = 'https://ismail-ilm66.github.io/flash-dox-site';

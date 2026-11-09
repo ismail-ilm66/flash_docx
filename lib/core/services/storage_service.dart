@@ -7,7 +7,7 @@ enum StorageLevel { ok, low, critical }
 /// `volumeAvailableCapacityForImportantUsage`.
 @lazySingleton
 class StorageService {
-  static const _channel = MethodChannel('com.flashdox.app/storage');
+  static const _channel = MethodChannel('com.swtnoa.flashdox/storage');
 
   /// Below this, warn that scans may be slow.
   static const int lowBytes = 300 * 1024 * 1024;

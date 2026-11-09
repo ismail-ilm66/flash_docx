@@ -8,8 +8,8 @@ import 'package:injectable/injectable.dart';
 /// a no-op until a Share Extension target is added in Xcode.
 @lazySingleton
 class ShareInService {
-  static const _method = MethodChannel('com.flashdox.app/share_in');
-  static const _events = EventChannel('com.flashdox.app/share_in/events');
+  static const _method = MethodChannel('com.swtnoa.flashdox/share_in');
+  static const _events = EventChannel('com.swtnoa.flashdox/share_in/events');
 
   /// Paths shared while the app was closed (consumed once).
   Future<List<String>> initialShare() async {

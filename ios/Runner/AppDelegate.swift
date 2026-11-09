@@ -4,14 +4,14 @@ import UIKit
 /// Receives images shared into Flash Dox from the Share Extension.
 ///
 /// The extension copies the files into the App Group container
-/// (`group.com.flashdox.app/share_in/`) and opens `flashdox://share`. This
+/// (`group.com.swtnoa.flashdox/share_in/`) and opens `flashdox://share`. This
 /// delegate hands the file paths to Dart over the same MethodChannel /
 /// EventChannel names that Android uses, so the Dart side is identical.
 @main
 @objc class AppDelegate: FlutterAppDelegate {
-  static let appGroup = "group.com.flashdox.app"
-  private let methodChannelName = "com.flashdox.app/share_in"
-  private let eventChannelName = "com.flashdox.app/share_in/events"
+  static let appGroup = "group.com.swtnoa.flashdox"
+  private let methodChannelName = "com.swtnoa.flashdox/share_in"
+  private let eventChannelName = "com.swtnoa.flashdox/share_in/events"
 
   private var eventSink: FlutterEventSink?
   private var pending: [String] = []
@@ -37,7 +37,7 @@ import UIKit
           }
         }
       // Free storage for the camera's low-space warning (round 3, P0-C).
-      FlutterMethodChannel(name: "com.flashdox.app/storage", binaryMessenger: messenger)
+      FlutterMethodChannel(name: "com.swtnoa.flashdox/storage", binaryMessenger: messenger)
         .setMethodCallHandler { call, result in
           guard call.method == "freeBytes" else { return result(FlutterMethodNotImplemented) }
           let url = URL(fileURLWithPath: NSHomeDirectory())

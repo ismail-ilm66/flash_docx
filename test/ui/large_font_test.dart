@@ -221,7 +221,7 @@ void main() {
     await setUpView(tester);
     // "Share to Flash Dox" has no platform side in tests.
     tester.binding.defaultBinaryMessenger.setMockStreamHandler(
-      const EventChannel('com.flashdox.app/share_in/events'),
+      const EventChannel('com.swtnoa.flashdox/share_in/events'),
       MockStreamHandler.inline(onListen: (_, _) {}),
     );
     // Not the splash: it clears the temp folders the tests set up.

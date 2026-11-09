@@ -1,4 +1,4 @@
-package com.flashdox.app
+package com.swtnoa.flashdox
 
 import android.app.UiModeManager
 import android.content.Intent
@@ -18,8 +18,8 @@ import java.io.FileOutputStream
 /// the file paths to Dart over a MethodChannel (initial intent) and an
 /// EventChannel (intents that arrive while the app is already running).
 class MainActivity : FlutterActivity() {
-    private val methodChannelName = "com.flashdox.app/share_in"
-    private val eventChannelName = "com.flashdox.app/share_in/events"
+    private val methodChannelName = "com.swtnoa.flashdox/share_in"
+    private val eventChannelName = "com.swtnoa.flashdox/share_in/events"
 
     private var pendingPaths: List<String>? = null
     private var eventSink: EventChannel.EventSink? = null
@@ -37,7 +37,7 @@ class MainActivity : FlutterActivity() {
                 }
             }
         // Free storage for the camera's low-space warning (round 3, P0-C).
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flashdox.app/storage")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.swtnoa.flashdox/storage")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "freeBytes" -> try {
@@ -51,7 +51,7 @@ class MainActivity : FlutterActivity() {
         // The Android 12+ system splash is drawn before Flutter starts, so it
         // can only match the in-app theme if Android already knows it. The
         // app night mode is persisted by the OS and used for the next launch.
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.flashdox.app/theme")
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.swtnoa.flashdox/theme")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "setNightMode" -> {

@@ -9,7 +9,7 @@ import 'package:injectable/injectable.dart';
 /// Older Android and iOS splashes can only follow the system setting.
 @lazySingleton
 class NightModeService {
-  static const _channel = MethodChannel('com.flashdox.app/theme');
+  static const _channel = MethodChannel('com.swtnoa.flashdox/theme');
 
   Future<void> apply(ThemeMode mode) async {
     if (!Platform.isAndroid) return;

@@ -4,7 +4,7 @@ Placeholders to replace before a store release.
 
 | Item | Where |
 |---|---|
-| App ID | `com.flashdox.app` (placeholder) in `android/app/build.gradle.kts`, `ios/Runner.xcodeproj`, `core/constants/app_info.dart` |
+| App ID | final: `com.swtnoa.flashdox` (2026-11-09) in `android/app/build.gradle.kts`, `ios/Runner.xcodeproj`, `core/constants/app_info.dart` |
 | Privacy / FAQ / store URLs | privacy and FAQ done: `site/` published to GitHub Pages (`site/README.md`), `siteUrl` in `core/constants/app_info.dart`; App Store URL still a placeholder |
 | Crashlytics | add `google-services.json` / `GoogleService-Info.plist`, `firebase_core` + `firebase_crashlytics`, hook in `app/bootstrap.dart` |
 | App icon | done from the brand handoff (`flash_dox_logo`): sources in `assets/launcher/`, regenerate with `dart run flutter_launcher_icons` (then `git checkout ios/Runner.xcodeproj/project.pbxproj`: the tool writes an invalid `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`). Play listing icon: `store/play_store_icon_512.png` |

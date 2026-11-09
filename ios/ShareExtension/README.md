@@ -5,7 +5,7 @@ can't safely be edited by hand). About 10 minutes:
 
 1. Open `ios/Runner.xcworkspace`. **File → New → Target → Share Extension.**
    Product name `ShareExtension`, language Swift, bundle id
-   `com.flashdox.app.ShareExtension`. Don't activate the scheme when asked.
+   `com.swtnoa.flashdox.ShareExtension`. Don't activate the scheme when asked.
 2. Delete the generated `ShareViewController.swift`, `MainInterface.storyboard`
    and `Info.plist` in the new group, then **add the three files from this
    folder** (`ShareViewController.swift`, `Info.plist`,
@@ -14,7 +14,7 @@ can't safely be edited by hand). About 10 minutes:
    `ShareExtension/Info.plist` and *Code Signing Entitlements* to
    `ShareExtension/ShareExtension.entitlements`.
 3. **Signing & Capabilities** on *both* `Runner` and `ShareExtension`: add
-   **App Groups** and tick `group.com.flashdox.app`. For `Runner`, point
+   **App Groups** and tick `group.com.swtnoa.flashdox`. For `Runner`, point
    *Code Signing Entitlements* at `Runner/Runner.entitlements` (already written).
 4. Set the extension's deployment target to the same iOS version as Runner (15.5).
 5. In `Podfile`, add the extension target so it builds with the workspace:
