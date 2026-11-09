@@ -5,7 +5,7 @@ Placeholders to replace before a store release.
 | Item | Where |
 |---|---|
 | App ID | `com.flashdox.app` (placeholder) in `android/app/build.gradle.kts`, `ios/Runner.xcodeproj`, `core/constants/app_info.dart` |
-| Privacy / FAQ / store URLs | `core/constants/app_info.dart` |
+| Privacy / FAQ / store URLs | privacy and FAQ done: `site/` published to GitHub Pages (`site/README.md`), `siteUrl` in `core/constants/app_info.dart`; App Store URL still a placeholder |
 | Crashlytics | add `google-services.json` / `GoogleService-Info.plist`, `firebase_core` + `firebase_crashlytics`, hook in `app/bootstrap.dart` |
 | App icon | done from the brand handoff (`flash_dox_logo`): sources in `assets/launcher/`, regenerate with `dart run flutter_launcher_icons` (then `git checkout ios/Runner.xcodeproj/project.pbxproj`: the tool writes an invalid `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`). Play listing icon: `store/play_store_icon_512.png` |
 | Design icons | done: the canvas's stroke set is in `assets/icons/`; entries still on Material fallbacks in `shared/widgets/app_icons.dart` have no `asset:` |
@@ -28,7 +28,7 @@ Placeholders to replace before a store release.
   Play's per-ABI split of the App Bundle sends a phone only its own ABI, about 45 MB
   uncompressed for arm64. Check the real download size in Play Console › App size.
 - **Still the owner's:** back up the upload keystore and its password outside the repo; final
-  package name, privacy policy URL, store graphics.
+  package name, publishing `site/` to GitHub Pages, store graphics.
 
 ## Rewarded ads (off for v1)
 
