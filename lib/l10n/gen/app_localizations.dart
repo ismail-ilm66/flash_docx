@@ -2086,12 +2086,6 @@ abstract class AppLocalizations {
   /// **'Photos on sheet'**
   String get photoCopies;
 
-  /// No description provided for @photoFull.
-  ///
-  /// In en, this message translates to:
-  /// **'Full ({count})'**
-  String photoFull(int count);
-
   /// No description provided for @photoCutLines.
   ///
   /// In en, this message translates to:

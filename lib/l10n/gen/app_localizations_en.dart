@@ -1124,11 +1124,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoCopies => 'Photos on sheet';
 
   @override
-  String photoFull(int count) {
-    return 'Full ($count)';
-  }
-
-  @override
   String get photoCutLines => 'Cut lines';
 
   @override

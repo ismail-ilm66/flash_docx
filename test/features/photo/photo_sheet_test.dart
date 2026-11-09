@@ -14,8 +14,8 @@ void main() {
       expect(PhotoSheetCalculator.capacity(35, 45, PhotoPaper.fourBySix), (cols: 2, rows: 3));
     });
 
-    test('counts: 4 · 8 · 12 · 16 · Full, only those that fit', () {
-      expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.a4), [4, 8, 12, 16, 25]);
+    test('counts: 4 · 8 · 12 · 16 that fit, no full sheet; the most on small paper', () {
+      expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.a4), [4, 8, 12, 16]);
       expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.fourBySix), [4, 6]);
       expect(PhotoSheetCalculator.counts(50.8, 50.8, PhotoPaper.a4), [4, 8, 12, 15]);
     });

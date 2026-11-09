@@ -277,8 +277,7 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                           children: [
                             for (final n in counts)
                               OptionChip(
-                                // The last choice is always a full sheet.
-                                label: n == counts.last ? l.photoFull(n) : '$n',
+                                label: '$n',
                                 selected: n == _effectiveCount,
                                 onTap: () => setState(() => _count = n),
                               ),

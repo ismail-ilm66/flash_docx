@@ -569,14 +569,6 @@
   "photoPaperA4": "A4",
   "photoPaper4x6": "4 × 6 in photo paper",
   "photoCopies": "Photos on sheet",
-  "photoFull": "Full ({count})",
-  "@photoFull": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "photoCutLines": "Cut lines",
   "photoPrintTip": "Print at 100% / Actual size. Photo shops can print the 4 × 6 sheet on glossy photo paper.",
   "photoSharePdf": "Share PDF",

@@ -272,13 +272,12 @@ abstract final class PhotoSheetCalculator {
     return c.cols * c.rows;
   }
 
-  /// Copies offered: 4 · 8 · 12 · 16 (those that fit) and Full.
+  /// Copies offered: 4 · 8 · 12 · 16, those that fit; on smaller paper
+  /// the most that fits too (6 on 4 × 6 in). No "full sheet" choice.
   static List<int> counts(double w, double h, PhotoPaper paper) {
     final max = full(w, h, paper);
-    return [
-      ...const [4, 8, 12, 16].where((n) => n < max),
-      if (max > 0) max,
-    ];
+    final fits = const [4, 8, 12, 16].where((n) => n <= max).toList();
+    return [...fits, if (max < 16 && max > 0 && !fits.contains(max)) max];
   }
 
   /// Items filled row by row from the top-left of a centred grid. A partly
