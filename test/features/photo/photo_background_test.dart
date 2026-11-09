@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -118,5 +119,77 @@ void main() {
   test('a photo saved as light blue (first build) still loads, as dark blue', () {
     final e = PageEdits.fromJson(const {'photoBackground': 'lightBlue'});
     expect(e.photoBackground, PhotoBackground.darkBlue);
+  });
+
+  group('edges (round 5 feedback: white fringe on dark blue)', () {
+    // Head and shoulders on a white wall; the mask is ML Kit-like: low
+    // resolution and a few px too generous.
+    const w = 531;
+    const h = 683;
+    late cv.Mat truth;
+    late cv.Mat coarse;
+
+    cv.Mat person({bool whiteShirt = false}) {
+      final img = cv.Mat.fromScalar(h, w, cv.MatType.CV_8UC3, cv.Scalar(232, 236, 238));
+      void shape(cv.Mat m, cv.Scalar c) {
+        cv.ellipse(m, cv.Point(265, 300), cv.Point(150, 190), 0, 0, 360, c, thickness: -1, lineType: cv.LINE_AA);
+        cv.ellipse(m, cv.Point(265, 760), cv.Point(300, 230), 0, 0, 360, c, thickness: -1, lineType: cv.LINE_AA);
+      }
+
+      shape(img, cv.Scalar(38, 32, 30));
+      if (whiteShirt) {
+        cv.ellipse(img, cv.Point(265, 760), cv.Point(300, 230), 0, 0, 360, cv.Scalar(246, 247, 248), thickness: -1, lineType: cv.LINE_AA);
+        cv.ellipse(img, cv.Point(265, 760), cv.Point(120, 200), 0, 0, 360, cv.Scalar(38, 32, 30), thickness: -1, lineType: cv.LINE_AA);
+      }
+      cv.ellipse(img, cv.Point(265, 330), cv.Point(95, 125), 0, 0, 360, cv.Scalar(140, 165, 205), thickness: -1, lineType: cv.LINE_AA);
+      truth = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
+      shape(truth, cv.Scalar.all(255));
+      final small = cv.resize(truth, (64, 82), interpolation: cv.INTER_AREA);
+      final blurred = cv.gaussianBlur(small, (0, 0), 1.2);
+      coarse = blurred.convertTo(cv.MatType.CV_8UC1, alpha: 1.4);
+      small.dispose();
+      blurred.dispose();
+      return img;
+    }
+
+    test('no pale fringe around dark hair and clothes', () {
+      final img = person();
+      final out = pipe.replaceBackground(img, coarse, pipe.photoBackgroundColor(PhotoBackground.darkBlue)!);
+      final gray = cv.cvtColor(out, cv.COLOR_BGR2GRAY);
+      final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (41, 41));
+      final grown = cv.dilate(truth, k);
+      final shrunk = cv.erode(truth, k);
+      var bright = 0;
+      var total = 0;
+      for (var y = 0; y < h; y++) {
+        for (var x = 0; x < w; x++) {
+          if (grown.at<int>(y, x) == shrunk.at<int>(y, x)) continue;
+          final fx = (x - 265) / 105;
+          final fy = (y - 330) / 135;
+          if (fx * fx + fy * fy < 1) continue; // the face is light on purpose
+          total++;
+          // Hair ≈ 32, dark blue ≈ 71: anything well above is wall showing.
+          if (gray.at<int>(y, x) > 110) bright++;
+        }
+      }
+      // The plain feathered blend left ~22 % of this ring pale.
+      expect(bright / total, lessThan(0.005), reason: '$bright of $total pale');
+      for (final m in [img, out, gray, k, grown, shrunk, truth, coarse]) {
+        m.dispose();
+      }
+    });
+
+    test('a white shirt beside a dark jacket is not taken for wall', () {
+      final img = person(whiteShirt: true);
+      final out = pipe.replaceBackground(img, coarse, pipe.photoBackgroundColor(PhotoBackground.darkBlue)!);
+      // Shirt just above the jacket, near the outline: once turned blue.
+      for (final x in [200, 265, 330]) {
+        expect(px(out, 548, x).reduce(math.min), greaterThan(200), reason: 'shirt at x $x');
+      }
+      expect(px(out, 40, 40), [140, 78, 31], reason: 'wall');
+      for (final m in [img, out, truth, coarse]) {
+        m.dispose();
+      }
+    });
   });
 }

@@ -54,7 +54,14 @@ cv.Mat applyExifOrientation(cv.Mat m, int orientation) {
     case 7:
     case 8:
       final t = cv.transpose(m);
-      final out = cv.flip(t, orientation == 6 ? 1 : orientation == 7 ? -1 : 0);
+      final out = cv.flip(
+        t,
+        orientation == 6
+            ? 1
+            : orientation == 7
+            ? -1
+            : 0,
+      );
       t.dispose();
       return out;
     default:
@@ -71,15 +78,27 @@ String normalizeCapture(String path, CaptureMeta? meta) {
   final o = readJpegOrientation(path);
   var size = jpegSize(path);
   if (size == null) {
-    final probe = cv.imread(path, flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION);
+    final probe = cv.imread(
+      path,
+      flags: cv.IMREAD_REDUCED_GRAYSCALE_8 | cv.IMREAD_IGNORE_ORIENTATION,
+    );
     size = (width: probe.cols, height: probe.rows);
     probe.dispose();
   }
-  final rot = captureRotation(exif: o, width: size.width, height: size.height, meta: meta);
-  final report = '[orient] exif=$o ${meta ?? 'import'} pixels=${size.width}x${size.height} '
+  final rot = captureRotation(
+    exif: o,
+    width: size.width,
+    height: size.height,
+    meta: meta,
+  );
+  final report =
+      '[orient] exif=$o ${meta ?? 'import'} pixels=${size.width}x${size.height} '
       'final=${rot.turns * 90}°${rot.mirror ? ' mirrored' : ''}';
   if (o <= 1 && rot.turns == 0 && !rot.mirror) return report;
-  final raw = cv.imread(path, flags: cv.IMREAD_COLOR | cv.IMREAD_IGNORE_ORIENTATION);
+  final raw = cv.imread(
+    path,
+    flags: cv.IMREAD_COLOR | cv.IMREAD_IGNORE_ORIENTATION,
+  );
   if (raw.isEmpty) {
     raw.dispose();
     throw StateError('Could not decode $path');
@@ -148,7 +167,12 @@ cv.Mat readUprightAtMost(String path, int targetLongEdge) {
         continue;
       }
       final len = (bytes[i + 2] << 8) | bytes[i + 3];
-      final isSof = marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC;
+      final isSof =
+          marker >= 0xC0 &&
+          marker <= 0xCF &&
+          marker != 0xC4 &&
+          marker != 0xC8 &&
+          marker != 0xCC;
       if (isSof) {
         final h = (bytes[i + 5] << 8) | bytes[i + 6];
         final w = (bytes[i + 7] << 8) | bytes[i + 8];
@@ -255,11 +279,11 @@ DetectionReport detectDocument(
       local.dispose();
       if (inner.found) {
         Quad toFull(Quad q) => Quad(
-              tl: Pt((rx + q.tl.x * rw) / bgr.cols, (ry + q.tl.y * rh) / bgr.rows),
-              tr: Pt((rx + q.tr.x * rw) / bgr.cols, (ry + q.tr.y * rh) / bgr.rows),
-              br: Pt((rx + q.br.x * rw) / bgr.cols, (ry + q.br.y * rh) / bgr.rows),
-              bl: Pt((rx + q.bl.x * rw) / bgr.cols, (ry + q.bl.y * rh) / bgr.rows),
-            );
+          tl: Pt((rx + q.tl.x * rw) / bgr.cols, (ry + q.tl.y * rh) / bgr.rows),
+          tr: Pt((rx + q.tr.x * rw) / bgr.cols, (ry + q.tr.y * rh) / bgr.rows),
+          br: Pt((rx + q.br.x * rw) / bgr.cols, (ry + q.br.y * rh) / bgr.rows),
+          bl: Pt((rx + q.bl.x * rw) / bgr.cols, (ry + q.bl.y * rh) / bgr.rows),
+        );
         sw.stop();
         return DetectionReport(
           quad: toFull(inner.quad!),
@@ -291,7 +315,10 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
   final cv.Mat small;
   if (scale < 1) {
     // Truncation like the reference's int(W * scale).
-    small = cv.resize(bgr, ((wFull * scale).toInt(), (hFull * scale).toInt()), interpolation: cv.INTER_AREA);
+    small = cv.resize(bgr, (
+      (wFull * scale).toInt(),
+      (hFull * scale).toInt(),
+    ), interpolation: cv.INTER_AREA);
   } else {
     small = bgr.clone();
     scale = 1;
@@ -303,7 +330,11 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
   final scored = <({List<XY> q, double score, String src})>[];
   for (final (name, map) in _candidateMaps(small)) {
     final retr = name == 'edges' ? cv.RETR_LIST : cv.RETR_EXTERNAL;
-    final (contours, hierarchy) = cv.findContours(map, retr, cv.CHAIN_APPROX_SIMPLE);
+    final (contours, hierarchy) = cv.findContours(
+      map,
+      retr,
+      cv.CHAIN_APPROX_SIMPLE,
+    );
     for (var i = 0; i < contours.length; i++) {
       final c = contours[i];
       final area = cv.contourArea(c);
@@ -327,7 +358,11 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
       final frac = qa / imgArea;
       if (frac > 0.98) continue;
       final m = 0.02 * math.max(w, h);
-      final onBorder = q.where((p) => p.x < m || p.y < m || p.x > w - 1 - m || p.y > h - 1 - m).length;
+      final onBorder = q
+          .where(
+            (p) => p.x < m || p.y < m || p.x > w - 1 - m || p.y > h - 1 - m,
+          )
+          .length;
       if (onBorder >= 3) continue;
       final rect = cornerAnglesScore(q);
       if (rect < 0.55) continue;
@@ -351,7 +386,13 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
   small.dispose();
 
   if (scored.isEmpty) {
-    return const DetectionReport(quad: null, score: 0, elapsed: Duration.zero, strategy: 'none', candidates: 0);
+    return const DetectionReport(
+      quad: null,
+      score: 0,
+      elapsed: Duration.zero,
+      strategy: 'none',
+      candidates: 0,
+    );
   }
   // Stable: the first candidate with the top score wins, as in the reference.
   final ranked = [...scored]..sort((a, b) => b.score.compareTo(a.score));
@@ -360,11 +401,11 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
     if (s.score > best.score) best = s;
   }
   Quad norm(List<XY> q) => Quad(
-        tl: Pt(q[0].x / scale / wFull, q[0].y / scale / hFull),
-        tr: Pt(q[1].x / scale / wFull, q[1].y / scale / hFull),
-        br: Pt(q[2].x / scale / wFull, q[2].y / scale / hFull),
-        bl: Pt(q[3].x / scale / wFull, q[3].y / scale / hFull),
-      );
+    tl: Pt(q[0].x / scale / wFull, q[0].y / scale / hFull),
+    tr: Pt(q[1].x / scale / wFull, q[1].y / scale / hFull),
+    br: Pt(q[2].x / scale / wFull, q[2].y / scale / hFull),
+    bl: Pt(q[3].x / scale / wFull, q[3].y / scale / hFull),
+  );
   return DetectionReport(
     quad: norm(best.q),
     score: best.score,
@@ -384,9 +425,16 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
 final cv.Scalar _neutralBorder = cv.Scalar.all(double.maxFinite);
 
 cv.Mat _morph(cv.Mat src, int op, cv.Mat kernel, {int iterations = 1}) =>
-    cv.morphologyEx(src, op, kernel, iterations: iterations, borderValue: _neutralBorder);
+    cv.morphologyEx(
+      src,
+      op,
+      kernel,
+      iterations: iterations,
+      borderValue: _neutralBorder,
+    );
 
-cv.Mat _dilate(cv.Mat src, cv.Mat kernel) => cv.dilate(src, kernel, borderValue: _neutralBorder);
+cv.Mat _dilate(cv.Mat src, cv.Mat kernel) =>
+    cv.dilate(src, kernel, borderValue: _neutralBorder);
 
 /// The binary maps detection searches, in the reference's order (ties go to
 /// the earlier map). Round 5, P0-4 adds "smooth" (the page is the big area
@@ -419,7 +467,12 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
   final smooth = _dilate(smoothOpen, k);
   maps.add(('smooth', smooth));
   // Close shapes that run off the photo (page partly outside the frame).
-  cv.rectangle(dil, cv.Rect(0, 0, dil.cols, dil.rows), cv.Scalar.all(255), thickness: 2);
+  cv.rectangle(
+    dil,
+    cv.Rect(0, 0, dil.cols, dil.rows),
+    cv.Scalar.all(255),
+    thickness: 2,
+  );
   maps.add(('edges', dil));
   for (final x in [blur, edges, closed, inverted, k3, smoothOpen]) {
     x.dispose();
@@ -453,7 +506,10 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
   // cuts thin bridges to pale patches of background; the page survives.
   final ko = math.max(15, (math.min(small.rows, small.cols) ~/ 10) | 1);
   final kBig = cv.getStructuringElement(cv.MORPH_ELLIPSE, (ko, ko));
-  for (final (name, pale) in [('smooth+lowsat', lowsat), ('smooth+bright', bright)]) {
+  for (final (name, pale) in [
+    ('smooth+lowsat', lowsat),
+    ('smooth+bright', bright),
+  ]) {
     final both = cv.bitwiseAND(smooth, pale);
     final opened = _morph(both, cv.MORPH_OPEN, kBig);
     maps.add((name, _morph(opened, cv.MORPH_CLOSE, k2, iterations: 2)));
@@ -478,7 +534,10 @@ List<XY>? _quadFromContour(cv.VecPoint c) {
     for (final eps in const [0.02, 0.03, 0.04, 0.06, 0.08]) {
       final approx = cv.approxPolyDP(hull, eps * peri, true);
       if (approx.length == 4) {
-        final pts = [for (var j = 0; j < 4; j++) (x: approx[j].x.toDouble(), y: approx[j].y.toDouble())];
+        final pts = [
+          for (var j = 0; j < 4; j++)
+            (x: approx[j].x.toDouble(), y: approx[j].y.toDouble()),
+        ];
         approx.dispose();
         return pts;
       }
@@ -518,14 +577,17 @@ double cornerAnglesScore(List<XY> q) {
     final v1y = a.y - b.y;
     final v2x = c.x - b.x;
     final v2y = c.y - b.y;
-    final n = math.sqrt(v1x * v1x + v1y * v1y) * math.sqrt(v2x * v2x + v2y * v2y) + 1e-6;
+    final n =
+        math.sqrt(v1x * v1x + v1y * v1y) * math.sqrt(v2x * v2x + v2y * v2y) +
+        1e-6;
     sum += ((v1x * v2x + v1y * v2y) / n).abs();
   }
   return math.max(0.0, 1.0 - 2.0 * sum / 4);
 }
 
 double quadAspect(List<XY> q) {
-  double d(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  double d(XY a, XY b) =>
+      math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
   final w = (d(q[1], q[0]) + d(q[2], q[3])) / 2;
   final h = (d(q[3], q[0]) + d(q[2], q[1])) / 2;
   return math.max(w, h) / math.max(1e-6, math.min(w, h));
@@ -613,19 +675,36 @@ Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
 /// of the short side, max gap 10 px) → segments on the same line merged.
 /// Corners are intersections of near-perpendicular lines that lie near both
 /// segments, plus the corners of the top five detected quads.
-({List<(Pt, Pt)> lines, List<Pt> corners}) snapCandidates(cv.Mat bgr, {double? aspectHint}) {
+({List<(Pt, Pt)> lines, List<Pt> corners}) snapCandidates(
+  cv.Mat bgr, {
+  double? aspectHint,
+}) {
   final s = math.min(1.0, kDetectLongEdge / math.max(bgr.rows, bgr.cols));
   final small = s < 1
-      ? cv.resize(bgr, ((bgr.cols * s).toInt(), (bgr.rows * s).toInt()), interpolation: cv.INTER_AREA)
+      ? cv.resize(bgr, (
+          (bgr.cols * s).toInt(),
+          (bgr.rows * s).toInt(),
+        ), interpolation: cv.INTER_AREA)
       : bgr.clone();
   final w = small.cols.toDouble();
   final h = small.rows.toDouble();
   final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
   final blur = cv.gaussianBlur(gray, (5, 5), 0);
   final m = medianOf(blur);
-  final edges = cv.canny(blur, math.max(10.0, 0.66 * m), math.min(255.0, math.max(40.0, 1.33 * m)));
+  final edges = cv.canny(
+    blur,
+    math.max(10.0, 0.66 * m),
+    math.min(255.0, math.max(40.0, 1.33 * m)),
+  );
   final minLen = 0.08 * math.min(w, h);
-  final raw = cv.HoughLinesP(edges, 1, math.pi / 180, 40, minLineLength: minLen, maxLineGap: 10);
+  final raw = cv.HoughLinesP(
+    edges,
+    1,
+    math.pi / 180,
+    40,
+    minLineLength: minLen,
+    maxLineGap: 10,
+  );
   final segs = <(XY, XY)>[];
   if (!raw.isEmpty) {
     final data = raw.isContinuous ? raw.data : raw.clone().data;
@@ -641,8 +720,9 @@ Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
     x.dispose();
   }
 
-  final merged = mergeSegments(segs).where((l) => _len(l.$1, l.$2) >= minLen).toList()
-    ..sort((a, b) => _len(b.$1, b.$2).compareTo(_len(a.$1, a.$2)));
+  final merged =
+      mergeSegments(segs).where((l) => _len(l.$1, l.$2) >= minLen).toList()
+        ..sort((a, b) => _len(b.$1, b.$2).compareTo(_len(a.$1, a.$2)));
   final lines = merged.take(40).toList();
 
   final corners = <XY>[];
@@ -655,8 +735,15 @@ Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
       if (ang < 60) continue; // near-perpendicular only (60°–90°)
       final p = _intersect(a1, a2, b1, b2);
       if (p == null) continue;
-      if (p.x < -0.02 * w || p.y < -0.02 * h || p.x > 1.02 * w || p.y > 1.02 * h) continue;
-      if (_distToSegment(p, a1, a2) > near || _distToSegment(p, b1, b2) > near) continue;
+      if (p.x < -0.02 * w ||
+          p.y < -0.02 * h ||
+          p.x > 1.02 * w ||
+          p.y > 1.02 * h) {
+        continue;
+      }
+      if (_distToSegment(p, a1, a2) > near || _distToSegment(p, b1, b2) > near) {
+        continue;
+      }
       corners.add(p);
     }
   }
@@ -667,10 +754,16 @@ Quad fallbackQuad({Quad? guide}) => guide ?? Quad.full(inset: 0.05);
   final out = <Pt>[for (final q in det.ranked) ...q.points];
   for (final c in corners) {
     final n = Pt(c.x / w, c.y / h).clamp01();
-    if (out.every((o) => (o.x - n.x).abs() * w > 6 || (o.y - n.y).abs() * h > 6)) out.add(n);
+    if (out.every(
+      (o) => (o.x - n.x).abs() * w > 6 || (o.y - n.y).abs() * h > 6,
+    )) {
+      out.add(n);
+    }
   }
   return (
-    lines: [for (final (a, b) in lines) (Pt(a.x / w, a.y / h), Pt(b.x / w, b.y / h))],
+    lines: [
+      for (final (a, b) in lines) (Pt(a.x / w, a.y / h), Pt(b.x / w, b.y / h)),
+    ],
     corners: out,
   );
 }
@@ -717,7 +810,9 @@ List<(XY, XY)> mergeSegments(List<(XY, XY)> segs) {
     for (final g in groups)
       () {
         // Direction of the longest segment; extent = all endpoints projected.
-        final longest = g.reduce((a, b) => _len(a.$1, a.$2) >= _len(b.$1, b.$2) ? a : b);
+        final longest = g.reduce(
+          (a, b) => _len(a.$1, a.$2) >= _len(b.$1, b.$2) ? a : b,
+        );
         final (a, b) = longest;
         final len = _len(a, b);
         final dx = (b.x - a.x) / len;
@@ -731,19 +826,24 @@ List<(XY, XY)> mergeSegments(List<(XY, XY)> segs) {
             if (t > tMax) tMax = t;
           }
         }
-        return ((x: a.x + dx * tMin, y: a.y + dy * tMin), (x: a.x + dx * tMax, y: a.y + dy * tMax));
+        return (
+          (x: a.x + dx * tMin, y: a.y + dy * tMin),
+          (x: a.x + dx * tMax, y: a.y + dy * tMax),
+        );
       }(),
   ];
 }
 
-double _len(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+double _len(XY a, XY b) =>
+    math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
 
 double _angleDeg(XY a1, XY a2, XY b1, XY b2) {
   final rx = a2.x - a1.x;
   final ry = a2.y - a1.y;
   final sx = b2.x - b1.x;
   final sy = b2.y - b1.y;
-  final cos = (rx * sx + ry * sy).abs() / math.max(1e-9, _len(a1, a2) * _len(b1, b2));
+  final cos =
+      (rx * sx + ry * sy).abs() / math.max(1e-9, _len(a1, a2) * _len(b1, b2));
   return math.acos(cos.clamp(0.0, 1.0)) * 180 / math.pi;
 }
 
@@ -777,8 +877,11 @@ double _distToSegment(XY p, XY a, XY b) {
 cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
   final w = src.cols.toDouble();
   final h = src.rows.toDouble();
-  final q = orderCorners([for (final p in quad.points) (x: p.x * w, y: p.y * h)]);
-  double d(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
+  final q = orderCorners([
+    for (final p in quad.points) (x: p.x * w, y: p.y * h),
+  ]);
+  double d(XY a, XY b) =>
+      math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
   var wt = math.max(d(q[2], q[3]), d(q[1], q[0])).toInt();
   var ht = math.max(d(q[1], q[2]), d(q[0], q[3])).toInt();
   if (aspect != null && aspect < 1) {
@@ -796,7 +899,9 @@ cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
   }
   wt = math.max(1, wt);
   ht = math.max(1, ht);
-  final srcPts = cv.VecPoint2f.fromList([for (final p in q) cv.Point2f(p.x, p.y)]);
+  final srcPts = cv.VecPoint2f.fromList([
+    for (final p in q) cv.Point2f(p.x, p.y),
+  ]);
   final dstPts = cv.VecPoint2f.fromList([
     cv.Point2f(0, 0),
     cv.Point2f(wt - 1.0, 0),
@@ -804,7 +909,13 @@ cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
     cv.Point2f(0, ht - 1.0),
   ]);
   final m = cv.getPerspectiveTransform2f(srcPts, dstPts);
-  final out = cv.warpPerspective(src, m, (wt, ht), flags: cv.INTER_CUBIC, borderMode: cv.BORDER_REPLICATE);
+  final out = cv.warpPerspective(
+    src,
+    m,
+    (wt, ht),
+    flags: cv.INTER_CUBIC,
+    borderMode: cv.BORDER_REPLICATE,
+  );
   m.dispose();
   srcPts.dispose();
   dstPts.dispose();
@@ -872,7 +983,11 @@ cv.Mat grayWorldWb(cv.Mat bgr, double strength) {
   final ch = cv.split(bgr);
   final scaled = <cv.Mat>[
     for (var i = 0; i < 3; i++)
-      ch[i].convertTo(cv.MatType.CV_8UC1, alpha: 1 + (avg / math.max(means[i], 1.0) - 1) * strength, beta: _trunc),
+      ch[i].convertTo(
+        cv.MatType.CV_8UC1,
+        alpha: 1 + (avg / math.max(means[i], 1.0) - 1) * strength,
+        beta: _trunc,
+      ),
   ];
   final out = cv.merge(cv.VecMat.fromList(scaled));
   for (final s in scaled) {
@@ -925,7 +1040,9 @@ double estimateNoise(cv.Mat bgr) {
   final lap = cv.laplacian(g32, cv.MatType.CV_32F);
   final cont = lap.isContinuous ? lap : lap.clone();
   final bytes = cont.data;
-  final values = Float32List.fromList(bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols));
+  final values = Float32List.fromList(
+    bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols),
+  );
   for (final m in [gray, g32, lap]) {
     m.dispose();
   }
@@ -997,11 +1114,20 @@ cv.Mat denoise(cv.Mat bgr, {double minH = 3.0, double maxH = 6.0}) {
   final w = bgr.cols;
   final s = math.min(1.0, 2000.0 / math.max(h, w));
   final small = s < 1
-      ? cv.resize(bgr, ((w * s).toInt(), (h * s).toInt()), interpolation: cv.INTER_AREA)
+      ? cv.resize(bgr, (
+          (w * s).toInt(),
+          (h * s).toInt(),
+        ), interpolation: cv.INTER_AREA)
       : bgr;
   cv.Mat clean;
   try {
-    clean = cv.fastNlMeansDenoisingColored(small, h: strength, hColor: strength, templateWindowSize: 7, searchWindowSize: 21);
+    clean = cv.fastNlMeansDenoisingColored(
+      small,
+      h: strength,
+      hColor: strength,
+      templateWindowSize: 7,
+      searchWindowSize: 21,
+    );
   } catch (_) {
     clean = cv.bilateralFilter(small, 7, 40, 40);
   }
@@ -1026,7 +1152,10 @@ cv.Mat background(cv.Mat ch8) {
   final h = ch8.rows;
   final w = ch8.cols;
   final s = 400.0 / math.max(h, w);
-  final small = cv.resize(ch8, (math.max(1, (w * s).toInt()), math.max(1, (h * s).toInt())), interpolation: cv.INTER_AREA);
+  final small = cv.resize(ch8, (
+    math.max(1, (w * s).toInt()),
+    math.max(1, (h * s).toInt()),
+  ), interpolation: cv.INTER_AREA);
   final k = cv.getStructuringElement(cv.MORPH_RECT, (9, 9));
   final dil = _dilate(small, k);
   final med = cv.medianBlur(dil, 21);
@@ -1040,13 +1169,24 @@ cv.Mat background(cv.Mat ch8) {
 }
 
 /// `f / max(bg, floor) * scale` blended with `f`, per channel, as uint8.
-cv.Mat _normalizeIllumination(cv.Mat ch8, {required double scale, double blend = 1.0}) {
+cv.Mat _normalizeIllumination(
+  cv.Mat ch8, {
+  required double scale,
+  double blend = 1.0,
+}) {
   final bg = background(ch8);
-  final floor = cv.Mat.fromScalar(bg.rows, bg.cols, cv.MatType.CV_32FC1, cv.Scalar.all(40));
+  final floor = cv.Mat.fromScalar(
+    bg.rows,
+    bg.cols,
+    cv.MatType.CV_32FC1,
+    cv.Scalar.all(40),
+  );
   final bgc = cv.max(bg, floor);
   final f = ch8.convertTo(cv.MatType.CV_32FC1);
   final norm = cv.divide(f, bgc, scale: scale);
-  final mixed = blend >= 1 ? norm : cv.addWeighted(norm, blend, f, 1 - blend, 0);
+  final mixed = blend >= 1
+      ? norm
+      : cv.addWeighted(norm, blend, f, 1 - blend, 0);
   final out = mixed.convertTo(cv.MatType.CV_8UC1, beta: _trunc);
   for (final x in [bg, floor, bgc, f, norm]) {
     x.dispose();
@@ -1062,7 +1202,11 @@ cv.Mat levelsL(cv.Mat bgr, double loPct, double hiPct, {double span = 252}) {
   final lo = percentile8(ch[0], loPct);
   final hi = percentile8(ch[0], hiPct);
   final k = span / math.max(1.0, hi - lo);
-  final l2 = ch[0].convertTo(cv.MatType.CV_8UC1, alpha: k, beta: -lo * k + _trunc);
+  final l2 = ch[0].convertTo(
+    cv.MatType.CV_8UC1,
+    alpha: k,
+    beta: -lo * k + _trunc,
+  );
   final merged = cv.merge(cv.VecMat.fromList([l2, ch[1], ch[2]]));
   final out = cv.cvtColor(merged, cv.COLOR_Lab2BGR);
   for (final x in [l2, merged, lab]) {
@@ -1088,11 +1232,19 @@ cv.Mat autoFilter(cv.Mat bgr) {
   final f = <cv.Mat>[];
   for (var i = 0; i < 3; i++) {
     // Gray-world white balance (strength 0.6), in float.
-    final c = ch8[i].convertTo(cv.MatType.CV_32FC1, alpha: 1 + 0.6 * (avg / math.max(means[i], 1.0) - 1));
+    final c = ch8[i].convertTo(
+      cv.MatType.CV_32FC1,
+      alpha: 1 + 0.6 * (avg / math.max(means[i], 1.0) - 1),
+    );
     // Shadow removal: divide by the smooth background (clamped divisor), blend 75 %.
     final c8 = c.convertTo(cv.MatType.CV_8UC1, beta: _trunc);
     final bg = background(c8);
-    final floor = cv.Mat.fromScalar(bg.rows, bg.cols, cv.MatType.CV_32FC1, cv.Scalar.all(40));
+    final floor = cv.Mat.fromScalar(
+      bg.rows,
+      bg.cols,
+      cv.MatType.CV_32FC1,
+      cv.Scalar.all(40),
+    );
     final bgc = cv.max(bg, floor);
     final norm = cv.divide(c, bgc, scale: 245);
     f.add(cv.addWeighted(norm, 0.75, c, 0.25, 0));
@@ -1117,14 +1269,22 @@ cv.Mat autoFilter(cv.Mat bgr) {
   // Global levels on L (1 / 99.5 %).
   final [lo, hi] = _percentiles(labCh[0], const [1, 99.5]);
   final k = 99.0 / math.max(1e-3, hi - lo);
-  final stretched = labCh[0].convertTo(cv.MatType.CV_32FC1, alpha: k, beta: -lo * k);
+  final stretched = labCh[0].convertTo(
+    cv.MatType.CV_32FC1,
+    alpha: k,
+    beta: -lo * k,
+  );
   final l = _clip(stretched, 0, 100);
   stretched.dispose();
   final w = whitenPaper(l, labCh[1], labCh[2]);
   if (!identical(w.l, l)) l.dispose();
   // Neutral paper, +10 % colour elsewhere.
-  final cA = w.chroma == null ? labCh[1].convertTo(cv.MatType.CV_32FC1, alpha: 1.10) : cv.multiply(labCh[1], w.chroma!, scale: 1.10);
-  final cB = w.chroma == null ? labCh[2].convertTo(cv.MatType.CV_32FC1, alpha: 1.10) : cv.multiply(labCh[2], w.chroma!, scale: 1.10);
+  final cA = w.chroma == null
+      ? labCh[1].convertTo(cv.MatType.CV_32FC1, alpha: 1.10)
+      : cv.multiply(labCh[1], w.chroma!, scale: 1.10);
+  final cB = w.chroma == null
+      ? labCh[2].convertTo(cv.MatType.CV_32FC1, alpha: 1.10)
+      : cv.multiply(labCh[2], w.chroma!, scale: 1.10);
   w.chroma?.dispose();
   final lab2 = cv.merge(cv.VecMat.fromList([w.l, cA, cB]));
   for (final x in [w.l, cA, cB]) {
@@ -1179,7 +1339,11 @@ cv.Mat autoFilter(cv.Mat bgr) {
   final t0 = 0.70 * pL;
   final span = math.max(1e-3, pL - t0);
   // x = clip((L − t0) / span, 0, 1); s = x²(3 − 2x) · strength.
-  final xr = l.convertTo(cv.MatType.CV_32FC1, alpha: 1 / span, beta: -t0 / span);
+  final xr = l.convertTo(
+    cv.MatType.CV_32FC1,
+    alpha: 1 / span,
+    beta: -t0 / span,
+  );
   final x = _clip(xr, 0, 1);
   final x2 = cv.multiply(x, x);
   final term = x.convertTo(cv.MatType.CV_32FC1, alpha: -2, beta: 3);
@@ -1213,10 +1377,15 @@ cv.Mat _clip(cv.Mat f, double lo, double hi) {
 Float32List _sample(cv.Mat f32) {
   final long = math.max(f32.cols, f32.rows);
   final small = long > 1000
-      ? cv.resize(f32, ((f32.cols * 1000 / long).round(), (f32.rows * 1000 / long).round()), interpolation: cv.INTER_NEAREST)
+      ? cv.resize(f32, (
+          (f32.cols * 1000 / long).round(),
+          (f32.rows * 1000 / long).round(),
+        ), interpolation: cv.INTER_NEAREST)
       : f32.clone();
   final bytes = small.data;
-  final out = Float32List.fromList(bytes.buffer.asFloat32List(bytes.offsetInBytes, small.rows * small.cols));
+  final out = Float32List.fromList(
+    bytes.buffer.asFloat32List(bytes.offsetInBytes, small.rows * small.cols),
+  );
   small.dispose();
   return out;
 }
@@ -1257,7 +1426,6 @@ double _percentileOf(Float32List values, double p) {
   return hi;
 }
 
-
 /// "ID colour" (default in ID / passport): no background whitening — a card
 /// is not white paper. Clean, sharp, true colours.
 cv.Mat idColorFilter(cv.Mat bgr) {
@@ -1282,7 +1450,14 @@ cv.Mat bwPrintFilter(cv.Mat bgr) {
   final smooth = cv.bilateralFilter(gray, 5, 30, 30);
   final norm = _normalizeIllumination(smooth, scale: 255);
   final block = math.max(15, (math.min(gray.rows, gray.cols) ~/ 40) | 1);
-  final bw = cv.adaptiveThreshold(norm, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 12);
+  final bw = cv.adaptiveThreshold(
+    norm,
+    255,
+    cv.ADAPTIVE_THRESH_GAUSSIAN_C,
+    cv.THRESH_BINARY,
+    block,
+    12,
+  );
   final med = cv.medianBlur(bw, 3);
   final out = cv.cvtColor(med, cv.COLOR_GRAY2BGR);
   for (final x in [gray, smooth, norm, bw, med]) {
@@ -1320,13 +1495,13 @@ cv.Mat colorBoostFilter(cv.Mat bgr) {
 }
 
 cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
-      FilterType.original => bgr.clone(),
-      FilterType.auto => autoFilter(bgr),
-      FilterType.idColor => idColorFilter(bgr),
-      FilterType.colorBoost => colorBoostFilter(bgr),
-      FilterType.grayscale => grayscaleFilter(bgr),
-      FilterType.bwPrint => bwPrintFilter(bgr),
-    };
+  FilterType.original => bgr.clone(),
+  FilterType.auto => autoFilter(bgr),
+  FilterType.idColor => idColorFilter(bgr),
+  FilterType.colorBoost => colorBoostFilter(bgr),
+  FilterType.grayscale => grayscaleFilter(bgr),
+  FilterType.bwPrint => bwPrintFilter(bgr),
+};
 
 /// Applies the brightness / contrast sliders as `a·x + b`, clamped to 0..255.
 /// Same mapping as the live preview matrix.
@@ -1356,8 +1531,13 @@ cv.Mat ocrImage(cv.Mat warpedBgr) {
 /// shape, scale to 1000 px wide, Laplacian variance.
 double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
   final card = warpToQuad(img, quad, aspect: aspect);
-  final landscape = card.cols >= card.rows ? card : cv.rotate(card, cv.ROTATE_90_CLOCKWISE);
-  final w1000 = cv.resize(landscape, (1000, (1000 * landscape.rows / landscape.cols).round()), interpolation: cv.INTER_AREA);
+  final landscape = card.cols >= card.rows
+      ? card
+      : cv.rotate(card, cv.ROTATE_90_CLOCKWISE);
+  final w1000 = cv.resize(landscape, (
+    1000,
+    (1000 * landscape.rows / landscape.cols).round(),
+  ), interpolation: cv.INTER_AREA);
   final gray = cv.cvtColor(w1000, cv.COLOR_BGR2GRAY);
   final lap = cv.laplacian(gray, cv.MatType.CV_64F);
   final (mean, std) = cv.meanStdDev(lap);
@@ -1377,7 +1557,10 @@ double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
 /// dark. Thresholds live in `CaptureChecks`.
 ({double sharpness, double brightness}) captureStats(cv.Mat bgr) {
   final s = 1000.0 / math.max(bgr.rows, bgr.cols);
-  final small = cv.resize(bgr, ((bgr.cols * s).toInt(), (bgr.rows * s).toInt()));
+  final small = cv.resize(bgr, (
+    (bgr.cols * s).toInt(),
+    (bgr.rows * s).toInt(),
+  ));
   final gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY);
   final lap = cv.laplacian(gray, cv.MatType.CV_64F);
   final (mean, std) = cv.meanStdDev(lap);
@@ -1415,10 +1598,10 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
 /// Background colours (BGR): white, and a deep passport-studio blue
 /// #1F4E8C.
 cv.Scalar? photoBackgroundColor(PhotoBackground b) => switch (b) {
-      PhotoBackground.original => null,
-      PhotoBackground.white => cv.Scalar(255, 255, 255),
-      PhotoBackground.darkBlue => cv.Scalar(140, 78, 31),
-    };
+  PhotoBackground.original => null,
+  PhotoBackground.white => cv.Scalar(255, 255, 255),
+  PhotoBackground.darkBlue => cv.Scalar(140, 78, 31),
+};
 
 /// Passport photo: the person mask (whole upright photo) warped with the
 /// same crop as the photo, then [replaceBackground]. Returns [page] itself
@@ -1442,26 +1625,316 @@ cv.Mat _withPhotoBackground(cv.Mat page, PageEdits edits) {
   }
 }
 
-/// Puts [color] behind the person: [mask] (8-bit, 255 = person, any size)
-/// is scaled to [img], feathered by about 2–3 px, and used as the alpha.
+/// Puts [color] behind the person. [mask] (8-bit, 255 = person, any size)
+/// is ML Kit's coarse confidence map, so on its own its edge is a soft band
+/// a few pixels wide where the old wall shows through as a pale fringe.
+/// Three fixes before blending:
+///  1. a guided filter snaps the band to the photo's own edges (hair,
+///     shoulders), then a slight tighten keeps it off the wall;
+///  2. near the outline, where the wall and the person clearly differ in
+///     colour, each pixel's share is read from its colour between the two
+///     (a plain wall is easy to model), so a wedge of wall the mask took
+///     for person still goes;
+///  3. blur-fusion foreground estimation (Forte & Pitié 2021) takes the
+///     wall's colour out of the edge pixels, so what is blended with
+///     [color] is hair, not hair-plus-white-wall.
+/// The wide averages run on a ~320 px copy and are scaled back up (they
+/// are smooth); only the per-pixel steps run at full size.
 cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
-  final bgr = img.channels == 1 ? cv.cvtColor(img, cv.COLOR_GRAY2BGR) : img;
-  final sized = cv.resize(mask, (bgr.cols, bgr.rows), interpolation: cv.INTER_LINEAR);
-  final sigma = math.max(1.0, math.max(bgr.cols, bgr.rows) / 400);
-  final soft = cv.gaussianBlur(sized, (0, 0), sigma);
-  final a = soft.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
-  final a3 = cv.merge(cv.VecMat.fromList([a, a, a]));
-  final imgF = bgr.convertTo(cv.MatType.CV_32FC3);
-  final bgF = cv.Mat.fromScalar(bgr.rows, bgr.cols, cv.MatType.CV_32FC3, color);
-  // out = bg + (img − bg) · alpha
-  final diff = cv.subtract(imgF, bgF);
-  final scaled = cv.multiply(diff, a3);
-  final sum = cv.add(bgF, scaled);
-  final out = sum.convertTo(cv.MatType.CV_8UC3);
-  for (final m in [sized, soft, a, a3, imgF, bgF, diff, scaled, sum]) {
-    m.dispose();
+  final tmp = <cv.Mat>[];
+  cv.Mat t(cv.Mat m) {
+    tmp.add(m);
+    return m;
   }
-  if (!identical(bgr, img)) bgr.dispose();
+
+  try {
+    final bgr = img.channels == 1
+        ? t(cv.cvtColor(img, cv.COLOR_GRAY2BGR))
+        : img;
+    final (w, h) = (bgr.cols, bgr.rows);
+    final long = math.max(w, h);
+    final scale = math.min(1.0, 320 / long);
+    final (sw, sh) = (
+      math.max(1, (w * scale).round()),
+      math.max(1, (h * scale).round()),
+    );
+    cv.Mat down(cv.Mat m) =>
+        t(cv.resize(m, (sw, sh), interpolation: cv.INTER_AREA));
+    cv.Mat up(cv.Mat m) =>
+        t(cv.resize(m, (w, h), interpolation: cv.INTER_LINEAR));
+    int px(double fullPx) => math.max(1, (fullPx * scale).round());
+    cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
+
+    final image = t(bgr.convertTo(cv.MatType.CV_32FC3, alpha: 1 / 255));
+    final gray = t(cv.cvtColor(image, cv.COLOR_BGR2GRAY));
+    final coarse = t(
+      t(
+        cv.resize(mask, (w, h), interpolation: cv.INTER_LINEAR),
+      ).convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255),
+    );
+    final smallImage = down(image);
+    final smallCoarse = down(coarse);
+
+    // 1. Fast guided filter: coefficients on the small copy, applied to the
+    // full-size guide.
+    final (gA, gB) = _guidedCoefficients(
+      down(gray),
+      smallCoarse,
+      px(math.max(2, long / 100)),
+      2e-3,
+      t,
+    );
+    final guided = t(cv.add(t(cv.multiply(up(gA), gray)), up(gB)));
+    // Tighten: 0.2 → 0, 0.9 → 1. The coarse map leans generous.
+    final tight = t(
+      _clamp01(
+        t(
+          guided.convertTo(
+            cv.MatType.CV_32FC1,
+            alpha: 1 / 0.7,
+            beta: -0.2 / 0.7,
+          ),
+        ),
+        t,
+      ),
+    );
+
+    // 2. Colour near the outline.
+    final model = _colourModel(
+      smallImage,
+      smallCoarse,
+      down(tight),
+      px(long / 10),
+      px(long / 40),
+      t,
+    );
+    final bgMean = up(model.bgMean);
+    final d = up(model.d);
+    final proj = t(_sum3(t(cv.multiply(t(cv.subtract(image, bgMean)), d)), t));
+    final colour = t(
+      _clamp01(t(cv.divide(proj, t(up(model.dist2).addF32(1e-5)))), t),
+    );
+    // α = α + trust · (α_c − α), never above the guided α plus a little:
+    // the colour can only take wall away, not add person.
+    final mixed = t(
+      cv.add(
+        tight,
+        t(cv.multiply(up(model.trust), t(cv.subtract(colour, tight)))),
+      ),
+    );
+    final alpha = t(cv.min(mixed, t(tight.addF32(0.05))));
+    final a3 = three(alpha);
+    final inv3 = three(
+      t(alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1)),
+    );
+
+    // 3. Blur fusion: the wide pass's averages on the small copy, the fine
+    // pass at full size.
+    final (smallF, smallB) = _fusionMeans(
+      smallImage,
+      smallImage,
+      smallImage,
+      down(alpha),
+      px(long / 12) | 1,
+      t,
+    );
+    var fg = _fusionStep(image, up(smallF), up(smallB), a3, inv3, t);
+    var bg = up(smallB);
+    final (fineF, fineB) = _fusionMeans(
+      image,
+      fg,
+      bg,
+      alpha,
+      math.max(3, long ~/ 170) | 1,
+      t,
+    );
+    fg = _fusionStep(image, fineF, fineB, a3, inv3, t);
+    bg = fineB;
+
+    final fill = t(cv.Mat.fromScalar(h, w, cv.MatType.CV_32FC3, color));
+    // out = fill + (fg · 255 − fill) · alpha
+    final diff = t(
+      cv.subtract(t(fg.convertTo(cv.MatType.CV_32FC3, alpha: 255)), fill),
+    );
+    final sum = t(cv.add(fill, t(cv.multiply(diff, a3))));
+    return sum.convertTo(cv.MatType.CV_8UC3);
+  } finally {
+    for (final m in tmp) {
+      m.dispose();
+    }
+  }
+}
+
+/// Guided filter coefficients (He et al. 2010): q = A · guide + B follows
+/// the guide's edges within [r] px. Single-channel float; [eps] in the
+/// guide's units squared.
+(cv.Mat, cv.Mat) _guidedCoefficients(
+  cv.Mat guide,
+  cv.Mat p,
+  int r,
+  double eps,
+  cv.Mat Function(cv.Mat) t,
+) {
+  final k = (2 * r + 1, 2 * r + 1);
+  cv.Mat box(cv.Mat m) => t(cv.blur(m, k));
+  final meanI = box(guide);
+  final meanP = box(p);
+  final varI = t(
+    cv.subtract(
+      box(t(cv.multiply(guide, guide))),
+      t(cv.multiply(meanI, meanI)),
+    ),
+  );
+  final covIp = t(
+    cv.subtract(box(t(cv.multiply(guide, p))), t(cv.multiply(meanI, meanP))),
+  );
+  final a = t(cv.divide(covIp, t(varI.addF32(eps))));
+  final b = t(cv.subtract(meanP, t(cv.multiply(a, meanI))));
+  return (box(a), box(b));
+}
+
+/// Local wall colour, person − wall colour difference, its squared length,
+/// and how far to trust a colour reading, from box means ([k] px) of the
+/// confident pixels on each side. Trust needs the two colours far apart,
+/// each side close to one colour (a white shirt beside a dark jacket is not
+/// "the person's colour"), both seen nearby, and the pixel within [r] px of
+/// the [coarse] outline (not inside the hair).
+({cv.Mat bgMean, cv.Mat d, cv.Mat dist2, cv.Mat trust}) _colourModel(
+  cv.Mat image,
+  cv.Mat coarse,
+  cv.Mat alpha,
+  int k,
+  int r,
+  cv.Mat Function(cv.Mat) t,
+) {
+  final size = (k | 1, k | 1);
+  cv.Mat box(cv.Mat m) => t(cv.blur(m, size));
+  cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
+  cv.Mat clamp(cv.Mat m, double a, double b) =>
+      t(_clamp01(t(m.convertTo(cv.MatType.CV_32FC1, alpha: a, beta: b)), t));
+
+  final (_, fgW) = cv.threshold(alpha, 0.97, 1, cv.THRESH_BINARY);
+  final (_, bgW) = cv.threshold(alpha, 0.03, 1, cv.THRESH_BINARY_INV);
+  t(fgW);
+  t(bgW);
+  final fgN = box(fgW);
+  final bgN = box(bgW);
+  final fgMean = t(
+    cv.divide(
+      box(t(cv.multiply(image, three(fgW)))),
+      three(t(fgN.addF32(1e-5))),
+    ),
+  );
+  final bgMean = t(
+    cv.divide(
+      box(t(cv.multiply(image, three(bgW)))),
+      three(t(bgN.addF32(1e-5))),
+    ),
+  );
+  final d = t(cv.subtract(fgMean, bgMean));
+  final dist2 = t(_sum3(t(cv.multiply(d, d)), t));
+  final dist = t(cv.sqrt(dist2));
+
+  // Spread of each side: √(E|I|² − |E I|²) over the window.
+  final sq = t(cv.multiply(image, image));
+  cv.Mat spread(cv.Mat w, cv.Mat n, cv.Mat mean) {
+    final e2 = t(
+      cv.divide(
+        t(_sum3(box(t(cv.multiply(sq, three(w)))), t)),
+        t(n.addF32(1e-5)),
+      ),
+    );
+    final v = t(cv.subtract(e2, t(_sum3(t(cv.multiply(mean, mean)), t))));
+    final (_, pos) = cv.threshold(v, 0, 0, cv.THRESH_TOZERO);
+    return t(cv.sqrt(t(pos)));
+  }
+
+  final ratio = t(
+    cv.divide(
+      t(cv.add(spread(fgW, fgN, fgMean), spread(bgW, bgN, bgMean))),
+      t(dist.addF32(1e-5)),
+    ),
+  );
+  final plain = clamp(ratio, -2.5, 1.5); // ≤ 0.2 trusted, ≥ 0.6 not
+  final apart = clamp(dist, 1 / 0.15, -1); // ≥ 0.3 apart (≈ 75 / 255)
+  final seen = t(cv.min(clamp(fgN, 10, 0), clamp(bgN, 10, 0)));
+  final (_, inside) = cv.threshold(coarse, 0.5, 1, cv.THRESH_BINARY);
+  t(inside);
+  final kernel = t(
+    cv.getStructuringElement(cv.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1)),
+  );
+  final ring = t(
+    cv.subtract(
+      t(_morph(inside, cv.MORPH_DILATE, kernel)),
+      t(_morph(inside, cv.MORPH_ERODE, kernel)),
+    ),
+  );
+  final band = t(cv.gaussianBlur(ring, (0, 0), math.max(1, r / 2)));
+  final trust = t(
+    cv.multiply(t(cv.multiply(t(cv.multiply(apart, seen)), band)), plain),
+  );
+  return (bgMean: bgMean, d: d, dist2: dist2, trust: trust);
+}
+
+/// Blur-fusion box means ([k] px): F̄ = box(F·α) / box(α) and
+/// B̄ = box(B·(1 − α)) / box(1 − α).
+(cv.Mat, cv.Mat) _fusionMeans(
+  cv.Mat image,
+  cv.Mat fg,
+  cv.Mat bg,
+  cv.Mat alpha,
+  int k,
+  cv.Mat Function(cv.Mat) t,
+) {
+  cv.Mat box(cv.Mat m) => t(cv.blur(m, (k, k)));
+  cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
+  final inv = t(alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1));
+  final blurF = t(
+    cv.divide(
+      box(t(cv.multiply(fg, three(alpha)))),
+      three(t(box(alpha).addF32(1e-5))),
+    ),
+  );
+  final blurB = t(
+    cv.divide(
+      box(t(cv.multiply(bg, three(inv)))),
+      three(t(box(inv).addF32(1e-5))),
+    ),
+  );
+  return (blurF, blurB);
+}
+
+/// F = F̄ + α (I − α F̄ − (1 − α) B̄), clamped to 0…1.
+cv.Mat _fusionStep(
+  cv.Mat image,
+  cv.Mat blurF,
+  cv.Mat blurB,
+  cv.Mat a3,
+  cv.Mat inv3,
+  cv.Mat Function(cv.Mat) t,
+) {
+  final residual = t(
+    cv.subtract(
+      t(cv.subtract(image, t(cv.multiply(a3, blurF)))),
+      t(cv.multiply(inv3, blurB)),
+    ),
+  );
+  return t(_clamp01(t(cv.add(blurF, t(cv.multiply(a3, residual)))), t));
+}
+
+/// Sum of a 3-channel float image's channels.
+cv.Mat _sum3(cv.Mat m, cv.Mat Function(cv.Mat) t) {
+  final c = cv.split(m);
+  final s = cv.add(t(cv.add(c[0], c[1])), c[2]);
+  c.dispose();
+  return s;
+}
+
+/// [m] clamped to 0…1 (float, any channels).
+cv.Mat _clamp01(cv.Mat m, cv.Mat Function(cv.Mat) t) {
+  final (_, low) = cv.threshold(m, 0, 0, cv.THRESH_TOZERO);
+  t(low);
+  final (_, out) = cv.threshold(low, 1, 1, cv.THRESH_TRUNC);
   return out;
 }
 
@@ -1471,8 +1944,13 @@ cv.Mat coverResize(cv.Mat img, int width, int height) {
   final s = math.max(width / img.cols, height / img.rows);
   final w = math.max(width, (img.cols * s).round());
   final h = math.max(height, (img.rows * s).round());
-  final scaled = cv.resize(img, (w, h), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC);
-  final roi = scaled.region(cv.Rect((w - width) ~/ 2, (h - height) ~/ 2, width, height));
+  final scaled = cv.resize(img, (
+    w,
+    h,
+  ), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC);
+  final roi = scaled.region(
+    cv.Rect((w - width) ~/ 2, (h - height) ~/ 2, width, height),
+  );
   final out = roi.clone();
   roi.dispose();
   scaled.dispose();
@@ -1492,10 +1970,10 @@ void writeGray(Uint8List data, int width, int height, String path) {
 
 /// Ink colours (BGR): black #15171A, blue #1F3FAE.
 cv.Scalar? _inkBgr(InkColor ink) => switch (ink) {
-      InkColor.black => cv.Scalar(26, 23, 21),
-      InkColor.blue => cv.Scalar(174, 63, 31),
-      InkColor.original => null,
-    };
+  InkColor.black => cv.Scalar(26, 23, 21),
+  InkColor.blue => cv.Scalar(174, 63, 31),
+  InkColor.original => null,
+};
 
 /// Signatures and date stamps (feature 4): each transparent PNG is fitted
 /// into its rect (fractions of [page], aspect kept, centred) and alpha
@@ -1503,7 +1981,9 @@ cv.Scalar? _inkBgr(InkColor ink) => switch (ink) {
 /// page becomes colour so blue ink stays blue.
 cv.Mat withOverlays(cv.Mat page, List<PageOverlay> overlays) {
   if (overlays.isEmpty) return page;
-  final out = page.channels == 1 ? cv.cvtColor(page, cv.COLOR_GRAY2BGR) : page.clone();
+  final out = page.channels == 1
+      ? cv.cvtColor(page, cv.COLOR_GRAY2BGR)
+      : page.clone();
   for (final o in overlays) {
     final png = cv.imread(o.imagePath, flags: cv.IMREAD_UNCHANGED);
     if (png.isEmpty || png.channels != 4) {
@@ -1515,13 +1995,22 @@ cv.Mat withOverlays(cv.Mat page, List<PageOverlay> overlays) {
     final s = math.min(boxW / png.cols, boxH / png.rows);
     final w = math.max(1, (png.cols * s).round());
     final h = math.max(1, (png.rows * s).round());
-    final x = (o.left * out.cols + (boxW - w) / 2).round().clamp(0, math.max(0, out.cols - w)).toInt();
-    final y = (o.top * out.rows + (boxH - h) / 2).round().clamp(0, math.max(0, out.rows - h)).toInt();
+    final x = (o.left * out.cols + (boxW - w) / 2)
+        .round()
+        .clamp(0, math.max(0, out.cols - w))
+        .toInt();
+    final y = (o.top * out.rows + (boxH - h) / 2)
+        .round()
+        .clamp(0, math.max(0, out.rows - h))
+        .toInt();
     if (w > out.cols || h > out.rows) {
       png.dispose();
       continue;
     }
-    final sized = cv.resize(png, (w, h), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
+    final sized = cv.resize(png, (
+      w,
+      h,
+    ), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
     final ch = cv.split(sized);
     final ink = _inkBgr(o.ink);
     final color = ink == null
@@ -1537,7 +2026,20 @@ cv.Mat withOverlays(cv.Mat page, List<PageOverlay> overlays) {
     final blended = cv.add(roiF, scaled);
     final back = blended.convertTo(cv.MatType.CV_8UC3);
     back.copyTo(roi);
-    for (final m in [png, sized, color, a, a3, roi, roiF, colF, diff, scaled, blended, back]) {
+    for (final m in [
+      png,
+      sized,
+      color,
+      a,
+      a3,
+      roi,
+      roiF,
+      colF,
+      diff,
+      scaled,
+      blended,
+      back,
+    ]) {
       m.dispose();
     }
     for (final c in ch) {
@@ -1558,7 +2060,12 @@ void signatureFromPhoto(String src, String out, {int maxLongEdge = 1600}) {
   disposeUnless(img, bgr);
   final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
   final norm = _normalizeIllumination(gray, scale: 255);
-  final (_, ink) = cv.threshold(norm, 0, 255, cv.THRESH_BINARY_INV | cv.THRESH_OTSU);
+  final (_, ink) = cv.threshold(
+    norm,
+    0,
+    255,
+    cv.THRESH_BINARY_INV | cv.THRESH_OTSU,
+  );
   final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (3, 3));
   final clean = _morph(ink, cv.MORPH_OPEN, k);
   final alpha = cv.gaussianBlur(clean, (3, 3), 0);
@@ -1587,11 +2094,18 @@ void signatureFromPhoto(String src, String out, {int maxLongEdge = 1600}) {
     // Ink must be a small part of the photo, else it's not a signature on
     // paper (a dark table, a blank page that thresholded into noise).
     final share = count / (w * h);
-    if (x1 < 0 || count < 150 || share > 0.25) throw StateError('no signature found');
+    if (x1 < 0 || count < 150 || share > 0.25) {
+      throw StateError('no signature found');
+    }
     final margin = (math.max(x1 - x0, y1 - y0) * 0.04).round() + 2;
     final rx = math.max(0, x0 - margin);
     final ry = math.max(0, y0 - margin);
-    final rect = cv.Rect(rx, ry, math.min(w, x1 + margin + 1) - rx, math.min(h, y1 + margin + 1) - ry);
+    final rect = cv.Rect(
+      rx,
+      ry,
+      math.min(w, x1 + margin + 1) - rx,
+      math.min(h, y1 + margin + 1) - ry,
+    );
     final colorRoi = bgr.region(rect);
     final alphaRoi = alpha.region(rect);
     final ch = cv.split(colorRoi);
@@ -1636,7 +2150,13 @@ cv.Mat renderCard(
 /// A passport photo (feature 5) for print: the framed crop, filtered and
 /// shrunk to [widthMm] × [heightMm] at [dpi]. Never enlarged and never
 /// turned (unlike a card side).
-cv.Mat renderSized(String originalPath, PageEdits edits, {required double widthMm, required double heightMm, required int dpi}) {
+cv.Mat renderSized(
+  String originalPath,
+  PageEdits edits, {
+  required double widthMm,
+  required double heightMm,
+  required int dpi,
+}) {
   final full = renderEdits(originalPath, edits);
   final tw = (widthMm / 25.4 * dpi).round();
   final th = (heightMm / 25.4 * dpi).round();
@@ -1715,12 +2235,17 @@ IngestReport ingest({
   try {
     File(previewOut).parent.createSync(recursive: true);
     writeJpeg(preview, previewOut, quality: 85);
-    final detection = detectDocument(preview, aspectHint: aspectHint, searchArea: searchArea);
+    final detection = detectDocument(
+      preview,
+      aspectHint: aspectHint,
+      searchArea: searchArea,
+    );
     final stats = captureStats(preview);
     double? cardSharpness;
     if (aspectHint != null) {
       final area = searchArea;
-      final quad = detection.quad ??
+      final quad =
+          detection.quad ??
           (area == null
               ? null
               : Quad(
@@ -1733,8 +2258,12 @@ IngestReport ingest({
     }
     // EXIF may swap the header's width and height; the decoded image is
     // upright, so take the orientation from it.
-    final long = header == null ? math.max(img.cols, img.rows) * scale : math.max(header.width, header.height);
-    final short = header == null ? math.min(img.cols, img.rows) * scale : math.min(header.width, header.height);
+    final long = header == null
+        ? math.max(img.cols, img.rows) * scale
+        : math.max(header.width, header.height);
+    final short = header == null
+        ? math.min(img.cols, img.rows) * scale
+        : math.min(header.width, header.height);
     final landscape = img.cols >= img.rows;
     return IngestReport(
       detection: detection,
@@ -1752,8 +2281,17 @@ IngestReport ingest({
   }
 }
 
-(cv.Mat, int) _decodeForPreview(String src, int target, ({int width, int height})? header) {
-  const flagsByScale = {1: cv.IMREAD_COLOR, 2: cv.IMREAD_REDUCED_COLOR_2, 4: cv.IMREAD_REDUCED_COLOR_4, 8: cv.IMREAD_REDUCED_COLOR_8};
+(cv.Mat, int) _decodeForPreview(
+  String src,
+  int target,
+  ({int width, int height})? header,
+) {
+  const flagsByScale = {
+    1: cv.IMREAD_COLOR,
+    2: cv.IMREAD_REDUCED_COLOR_2,
+    4: cv.IMREAD_REDUCED_COLOR_4,
+    8: cv.IMREAD_REDUCED_COLOR_8,
+  };
   var scale = 1;
   if (header != null) {
     final long = math.max(header.width, header.height);
@@ -1776,7 +2314,12 @@ IngestReport ingest({
 ///
 /// The cropped + rotated page at preview size is cached at [workPath], so
 /// switching filters decodes a ~1600 px image instead of the 12 MP original.
-cv.Mat renderLook(String originalPath, PageEdits edits, {required String workPath, required int previewLongEdge}) {
+cv.Mat renderLook(
+  String originalPath,
+  PageEdits edits, {
+  required String workPath,
+  required int previewLongEdge,
+}) {
   final cached = File(workPath).existsSync();
   final cv.Mat work;
   if (cached) {
@@ -1825,7 +2368,9 @@ void renderPageCaches(
 void writeJpeg(cv.Mat img, String path, {int quality = 90}) {
   final isPng = path.toLowerCase().endsWith('.png');
   final params = cv.VecI32.fromList(
-    isPng ? [cv.IMWRITE_PNG_COMPRESSION, 3] : [cv.IMWRITE_JPEG_QUALITY, quality],
+    isPng
+        ? [cv.IMWRITE_PNG_COMPRESSION, 3]
+        : [cv.IMWRITE_JPEG_QUALITY, quality],
   );
   final ok = cv.imwrite(path, img, params: params);
   params.dispose();
