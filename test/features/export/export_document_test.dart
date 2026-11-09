@@ -259,6 +259,7 @@ void main() {
           overheadBytes: any(named: 'overheadBytes'),
           grayscale: any(named: 'grayscale'),
           outputs: any(named: 'outputs'),
+          minEdge: any(named: 'minEdge'),
         ),
       ).thenAnswer((inv) async {
         for (final out in inv.namedArguments[#outputs] as List<String>) {
@@ -277,6 +278,7 @@ void main() {
             overheadBytes: name == 'overheadBytes' ? captureAny(named: 'overheadBytes') : any(named: 'overheadBytes'),
             grayscale: name == 'grayscale' ? captureAny(named: 'grayscale') : any(named: 'grayscale'),
             outputs: any(named: 'outputs'),
+            minEdge: name == 'minEdge' ? captureAny(named: 'minEdge') : any(named: 'minEdge'),
           ),
         ).captured;
 
@@ -331,10 +333,38 @@ void main() {
       expect(overheads[1] - overheads[0], 1200 - 900);
     });
 
-    test('images and the one-picture card layout ignore the limit', () {
+    test('page images and the one-picture card layout ignore the limit', () {
       expect(ExportDocument.shrinks(doc, const ExportOptions(maxBytes: 1, format: ExportFormat.jpg)), isFalse);
       expect(ExportDocument.shrinks(doc, const ExportOptions(maxBytes: 1)), isTrue);
       expect(ExportDocument.shrinks(doc, const ExportOptions()), isFalse);
+    });
+
+    test('a passport photo shrinks as a JPG: no PDF, small sizes allowed, never black and white', () async {
+      final photo = doc.copyWith(mode: ScanMode.photo, pages: [doc.sortedPages.first]);
+      expect(ExportDocument.canShrink(photo, const ExportOptions(format: ExportFormat.jpg)), isTrue);
+      expect(ExportDocument.canShrink(photo, const ExportOptions(format: ExportFormat.png)), isFalse, reason: 'PNG is lossless');
+      stubShrink([const ShrinkFits(ShrinkStep(642, 70), 48000)]);
+      final r = await export.prepare(photo, const ExportOptions(format: ExportFormat.jpg, maxBytes: 50000));
+      final prepared = r.getOrElse((f) => throw StateError('$f'));
+      expect(prepared.files.single.path, endsWith('.jpg'));
+      expect(prepared.shrunk, const ShrinkStep(642, 70));
+      verifyNever(() => pdf.fromPages(any(), any(), outputPath: any(named: 'outputPath')));
+      final call = verify(
+        () => proc.shrinkPages(
+          any(),
+          targetBytes: any(named: 'targetBytes'),
+          overheadBytes: captureAny(named: 'overheadBytes'),
+          grayscale: any(named: 'grayscale'),
+          outputs: any(named: 'outputs'),
+          minEdge: captureAny(named: 'minEdge'),
+        ),
+      ).captured;
+      expect(call, [0, ShrinkToFit.photoMinEdge], reason: 'no PDF overhead; photos may go small');
+
+      stubShrink([const ShrinkNeedsGrayscale(70000)]);
+      final tooSmall = await export.prepare(photo, const ExportOptions(format: ExportFormat.jpg, maxBytes: 20000, grayscaleToFit: true));
+      expect((tooSmall.getLeft().toNullable()! as ShrinkFailure).canTryGrayscale, isFalse);
+      expect(shrinkCall('grayscale'), [false]);
     });
   });
 }

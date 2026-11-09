@@ -2295,6 +2295,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Sheet {n} · Backs'**
   String printSheetBacks(int n);
+
+  /// No description provided for @maxSizeNotePhoto200kb.
+  ///
+  /// In en, this message translates to:
+  /// **'Most online forms'**
+  String get maxSizeNotePhoto200kb;
+
+  /// No description provided for @maxSizeNotePhoto100kb.
+  ///
+  /// In en, this message translates to:
+  /// **'Common photo limit'**
+  String get maxSizeNotePhoto100kb;
+
+  /// No description provided for @maxSizeNotePhoto50kb.
+  ///
+  /// In en, this message translates to:
+  /// **'Strict upload limits'**
+  String get maxSizeNotePhoto50kb;
+
+  /// No description provided for @sharePhotoCantFit.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t get the photo under {size} and keep it clear. Try a bigger limit.'**
+  String sharePhotoCantFit(String size);
 }
 
 class _AppLocalizationsDelegate

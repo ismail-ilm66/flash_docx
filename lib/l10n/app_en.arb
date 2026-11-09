@@ -672,5 +672,16 @@
         "type": "int"
       }
     }
+  },
+  "maxSizeNotePhoto200kb": "Most online forms",
+  "maxSizeNotePhoto100kb": "Common photo limit",
+  "maxSizeNotePhoto50kb": "Strict upload limits",
+  "sharePhotoCantFit": "Can't get the photo under {size} and keep it clear. Try a bigger limit.",
+  "@sharePhotoCantFit": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
   }
 }

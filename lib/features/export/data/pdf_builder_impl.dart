@@ -170,7 +170,13 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
 }
 
 class _PhotoSheetMsg {
-  const _PhotoSheetMsg(this.photo, this.items, this.paper, this.cutLines, this.title);
+  const _PhotoSheetMsg(
+    this.photo,
+    this.items,
+    this.paper,
+    this.cutLines,
+    this.title,
+  );
   final String photo;
   final List<PlacedItem> items;
   final PhotoPaper paper;
@@ -185,8 +191,12 @@ Future<Uint8List> _buildPhotoSheet(_PhotoSheetMsg m) async {
   final w = m.paper.widthMm * _mm;
   final h = m.paper.heightMm * _mm;
   final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
-  final xs = {for (final it in m.items) ...[it.x, it.x + it.w]}.toList()..sort();
-  final ys = {for (final it in m.items) ...[it.y, it.y + it.h]}.toList()..sort();
+  final xs = {
+    for (final it in m.items) ...[it.x, it.x + it.w],
+  }.toList()..sort();
+  final ys = {
+    for (final it in m.items) ...[it.y, it.y + it.h],
+  }.toList()..sort();
   doc.addPage(
     pw.Page(
       pageFormat: PdfPageFormat(w, h),
@@ -196,7 +206,12 @@ Future<Uint8List> _buildPhotoSheet(_PhotoSheetMsg m) async {
             pw.Positioned(
               left: it.x * _mm,
               top: it.y * _mm,
-              child: pw.Image(photo, fit: pw.BoxFit.fill, width: it.w * _mm, height: it.h * _mm),
+              child: pw.Image(
+                photo,
+                fit: pw.BoxFit.fill,
+                width: it.w * _mm,
+                height: it.h * _mm,
+              ),
             ),
           if (m.cutLines && m.items.isNotEmpty)
             pw.Positioned.fill(

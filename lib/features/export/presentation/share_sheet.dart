@@ -27,7 +27,9 @@ Future<void> showShareSheet(
     builder: (_) => BlocProvider(
       create: (_) {
         final bloc = getIt<ExportBloc>(param1: doc);
-        if (options != null) bloc.add(ExportOptionsChanged(options(bloc.state.options)));
+        if (options != null) {
+          bloc.add(ExportOptionsChanged(options(bloc.state.options)));
+        }
         return bloc..add(const ExportSheetOpened());
       },
       child: const _ShareSheet(),
@@ -123,7 +125,12 @@ class _ShareSheetState extends State<_ShareSheet> {
               ),
               Row(
                 children: [
-                  for (final (i, f) in ExportFormat.values.indexed) ...[
+                  // A passport photo is a picture: JPG or PNG, no PDF.
+                  for (final (i, f)
+                      in (s.document.mode == ScanMode.photo
+                              ? const [ExportFormat.jpg, ExportFormat.png]
+                              : ExportFormat.values)
+                          .indexed) ...[
                     if (i > 0) const SizedBox(width: Space.x2),
                     Expanded(
                       child: OptionCard(
@@ -216,15 +223,27 @@ class _ShareSheetState extends State<_ShareSheet> {
                   ),
                 ],
               ),
-              if (o.format == ExportFormat.pdf && !ExportDocument.usesOneImage(s.document, o)) ...[
+              if (ExportDocument.shrinks(
+                s.document,
+                o.copyWith(maxBytes: o.maxBytes ?? 0),
+              )) ...[
                 const SizedBox(height: Space.x3),
                 _MaxSizeRow(
                   value: maxSizeLabel(context, o.maxBytes),
                   onTap: () async {
-                    final picked = await showMaxSizeSheet(context, o.maxBytes);
+                    final picked = await showMaxSizeSheet(
+                      context,
+                      o.maxBytes,
+                      photo: s.document.mode == ScanMode.photo,
+                    );
                     if (picked == null || !context.mounted) return;
                     final cur = context.read<ExportBloc>().state.options;
-                    _update(cur.copyWith(maxBytes: picked.bytes, grayscaleToFit: false));
+                    _update(
+                      cur.copyWith(
+                        maxBytes: picked.bytes,
+                        grayscaleToFit: false,
+                      ),
+                    );
                   },
                 ),
               ],
@@ -271,14 +290,19 @@ class _ShareSheetState extends State<_ShareSheet> {
                 Text(
                   !preparing
                       ? l.sharePreparing
-                      : ExportDocument.shrinks(s.document, o) && prep.done >= pageCount
+                      : ExportDocument.shrinks(s.document, o) &&
+                            prep.done >= pageCount
                       ? l.shareShrinking
-                      : l.sharePreparingPages(prep.done.clamp(0, pageCount), pageCount),
+                      : l.sharePreparingPages(
+                          prep.done.clamp(0, pageCount),
+                          pageCount,
+                        ),
                   style: context.text.bodySmall?.copyWith(color: c.muted),
                 ),
                 const SizedBox(height: Space.x3),
               ],
-              if (!preparing && !working && prep != null) ..._result(context, prep, o),
+              if (!preparing && !working && prep != null)
+                ..._result(context, prep, o),
               Row(
                 children: [
                   Expanded(
@@ -317,26 +341,44 @@ List<Widget> _result(BuildContext context, ExportPrep prep, ExportOptions o) {
   final c = context.colors;
   final f = prep.failure;
   Widget line(String text, {Color? color, FontWeight? weight}) => Padding(
-        padding: const EdgeInsets.only(bottom: Space.x3),
-        child: Text(text, style: context.text.bodySmall?.copyWith(color: color ?? c.muted, fontWeight: weight)),
-      );
+    padding: const EdgeInsets.only(bottom: Space.x3),
+    child: Text(
+      text,
+      style: context.text.bodySmall?.copyWith(
+        color: color ?? c.muted,
+        fontWeight: weight,
+      ),
+    ),
+  );
   if (f is ShrinkFailure) {
     return [
-      line(failureMessage(context, f), color: c.danger, weight: FontWeight.w600),
+      line(
+        o.format == ExportFormat.pdf
+            ? failureMessage(context, f)
+            : l.sharePhotoCantFit(formatBytes(f.targetBytes)),
+        color: c.danger,
+        weight: FontWeight.w600,
+      ),
       if (f.canTryGrayscale)
         Padding(
           padding: const EdgeInsets.only(bottom: Space.x3),
           child: SecondaryButton(
             label: l.shareMakeGrayscale,
             dense: true,
-            onPressed: () => context.read<ExportBloc>().add(ExportOptionsChanged(o.copyWith(grayscaleToFit: true))),
+            onPressed: () => context.read<ExportBloc>().add(
+              ExportOptionsChanged(o.copyWith(grayscaleToFit: true)),
+            ),
           ),
         ),
     ];
   }
   if (prep.bytes == null) return const [];
   return [
-    line(l.shareReadySize(formatBytes(prep.bytes!)), color: c.text, weight: FontWeight.w700),
+    line(
+      l.shareReadySize(formatBytes(prep.bytes!)),
+      color: c.text,
+      weight: FontWeight.w700,
+    ),
     if (prep.hardToRead) line(l.shareHardToRead),
   ];
 }
@@ -357,16 +399,32 @@ class _MaxSizeRow extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(minHeight: 56),
         padding: const EdgeInsets.fromLTRB(14, Space.x2, 12, Space.x2),
-        decoration: BoxDecoration(border: Border.all(color: c.borderStrong), borderRadius: BorderRadius.circular(14)),
+        decoration: BoxDecoration(
+          border: Border.all(color: c.borderStrong),
+          borderRadius: BorderRadius.circular(14),
+        ),
         child: Row(
           children: [
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  FitText(l.shareMaxSize, textAlign: TextAlign.start, style: context.text.titleSmall?.copyWith(fontSize: 14, fontWeight: FontWeight.w800)),
+                  FitText(
+                    l.shareMaxSize,
+                    textAlign: TextAlign.start,
+                    style: context.text.titleSmall?.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(l.shareMaxSizeHint, style: context.text.labelSmall?.copyWith(fontSize: 11, color: c.muted)),
+                  Text(
+                    l.shareMaxSizeHint,
+                    style: context.text.labelSmall?.copyWith(
+                      fontSize: 11,
+                      color: c.muted,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -375,7 +433,11 @@ class _MaxSizeRow extends StatelessWidget {
               child: FitText(
                 value,
                 textAlign: TextAlign.end,
-                style: context.text.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w700, color: c.accentText),
+                style: context.text.labelLarge?.copyWith(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: c.accentText,
+                ),
               ),
             ),
             const SizedBox(width: 4),

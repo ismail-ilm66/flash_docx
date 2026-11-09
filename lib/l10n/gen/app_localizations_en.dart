@@ -1248,4 +1248,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String printSheetBacks(int n) {
     return 'Sheet $n · Backs';
   }
+
+  @override
+  String get maxSizeNotePhoto200kb => 'Most online forms';
+
+  @override
+  String get maxSizeNotePhoto100kb => 'Common photo limit';
+
+  @override
+  String get maxSizeNotePhoto50kb => 'Strict upload limits';
+
+  @override
+  String sharePhotoCantFit(String size) {
+    return 'Can\'t get the photo under $size and keep it clear. Try a bigger limit.';
+  }
 }

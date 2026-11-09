@@ -86,4 +86,13 @@ void main() {
     expect(m.channels, 1, reason: 'written as a grayscale JPEG');
     m.dispose();
   });
+
+  test('a passport photo can reach a strict 30 KB; a page cannot', () {
+    final outs = outputs().take(1).toList();
+    final page = shrinkInIsolate(ShrinkMsg([bases.first], 30000, 0, false, outs));
+    expect(page, isNot(isA<ShrinkFits>()), reason: 'pages stop at 1100 px');
+    final r = shrinkInIsolate(ShrinkMsg([bases.first], 30000, 0, false, outs, ShrinkToFit.photoMinEdge)) as ShrinkFits;
+    expect(File(outs.single).lengthSync(), lessThanOrEqualTo(30000));
+    expect(longEdge(outs.single), r.step.longEdge);
+  });
 }

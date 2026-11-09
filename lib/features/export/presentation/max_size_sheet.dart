@@ -8,22 +8,35 @@ import 'package:flutter/services.dart';
 /// The preset limits (decimal units, like upload forms).
 const maxSizePresets = <int?>[null, 1000000, 500000, 200000];
 
+/// A passport photo for an online form: much smaller limits.
+const photoMaxSizePresets = <int?>[null, 200000, 100000, 50000];
+
 /// Smallest custom limit; below this even one page is unreadable.
 const _minCustomKb = 50;
+const _minPhotoKb = 10;
 
 /// "No limit" / "Under 500 KB".
-String maxSizeLabel(BuildContext context, int? bytes) =>
-    bytes == null ? context.l10n.maxSizeNoLimit : context.l10n.maxSizeUnder(formatBytes(bytes));
+String maxSizeLabel(BuildContext context, int? bytes) => bytes == null
+    ? context.l10n.maxSizeNoLimit
+    : context.l10n.maxSizeUnder(formatBytes(bytes));
 
 /// Max file size (artboard *Max file size*). Returns the chosen limit
 /// (`bytes: null` = no limit), or null when dismissed.
-Future<({int? bytes})?> showMaxSizeSheet(BuildContext context, int? current) {
-  return AppBottomSheet.show<({int? bytes})>(context, builder: (_) => _MaxSizeSheet(current: current));
+Future<({int? bytes})?> showMaxSizeSheet(
+  BuildContext context,
+  int? current, {
+  bool photo = false,
+}) {
+  return AppBottomSheet.show<({int? bytes})>(
+    context,
+    builder: (_) => _MaxSizeSheet(current: current, photo: photo),
+  );
 }
 
 class _MaxSizeSheet extends StatefulWidget {
-  const _MaxSizeSheet({required this.current});
+  const _MaxSizeSheet({required this.current, this.photo = false});
   final int? current;
+  final bool photo;
 
   @override
   State<_MaxSizeSheet> createState() => _MaxSizeSheetState();
@@ -31,8 +44,11 @@ class _MaxSizeSheet extends StatefulWidget {
 
 class _MaxSizeSheetState extends State<_MaxSizeSheet> {
   late int? _selected = widget.current;
+
+  List<int?> get _presets =>
+      widget.photo ? photoMaxSizePresets : maxSizePresets;
   late final _custom = TextEditingController(
-    text: maxSizePresets.contains(widget.current) ? '' : '${widget.current! ~/ 1000}',
+    text: _presets.contains(widget.current) ? '' : '${widget.current! ~/ 1000}',
   );
 
   @override
@@ -43,41 +59,60 @@ class _MaxSizeSheetState extends State<_MaxSizeSheet> {
 
   int? get _customBytes {
     final kb = int.tryParse(_custom.text);
-    return kb == null || kb < _minCustomKb ? null : kb * 1000;
+    return kb == null || kb < (widget.photo ? _minPhotoKb : _minCustomKb)
+        ? null
+        : kb * 1000;
   }
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
-    final customOn = !maxSizePresets.contains(_selected);
+    final customOn = !_presets.contains(_selected);
     final canFinish = !customOn || _customBytes != null;
     return AppBottomSheet(
       title: l.shareMaxSize,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(l.maxSizeBody, style: context.text.bodyMedium?.copyWith(fontSize: 13, height: 1.4, color: c.muted)),
+          Text(
+            l.maxSizeBody,
+            style: context.text.bodyMedium?.copyWith(
+              fontSize: 13,
+              height: 1.4,
+              color: c.muted,
+            ),
+          ),
           const SizedBox(height: Space.x4),
           DecoratedBox(
-            decoration: BoxDecoration(border: Border.all(color: c.border), borderRadius: BorderRadius.circular(16)),
+            decoration: BoxDecoration(
+              border: Border.all(color: c.border),
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(16),
               child: Column(
                 children: [
-                  for (final (i, b) in maxSizePresets.indexed)
+                  for (final (i, b) in _presets.indexed)
                     _Option(
                       divider: i > 0,
                       selected: _selected == b,
                       label: maxSizeLabel(context, b),
-                      note: switch (b) {
-                        null => l.maxSizeNoteOriginal,
-                        1000000 => l.maxSizeNote1mb,
-                        500000 => l.maxSizeNote500kb,
-                        _ => l.maxSizeNote200kb,
-                      },
-                      tag: _tagFor(context, b),
-                      warn: b != null && b < 300000,
+                      note: widget.photo
+                          ? switch (b) {
+                              null => l.maxSizeNoteOriginal,
+                              200000 => l.maxSizeNotePhoto200kb,
+                              100000 => l.maxSizeNotePhoto100kb,
+                              _ => l.maxSizeNotePhoto50kb,
+                            }
+                          : switch (b) {
+                              null => l.maxSizeNoteOriginal,
+                              1000000 => l.maxSizeNote1mb,
+                              500000 => l.maxSizeNote500kb,
+                              _ => l.maxSizeNote200kb,
+                            },
+                      tag: _tagFor(context, b, photo: widget.photo),
+                      warn: b != null && b < (widget.photo ? 60000 : 300000),
                       onTap: () => setState(() => _selected = b),
                     ),
                 ],
@@ -87,36 +122,57 @@ class _MaxSizeSheetState extends State<_MaxSizeSheet> {
           const SizedBox(height: Space.x4),
           Row(
             children: [
-              Text(l.maxSizeCustom, style: context.text.labelLarge?.copyWith(fontSize: 13, color: c.muted)),
+              Text(
+                l.maxSizeCustom,
+                style: context.text.labelLarge?.copyWith(
+                  fontSize: 13,
+                  color: c.muted,
+                ),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: TextField(
                   controller: _custom,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(6)],
-                  onChanged: (_) => setState(() => _selected = _customBytes ?? -1),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(6),
+                  ],
+                  onChanged: (_) =>
+                      setState(() => _selected = _customBytes ?? -1),
                   decoration: InputDecoration(hintText: l.maxSizeCustomHint),
                 ),
               ),
               const SizedBox(width: 10),
-              Text(l.maxSizeKb, style: context.text.labelLarge?.copyWith(fontSize: 14, color: c.muted)),
+              Text(
+                l.maxSizeKb,
+                style: context.text.labelLarge?.copyWith(
+                  fontSize: 14,
+                  color: c.muted,
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 22),
           PrimaryButton(
             label: l.commonDone,
-            onPressed: canFinish ? () => Navigator.of(context).pop((bytes: customOn ? _customBytes : _selected)) : null,
+            onPressed: canFinish
+                ? () => Navigator.of(
+                    context,
+                  ).pop((bytes: customOn ? _customBytes : _selected))
+                : null,
           ),
         ],
       ),
     );
   }
 
-  static String _tagFor(BuildContext context, int? b) {
+  static String _tagFor(BuildContext context, int? b, {bool photo = false}) {
     final l = context.l10n;
     if (b == null) return l.maxSizeTagBest;
-    if (b >= 1000000) return l.maxSizeTagSharp;
-    if (b >= 300000) return l.maxSizeTagGood;
+    // A 35 × 45 mm photo needs far fewer bytes than a page.
+    if (b >= (photo ? 150000 : 1000000)) return l.maxSizeTagSharp;
+    if (b >= (photo ? 60000 : 300000)) return l.maxSizeTagGood;
     return l.maxSizeTagReadable;
   }
 }
@@ -154,7 +210,9 @@ class _Option extends StatelessWidget {
           child: Container(
             constraints: const BoxConstraints(minHeight: 60),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            decoration: BoxDecoration(border: divider ? Border(top: BorderSide(color: c.border)) : null),
+            decoration: BoxDecoration(
+              border: divider ? Border(top: BorderSide(color: c.border)) : null,
+            ),
             child: Row(
               children: [
                 Container(
@@ -162,11 +220,21 @@ class _Option extends StatelessWidget {
                   height: 22,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: selected ? c.accent : c.border, width: 2),
+                    border: Border.all(
+                      color: selected ? c.accent : c.border,
+                      width: 2,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: selected
-                      ? Container(width: 10, height: 10, decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle))
+                      ? Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: c.accent,
+                            shape: BoxShape.circle,
+                          ),
+                        )
                       : null,
                 ),
                 const SizedBox(width: Space.x3),
@@ -174,9 +242,22 @@ class _Option extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      FitText(label, textAlign: TextAlign.start, style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700)),
+                      FitText(
+                        label,
+                        textAlign: TextAlign.start,
+                        style: context.text.titleSmall?.copyWith(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(note, style: context.text.bodySmall?.copyWith(fontSize: 12, color: c.muted)),
+                      Text(
+                        note,
+                        style: context.text.bodySmall?.copyWith(
+                          fontSize: 12,
+                          color: c.muted,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -185,10 +266,20 @@ class _Option extends StatelessWidget {
                   height: 24,
                   padding: const EdgeInsets.symmetric(horizontal: 9),
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: tone.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(12)),
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: MediaQuery.withClampedTextScaling(
                     maxScaleFactor: 1.3,
-                    child: Text(tag, style: context.text.labelSmall?.copyWith(fontSize: 11, fontWeight: FontWeight.w800, color: tone)),
+                    child: Text(
+                      tag,
+                      style: context.text.labelSmall?.copyWith(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: tone,
+                      ),
+                    ),
                   ),
                 ),
               ],

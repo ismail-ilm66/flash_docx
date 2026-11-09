@@ -53,7 +53,14 @@ class _PrepFinished extends ExportEvent {
 
 /// Progress of building the files for the current options.
 class ExportPrep extends Equatable {
-  const ExportPrep(this.done, this.total, {this.ready = false, this.bytes, this.hardToRead = false, this.failure});
+  const ExportPrep(
+    this.done,
+    this.total, {
+    this.ready = false,
+    this.bytes,
+    this.hardToRead = false,
+    this.failure,
+  });
   final int done;
   final int total;
   final bool ready;
@@ -182,7 +189,9 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
       final total = state.prep?.total ?? 0;
       e.result.fold(
         (f) {
-          if (f is! CancelledFailure) emit(state.copyWith(prep: ExportPrep(total, total, failure: f)));
+          if (f is! CancelledFailure) {
+            emit(state.copyWith(prep: ExportPrep(total, total, failure: f)));
+          }
         },
         (p) => emit(
           state.copyWith(
@@ -208,11 +217,15 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
 
   static ExportOptions _defaults(PrefsService p, ScanDocument doc) =>
       ExportOptions(
-        format:
-            ExportFormat.values
-                .where((f) => f.name == p.defaultExportFormat)
-                .firstOrNull ??
-            ExportFormat.pdf,
+        format: doc.mode == ScanMode.photo
+            // A passport photo is shared as a picture, never a PDF.
+            ? (p.defaultExportFormat == ExportFormat.png.name
+                  ? ExportFormat.png
+                  : ExportFormat.jpg)
+            : ExportFormat.values
+                      .where((f) => f.name == p.defaultExportFormat)
+                      .firstOrNull ??
+                  ExportFormat.pdf,
         pageSize:
             PdfPageSize.values
                 .where((s) => s.name == p.defaultPageSize)
@@ -231,7 +244,9 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
 
   /// Starts building the files for the current options; an older job stops
   /// before its next page.
-  Future<Either<Failure, PreparedExport>> _startPrep(Emitter<ExportState> emit) {
+  Future<Either<Failure, PreparedExport>> _startPrep(
+    Emitter<ExportState> emit,
+  ) {
     final key = _keyOf(state.options);
     if (key == _jobKey && _job != null) return _job!;
     _cancel?.cancel();
@@ -272,13 +287,16 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
     // A previous job that failed (not just superseded) gets one fresh try;
     // a file that can't fit the size limit won't fit on a second try either.
     final failed = r.getLeft().toNullable();
-    if (failed != null && failed is! CancelledFailure && failed is! ShrinkFailure) {
+    if (failed != null &&
+        failed is! CancelledFailure &&
+        failed is! ShrinkFailure) {
       _job = null;
       r = await _startPrep(emit);
     }
     final out = await r.fold(
       (f) async => Left<Failure, Unit>(f),
-      (prepared) => _export.deliver(state.document, prepared.files, options, e.target),
+      (prepared) =>
+          _export.deliver(state.document, prepared.files, options, e.target),
     );
     if (isClosed) return;
     emit(

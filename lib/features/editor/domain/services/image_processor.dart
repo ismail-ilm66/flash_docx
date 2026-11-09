@@ -51,6 +51,7 @@ abstract interface class ImageProcessor {
     required int overheadBytes,
     required bool grayscale,
     required List<String> outputs,
+    int minEdge = ShrinkToFit.minEdge,
   });
 
   /// A passport photo (feature 5) at its print size and [dpi]. Background.

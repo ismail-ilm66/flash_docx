@@ -14,6 +14,18 @@ void main() {
     expect(ShrinkToFit.edges, [2000, 1700, 1445, 1228, 1100]);
   });
 
+  test('a passport photo may go down to 240 px', () {
+    final edges = ShrinkToFit.edgesDownTo(ShrinkToFit.photoMinEdge);
+    expect(edges.first, 2000);
+    expect(edges.last, 240);
+    final m = pages(1);
+    final target = m(const ShrinkStep(300, 70)) + 10;
+    expect(ShrinkToFit.search(target, m), isA<ShrinkNeedsGrayscale>(), reason: 'pages stop at 1100 px');
+    final r = ShrinkToFit.search(target, m, min: ShrinkToFit.photoMinEdge) as ShrinkFits;
+    expect(r.step.longEdge, lessThan(ShrinkToFit.minEdge), reason: "below the pages' floor");
+    expect(r.bytes, lessThanOrEqualTo(target));
+  });
+
   ShrinkOutcome run(int target, int Function(ShrinkStep) m, {bool grayscale = false}) {
     final fast = ShrinkToFit.search(target, m, grayscale: grayscale);
     // Same answer as trying every step in order.

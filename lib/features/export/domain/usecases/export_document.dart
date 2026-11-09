@@ -74,8 +74,16 @@ class ExportDocument {
       o.layout == ExportLayout.oneImage;
 
   /// True when Max file size applies: a page-per-page PDF with a limit.
+  /// Max file size is offered for a page-per-page PDF, and for a passport
+  /// photo saved as JPG (forms often cap the photo size).
+  static bool canShrink(ScanDocument doc, ExportOptions o) =>
+      !usesOneImage(doc, o) &&
+      (o.format == ExportFormat.pdf ||
+          (doc.mode == ScanMode.photo && o.format == ExportFormat.jpg));
+
+  /// …and applies when a limit is set.
   static bool shrinks(ScanDocument doc, ExportOptions o) =>
-      o.format == ExportFormat.pdf && o.maxBytes != null && !usesOneImage(doc, o);
+      o.maxBytes != null && canShrink(doc, o);
 
   /// Number of steps [prepare] reports through `onStep`.
   static int stepsFor(ScanDocument doc, ExportOptions o) =>
@@ -117,7 +125,15 @@ class ExportDocument {
     final total = stepsFor(doc, options);
     bool cancelled() => cancel?.isCancelled ?? false;
 
-    if (shrinks(doc, options)) return _prepareShrunk(doc, options, staging, onStep: onStep, cancel: cancel);
+    if (shrinks(doc, options)) {
+      return _prepareShrunk(
+        doc,
+        options,
+        staging,
+        onStep: onStep,
+        cancel: cancel,
+      );
+    }
 
     if (usesOneImage(doc, options)) {
       // Front above back at real size (P1-2), straight from the originals at
@@ -230,7 +246,9 @@ class ExportDocument {
     } catch (e) {
       return Left(ImageProcessingFailure(e.toString()));
     }
-    if (options.isImage) return Right(PreparedExport(rendered.map(File.new).toList()));
+    if (options.isImage) {
+      return Right(PreparedExport(rendered.map(File.new).toList()));
+    }
     if (cancelled()) return const Left(CancelledFailure());
     try {
       return Right(
@@ -265,10 +283,21 @@ class ExportDocument {
       onStep?.call(0, total);
       for (final (i, page) in pages.indexed) {
         if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
-        final base = _files.exportPagePath(page.id, page.originalPath, page.edits, sizeKey: 'shrinkBase', jpegQuality: _baseQuality);
+        final base = _files.exportPagePath(
+          page.id,
+          page.originalPath,
+          page.edits,
+          sizeKey: 'shrinkBase',
+          jpegQuality: _baseQuality,
+        );
         if (!File(base).existsSync()) {
           final tmp = '${p.withoutExtension(base)}.part.jpg';
-          await _render.renderForExport(page, size: RenderSize.standard, outputPath: tmp, jpegQuality: _baseQuality);
+          await _render.renderForExport(
+            page,
+            size: RenderSize.standard,
+            outputPath: tmp,
+            jpegQuality: _baseQuality,
+          );
           File(tmp).renameSync(base);
         }
         bases.add(base);
@@ -276,21 +305,48 @@ class ExportDocument {
       }
       if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
 
-      var overhead = _pdfOverheadBase + _pdfOverheadPerPage * pages.length;
-      final outputs = [for (var i = 0; i < pages.length; i++) p.join(staging, 'page_${i + 1}.jpg')];
+      // A JPG photo is the file itself: no PDF around it, smaller sizes
+      // allowed, and never black and white.
+      final image = options.isImage;
+      var overhead = image
+          ? 0
+          : _pdfOverheadBase + _pdfOverheadPerPage * pages.length;
+      final outputs = [
+        for (var i = 0; i < pages.length; i++)
+          p.join(staging, 'page_${i + 1}.jpg'),
+      ];
       for (var attempt = 0; attempt < 2; attempt++) {
         final outcome = await _processor.shrinkPages(
           bases,
           targetBytes: target,
           overheadBytes: overhead,
-          grayscale: options.grayscaleToFit,
+          grayscale: !image && options.grayscaleToFit,
           outputs: outputs,
+          minEdge: image ? ShrinkToFit.photoMinEdge : ShrinkToFit.minEdge,
         );
         switch (outcome) {
           case ShrinkNeedsGrayscale(:final smallestBytes):
-            return Left(ShrinkFailure(targetBytes: target, smallestBytes: smallestBytes, canTryGrayscale: true));
+            return Left(
+              ShrinkFailure(
+                targetBytes: target,
+                smallestBytes: smallestBytes,
+                canTryGrayscale: !image,
+              ),
+            );
           case ShrinkCantFit(:final smallestBytes):
-            return Left(ShrinkFailure(targetBytes: target, smallestBytes: smallestBytes, canTryGrayscale: false));
+            return Left(
+              ShrinkFailure(
+                targetBytes: target,
+                smallestBytes: smallestBytes,
+                canTryGrayscale: false,
+              ),
+            );
+          case ShrinkFits(:final step, :final bytes) when image:
+            debugPrint('[shrink] photo $step -> $bytes bytes (target $target)');
+            onStep?.call(total, total);
+            return Right(
+              PreparedExport([for (final o in outputs) File(o)], shrunk: step),
+            );
           case ShrinkFits(:final step, :final bytes):
             final pdf = await _pdf.fromPages(
               outputs,
@@ -298,7 +354,9 @@ class ExportDocument {
               outputPath: p.join(staging, 'doc.pdf'),
             );
             final size = pdf.lengthSync();
-            debugPrint('[shrink] $step -> $size bytes (target $target, estimate $bytes)');
+            debugPrint(
+              '[shrink] $step -> $size bytes (target $target, estimate $bytes)',
+            );
             if (size <= target) {
               onStep?.call(total, total);
               return Right(PreparedExport([pdf], shrunk: step));
@@ -308,7 +366,11 @@ class ExportDocument {
         }
       }
       return Left(
-        ShrinkFailure(targetBytes: target, smallestBytes: target + 1, canTryGrayscale: !options.grayscaleToFit),
+        ShrinkFailure(
+          targetBytes: target,
+          smallestBytes: target + 1,
+          canTryGrayscale: !options.grayscaleToFit,
+        ),
       );
     } catch (e) {
       return Left(PdfFailure(e.toString()));

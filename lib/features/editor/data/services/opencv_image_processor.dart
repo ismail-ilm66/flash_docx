@@ -98,10 +98,11 @@ class OpenCvImageProcessor implements ImageProcessor {
     required int overheadBytes,
     required bool grayscale,
     required List<String> outputs,
+    int minEdge = ShrinkToFit.minEdge,
   }) {
     return _runner.run(
       shrinkInIsolate,
-      ShrinkMsg(bases, targetBytes, overheadBytes, grayscale, outputs),
+      ShrinkMsg(bases, targetBytes, overheadBytes, grayscale, outputs, minEdge),
       debugLabel: 'shrink',
     );
   }
@@ -493,12 +494,13 @@ String signatureInIsolate(SignatureMsg m) {
 }
 
 class ShrinkMsg {
-  const ShrinkMsg(this.bases, this.target, this.overhead, this.grayscale, this.outputs);
+  const ShrinkMsg(this.bases, this.target, this.overhead, this.grayscale, this.outputs, [this.minEdge = ShrinkToFit.minEdge]);
   final List<String> bases;
   final int target;
   final int overhead;
   final bool grayscale;
   final List<String> outputs;
+  final int minEdge;
 }
 
 /// Decodes each page once, keeps one resized copy per long edge, and
@@ -535,6 +537,7 @@ ShrinkOutcome shrinkInIsolate(ShrinkMsg m) {
       m.target,
       (step) => m.overhead + at(step.longEdge).fold(0, (sum, img) => sum + jpegBytes(img, step.quality)),
       grayscale: m.grayscale,
+      min: m.minEdge,
     );
     if (outcome is ShrinkFits) {
       for (final (i, img) in at(outcome.step.longEdge).indexed) {

@@ -333,6 +333,37 @@ void main() {
     });
   }
 
+  testWidgets('Passport photo share: pictures only, with size limits', (tester) async {
+    final files = getIt<FileStore>();
+    final path = files.newCapturePath('face');
+    await tester.runAsync(() => File('test/fixtures/edges/box_colors_photo.jpg').copy(path));
+    final photo = (await tester.runAsync(
+      () => getIt<CreateDocument>()(
+        mode: ScanMode.photo,
+        pages: [ScanPage(id: 'ph', documentId: '', originalPath: path, edits: const PageEdits(photoWidthMm: 35, photoHeightMm: 45), order: 0)],
+        title: 'Passport photo',
+      ),
+    ))!
+        .getOrElse((f) => throw StateError('$f'));
+    final router = await pumpApp(tester);
+    router.go(Routes.viewer(photo.id));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(PrimaryButton, l.viewerShare).first);
+    await settle(tester);
+    final sheet = find.byType(AppBottomSheet);
+    expect(find.descendant(of: sheet, matching: find.text(l.sharePdf)), findsNothing, reason: 'no PDF for a photo');
+    expect(find.descendant(of: sheet, matching: find.text(l.shareJpg)), findsOneWidget);
+    expect(find.descendant(of: sheet, matching: find.text(l.sharePng)), findsOneWidget);
+    expectNothingCutOff(tester, 'Photo share');
+    await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
+    await tester.tap(find.text(l.shareMaxSize));
+    await settle(tester);
+    expect(find.text(l.maxSizeUnder('50 KB')), findsOneWidget);
+    expect(find.text(l.maxSizeUnder('1 MB')), findsNothing);
+    expectNothingCutOff(tester, 'Photo max size');
+    await close(tester);
+  });
+
   testWidgets('Print', (tester) async {
     final router = await pumpApp(tester);
     router.go(Routes.print(card.id));
