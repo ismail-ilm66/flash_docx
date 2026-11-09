@@ -7,7 +7,7 @@ Placeholders to replace before a store release.
 | App ID | `com.flashdox.app` (placeholder) in `android/app/build.gradle.kts`, `ios/Runner.xcodeproj`, `core/constants/app_info.dart` |
 | Privacy / FAQ / store URLs | `core/constants/app_info.dart` |
 | Crashlytics | add `google-services.json` / `GoogleService-Info.plist`, `firebase_core` + `firebase_crashlytics`, hook in `app/bootstrap.dart` |
-| App icon | default Flutter icon still in place |
+| App icon | done from the brand handoff (`flash_dox_logo`): sources in `assets/launcher/`, regenerate with `dart run flutter_launcher_icons` (then `git checkout ios/Runner.xcodeproj/project.pbxproj`: the tool writes an invalid `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS`). Play listing icon: `store/play_store_icon_512.png` |
 | Design icons | done: the canvas's stroke set is in `assets/icons/`; entries still on Material fallbacks in `shared/widgets/app_icons.dart` have no `asset:` |
 | Splash | the in-app splash is drawn from `assets/images/brand_mark.svg`; `assets/splash/splash_icon.png` (native splash) is still a placeholder; replace it and rerun `dart run flutter_native_splash:create` |
 | Android signing | wired: `android/key.properties` (gitignored, template in `key.properties.example`) + `android/upload-keystore.jks`; without them release falls back to the debug key with a Gradle warning |

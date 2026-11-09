@@ -60,6 +60,7 @@ dev_dependencies:
   path_provider_platform_interface: ^2.1.3
   plugin_platform_interface: ^2.1.8
   sqlite3: ^3.5.2
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
@@ -101,6 +102,22 @@ flutter_native_splash:
   ios: true
   android: true
   web: false
+
+# App icon from the brand handoff (flash_dox_logo): `dart run
+# flutter_launcher_icons`. Sources and SVGs in assets/launcher/ (not bundled).
+# Android 8+ gets the adaptive icon on the dark `bg` token, Android 13+ the
+# themed (monochrome) one; iOS the full 1024 tile.
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/launcher/app_icon_1024.png
+  remove_alpha_ios: true
+  min_sdk_android: 24
+  adaptive_icon_background: "#0F1012"
+  adaptive_icon_foreground: assets/launcher/adaptive_foreground_432.png
+  adaptive_icon_monochrome: assets/launcher/adaptive_monochrome_432.png
+  # The 432 px layer already has the 108 dp padding; no extra inset.
+  adaptive_icon_foreground_inset: 0
 
 dependency_overrides:
   # pdf 3.12 pins archive <4.1 while image >=4.11 secretly needs 4.1+.
