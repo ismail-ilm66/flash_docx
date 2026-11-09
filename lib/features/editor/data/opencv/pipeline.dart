@@ -781,7 +781,13 @@ cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
   double d(XY a, XY b) => math.sqrt((a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y));
   var wt = math.max(d(q[2], q[3]), d(q[1], q[0])).toInt();
   var ht = math.max(d(q[1], q[2]), d(q[0], q[3])).toInt();
-  if (aspect != null) {
+  if (aspect != null && aspect < 1) {
+    // A portrait shape given as width / height (passport photo 35 × 45):
+    // keep the height, set the width. Reading it as a card's long/short
+    // ratio stretched it into landscape.
+    wt = (ht * aspect).round();
+  } else if (aspect != null) {
+    // A card's long / short ratio, along whichever way the quad lies.
     if (wt >= ht) {
       ht = (wt / aspect).round();
     } else {

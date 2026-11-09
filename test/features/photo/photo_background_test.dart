@@ -101,4 +101,17 @@ void main() {
       m.dispose();
     }
   });
+
+  test('a 35 × 45 crop renders portrait 35:45, not stretched to landscape', () {
+    // The crop the passport screen makes: 35:45 in pixels of a 3:4 photo.
+    const crop = Quad(tl: Pt(0.2, 0.2), tr: Pt(0.8, 0.2), br: Pt(0.8, 0.7), bl: Pt(0.2, 0.7));
+    // 0.6 × 1200 = 720 wide, 0.5 × 1600 = 800 tall → close to 35:45 already.
+    final out = pipe.renderEdits(photo, const PageEdits(crop: crop, filter: FilterType.original, outputAspect: 35 / 45));
+    expect(out.rows, greaterThan(out.cols));
+    expect(out.cols / out.rows, closeTo(35 / 45, 0.01));
+    out.dispose();
+    final square = pipe.renderEdits(photo, const PageEdits(crop: crop, filter: FilterType.original, outputAspect: 1));
+    expect(square.cols / square.rows, closeTo(1, 0.01));
+    square.dispose();
+  });
 }
