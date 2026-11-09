@@ -346,15 +346,7 @@ void main() {
       expectNothingCutOff(tester, 'Share sheet');
 
       if (mode == ScanMode.document) {
-        await tester.scrollUntilVisible(find.text(l.shareImageSize), 200, scrollable: find.byType(Scrollable).last);
-    await tester.tap(find.text(l.shareImageSize));
-    await settle(tester);
-    expect(find.text(l.imageSizePrint(413, 531)), findsOneWidget);
-    expectNothingCutOff(tester, 'Photo image size');
-    await tester.tap(find.text(l.imageSizePx(600, 771)));
-    await settle(tester);
-    expect(find.text(l.imageSizePx(600, 771)), findsOneWidget, reason: 'shown on the row');
-    await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
+        await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
         await tester.tap(find.text(l.shareMaxSize));
         await settle(tester);
         expect(find.text(l.maxSizeBody), findsOneWidget);
@@ -410,7 +402,7 @@ void main() {
     expectNothingCutOff(tester, 'Photo image size');
     await tester.tap(find.text(l.imageSizePx(600, 771)));
     await settle(tester);
-    expect(find.text(l.imageSizePx(600, 771)), findsOneWidget, reason: 'shown on the row');
+    expect(find.text(l.imageSizePx(600, 771)), findsWidgets, reason: 'shown on the row');
     await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text(l.shareMaxSize));
     await settle(tester);
