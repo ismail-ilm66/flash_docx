@@ -20,6 +20,7 @@ import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
+import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
@@ -82,6 +83,28 @@ class _PhotoProcessor extends _PendingProcessor {
       ..parent.createSync(recursive: true)
       ..writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
     return outputPath;
+  }
+
+  @override
+  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath}) async {
+    File(outputPath)
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
+    return outputPath;
+  }
+}
+
+/// Segmentation stand-ins: a real mask file, or "not on this phone".
+class _FakeSegmenter implements BackgroundSegmenter {
+  _FakeSegmenter({required this.available});
+  final bool available;
+
+  @override
+  Future<String?> maskFor(String photoPath) async {
+    if (!available) return null;
+    final out = getIt<FileStore>().newCapturePath('mask').replaceAll('.jpg', '.png');
+    File(out).writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
+    return out;
   }
 }
 
@@ -333,6 +356,23 @@ void main() {
     });
   }
 
+  testWidgets('Passport photo: no segmentation, no White / Light blue', (tester) async {
+    getIt
+      ..unregister<ImageProcessor>()
+      ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new)
+      ..unregister<BackgroundSegmenter>()
+      ..registerLazySingleton<BackgroundSegmenter>(() => _FakeSegmenter(available: false));
+    final photo = getIt<FileStore>().newCapturePath('face');
+    await tester.runAsync(() => File('test/fixtures/edges/box_colors_photo.jpg').copy(photo));
+    final router = await pumpApp(tester);
+    unawaited(router.push(Routes.photoCrop, extra: PhotoCropArgs(photoPath: photo)));
+    await real(tester);
+    expect(find.text(l.photoTopOfHead), findsOneWidget);
+    expect(find.text(l.photoBackgroundWhite), findsNothing);
+    expect(find.text(l.photoBackgroundLightBlue), findsNothing);
+    await close(tester);
+  });
+
   testWidgets('Passport photo share: pictures only, with size limits', (tester) async {
     final files = getIt<FileStore>();
     final path = files.newCapturePath('face');
@@ -477,7 +517,9 @@ void main() {
   testWidgets('Passport photo: crop, then the print sheet (feature 5)', (tester) async {
     getIt
       ..unregister<ImageProcessor>()
-      ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new);
+      ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new)
+      ..unregister<BackgroundSegmenter>()
+      ..registerLazySingleton<BackgroundSegmenter>(() => _FakeSegmenter(available: true));
     final photo = getIt<FileStore>().newCapturePath('face');
     await tester.runAsync(() => File('test/fixtures/edges/box_colors_photo.jpg').copy(photo));
     final router = await pumpApp(tester);
@@ -485,6 +527,13 @@ void main() {
     await real(tester);
     expect(find.text(l.photoTopOfHead), findsOneWidget);
     expectNothingCutOff(tester, 'Passport photo crop');
+    // Background: Original · White · Light blue, previewed on the stage.
+    expect(find.text(l.photoBackgroundLightBlue), findsOneWidget);
+    await tester.ensureVisible(find.text(l.photoBackgroundWhite));
+    await tester.tap(find.text(l.photoBackgroundWhite));
+    await real(tester);
+    final stage = tester.widgetList<Image>(find.byType(Image)).map((i) => i.image).whereType<ResizeImage>().map((r) => (r.imageProvider as FileImage).file.path);
+    expect(stage.any((p) => p.contains('bg_white_')), isTrue, reason: 'the white preview is on the stage');
     // P1-3.5: both look and are enabled once the photo is placed.
     expect(tester.widget<PrimaryButton>(find.widgetWithText(PrimaryButton, l.photoMakeSheet)).onPressed, isNotNull);
     expect(tester.widget<TopBarTextAction>(find.widgetWithText(TopBarTextAction, l.adjustNext)).onPressed, isNotNull);
@@ -505,6 +554,9 @@ void main() {
 
     final docs = (await tester.runAsync(() => getIt<DocumentRepository>().watchAll().first))!;
     final saved = docs.firstWhere((d) => d.mode == ScanMode.photo);
+    expect(saved.pages.single.edits.photoBackground, PhotoBackground.white);
+    final mask = saved.pages.single.edits.backgroundMaskPath!;
+    expect(p.isWithin(getIt<FileStore>().docDir(saved.id).path, mask), isTrue, reason: 'the mask is kept with the document');
     expect(saved.folder, DocFolder.ids);
     final e = saved.pages.single.edits;
     expect((e.photoWidthMm, e.photoHeightMm), (35.0, 45.0));

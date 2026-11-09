@@ -136,6 +136,19 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath) =>
+      _runner.run(grayInIsolate, (data, width, height, outputPath), debugLabel: 'mask', priority: JobPriority.interactive);
+
+  @override
+  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath}) =>
+      _runner.run(
+        backgroundPreviewInIsolate,
+        (photoPath, maskPath, background, outputPath),
+        debugLabel: 'background',
+        priority: JobPriority.interactive,
+      );
+
+  @override
   Future<String> signatureFromPhoto(String photo, {required String outputPath, CaptureMeta? capture}) {
     return _runner.run(
       signatureInIsolate,
@@ -479,6 +492,26 @@ String photoInIsolate(PhotoMsg m) {
 }
 
 String normalizeInIsolate((String, CaptureMeta?) m) => pipe.normalizeCapture(m.$1, m.$2);
+
+void grayInIsolate((Uint8List, int, int, String) m) => pipe.writeGray(m.$1, m.$2, m.$3, m.$4);
+
+String backgroundPreviewInIsolate((String, String, PhotoBackground, String) m) {
+  final img = pipe.readUprightAtMost(m.$1, RenderPx.previewLongEdge);
+  final small = pipe.fitLongEdge(img, RenderPx.previewLongEdge);
+  pipe.disposeUnless(img, small);
+  final mask = cv.imread(m.$2, flags: cv.IMREAD_GRAYSCALE);
+  try {
+    final color = pipe.photoBackgroundColor(m.$3);
+    final out = color == null || mask.isEmpty ? small.clone() : pipe.replaceBackground(small, mask, color);
+    File(m.$4).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.$4, quality: 88);
+    out.dispose();
+    return m.$4;
+  } finally {
+    small.dispose();
+    mask.dispose();
+  }
+}
 
 class SignatureMsg {
   const SignatureMsg(this.photo, this.out, this.capture);

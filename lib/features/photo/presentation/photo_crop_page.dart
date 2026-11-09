@@ -7,10 +7,12 @@ import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
@@ -20,6 +22,7 @@ import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path/path.dart' as p;
 
 /// What the crop screen works on: a fresh photo, or a saved passport photo
 /// being re-cropped.
@@ -66,7 +69,11 @@ Future<String?> _pickPhoto(BuildContext context, {required bool camera}) async {
   if (camera) {
     final shot = await context.push<RetakeShot>(
       Routes.camera,
-      extra: const CameraArgs(retake: true, mode: ScanMode.document, hint: CameraHint.passportPhoto),
+      extra: const CameraArgs(
+        retake: true,
+        mode: ScanMode.document,
+        hint: CameraHint.passportPhoto,
+      ),
     );
     if (shot == null) return null;
     // The camera records how the phone was held; turn the photo upright.
@@ -106,6 +113,15 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   bool _saving = false;
   bool _loadFailed = false;
 
+  /// Background (artboard *Passport photo · crop*): the choice, the person
+  /// mask for [_photo], whether segmentation works here (null while
+  /// finding out) and the preview of each colour.
+  late PhotoBackground _background =
+      widget.args.page?.edits.photoBackground ?? PhotoBackground.original;
+  late String? _mask = widget.args.page?.edits.backgroundMaskPath;
+  bool? _segmentable;
+  final Map<PhotoBackground, String> _bgPreview = {};
+
   // Gesture state.
   PhotoPlacement? _start;
   Offset _startFocal = Offset.zero;
@@ -134,6 +150,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
         _frame = null;
         _loadFailed = false;
       });
+      if (_segmentable == null) unawaited(_segment());
     } on Object catch (e) {
       // Never an endless grey stage (P1-3.4): say so and offer Retake.
       debugPrint('[photo] size failed: $e');
@@ -141,11 +158,17 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     }
   }
 
+  /// The photo as it will print: with the chosen background once its
+  /// preview is ready.
+  String get _shown => _background == PhotoBackground.original
+      ? _photo
+      : _bgPreview[_background] ?? _photo;
+
   /// Fits the frame into the stage, leaving room for the guide labels.
   Rect _frameFor(Size stage) {
     const pad = 36.0;
-    final maxW = stage.width - pad * 2;
-    final maxH = stage.height - pad * 2;
+    final maxW = math.max(40.0, stage.width - pad * 2);
+    final maxH = math.max(40.0, stage.height - pad * 2);
     var w = maxW;
     var h = w / _size.aspect;
     if (h > maxH) {
@@ -163,7 +186,11 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     final image = _image!;
     final saved = widget.args.page?.edits.crop;
     // The saved crop belongs to the saved photo, not to a retake.
-    final keepOld = _placement == null && saved != null && _frame == null && _photo == widget.args.photoPath;
+    final keepOld =
+        _placement == null &&
+        saved != null &&
+        _frame == null &&
+        _photo == widget.args.photoPath;
     final p = keepOld
         ? PhotoPlacement.fromCrop(saved, image, frame)
         : _placement == null || _frame == null
@@ -188,8 +215,64 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       _placement = null;
       _frame = null;
       _loadFailed = false;
+      _mask = null;
+      _segmentable = null;
+      _bgPreview.clear();
     });
     await _loadSize();
+  }
+
+  /// Finds the person once per photo, then renders the White and Light
+  /// blue previews. If segmentation isn't available the options go away.
+  Future<void> _segment() async {
+    final photo = _photo;
+    final saved = _mask;
+    final mask = saved != null && File(saved).existsSync()
+        ? saved
+        : await getIt<BackgroundSegmenter>().maskFor(photo);
+    if (!mounted || photo != _photo) return;
+    if (mask == null) {
+      setState(() {
+        _segmentable = false;
+        _background = PhotoBackground.original;
+      });
+      return;
+    }
+    setState(() {
+      _mask = mask;
+      _segmentable = true;
+    });
+    for (final bg in [PhotoBackground.white, PhotoBackground.lightBlue]) {
+      try {
+        final out = await getIt<ImageProcessor>().previewWithBackground(
+          photo,
+          mask,
+          bg,
+          outputPath: getIt<FileStore>().newCapturePath(
+            'bg_${bg.name}_${newId()}',
+          ),
+        );
+        if (!mounted || photo != _photo) return;
+        setState(() => _bgPreview[bg] = out);
+      } on Object catch (e) {
+        debugPrint('[background] preview: $e');
+      }
+    }
+  }
+
+  /// Copies the mask into the document so it outlives the temp folder.
+  Future<String> _adoptMask(
+    String documentId,
+    String pageId,
+    String mask,
+  ) async {
+    final out = p.join(
+      getIt<FileStore>().docDir(documentId).path,
+      'mask_${pageId}_${newId()}.png',
+    );
+    await File(out).parent.create(recursive: true);
+    await File(mask).copy(out);
+    return out;
   }
 
   Future<void> _customSize() async {
@@ -263,12 +346,29 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       outputAspect: _size.aspect,
       photoWidthMm: _size.widthMm,
       photoHeightMm: _size.heightMm,
+      photoBackground: _segmentable ?? false
+          ? _background
+          : PhotoBackground.original,
+      backgroundMaskPath: null,
     );
+    final mask =
+        _background != PhotoBackground.original && (_segmentable ?? false)
+        ? _mask
+        : null;
     final page = widget.args.page;
     if (page != null) {
       // Re-crop: same page, new frame; previews re-render.
+      final keep =
+          mask != null &&
+          p.isWithin(getIt<FileStore>().docDir(page.documentId).path, mask);
       final updated = page.copyWith(
-        edits: edits,
+        edits: edits.copyWith(
+          backgroundMaskPath: mask == null
+              ? null
+              : (keep
+                    ? mask
+                    : await _adoptMask(page.documentId, page.id, mask)),
+        ),
         originalPath: _photo == widget.args.photoPath
             ? page.originalPath
             : _photo,
@@ -299,16 +399,26 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       title: context.l10n.photoDefaultTitle(dateStampText(DateTime.now())),
     );
     if (!mounted) return;
+    final doc = r.toNullable();
+    if (doc == null) {
+      setState(() => _saving = false);
+      return context.showSnack(
+        failureMessage(context, r.getLeft().toNullable()),
+        error: true,
+      );
+    }
+    if (mask != null) {
+      final saved = doc.pages.single;
+      final kept = await _adoptMask(doc.id, saved.id, mask);
+      await getIt<UpdatePages>()([
+        saved.copyWith(edits: saved.edits.copyWith(backgroundMaskPath: kept)),
+      ]);
+    }
+    if (!mounted) return;
     setState(() => _saving = false);
-    r.fold(
-      (f) => context.showSnack(failureMessage(context, f), error: true),
-      (doc) {
-        context
-          ..go(Routes.home)
-          ..push(Routes.viewer(doc.id))
-          ..push(Routes.photoSheet(doc.id));
-      },
-    );
+    final router = GoRouter.of(context)..go(Routes.home);
+    unawaited(router.push(Routes.viewer(doc.id)));
+    unawaited(router.push(Routes.photoSheet(doc.id)));
   }
 
   @override
@@ -349,7 +459,9 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                               // The top bar and the button were built before
                               // this placement: rebuild them enabled (P1-3.5).
                               if (first) {
-                                WidgetsBinding.instance.addPostFrameCallback((_) {
+                                WidgetsBinding.instance.addPostFrameCallback((
+                                  _,
+                                ) {
                                   if (mounted) setState(() {});
                                 });
                               }
@@ -382,12 +494,13 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                     width: _image!.width * p.scale,
                                     height: _image!.height * p.scale,
                                     child: Image.file(
-                                      File(_photo),
-                                      key: ValueKey(_photo),
+                                      File(_shown),
+                                      key: ValueKey(_shown),
                                       fit: BoxFit.fill,
                                       gaplessPlayback: true,
                                       cacheWidth: 1600,
-                                      errorBuilder: (context, _, _) => _LoadFailed(onRetake: _retake),
+                                      errorBuilder: (context, _, _) =>
+                                          _LoadFailed(onRetake: _retake),
                                     ),
                                   ),
                                   Positioned.fill(
@@ -446,72 +559,136 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                         ),
                 ),
               ),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: c.border)),
+              // At most half the screen, scrolling inside at large fonts,
+              // so the photo always has room.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.5,
                 ),
-                child: SafeArea(
-                  top: false,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.x4,
-                      14,
-                      Space.x4,
-                      18,
+                child: SingleChildScrollView(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(top: BorderSide(color: c.border)),
                     ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        SectionLabel(
-                          l.photoSizeLabel,
-                          padding: const EdgeInsets.only(bottom: Space.x2),
+                    child: SafeArea(
+                      top: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          Space.x4,
+                          14,
+                          Space.x4,
+                          18,
                         ),
-                        SegmentedPills<int>(
-                          values: const [0, 1, 2],
-                          selected: custom ? 2 : sizes.indexOf(_size),
-                          height: 40,
-                          labelOf: (i) => switch (i) {
-                            0 => l.photoSize35x45,
-                            1 => l.photoSize2x2,
-                            _ =>
-                              custom
-                                  ? '${_size.widthMm.round()} × ${_size.heightMm.round()} mm'
-                                  : l.photoSizeCustom,
-                          },
-                          onChanged: (i) {
-                            if (i == 2) {
-                              unawaited(_customSize());
-                            } else {
-                              setState(() => _size = sizes[i]);
-                            }
-                          },
-                        ),
-                        const SizedBox(height: Space.x3),
-                        Row(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(
-                              child: SecondaryButton(
-                                label: l.photoRetake,
-                                dense: true,
-                                onPressed: _saving ? null : _retake,
-                              ),
+                            SectionLabel(
+                              l.photoSizeLabel,
+                              padding: const EdgeInsets.only(bottom: Space.x2),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              flex: 2,
-                              child: PrimaryButton(
-                                label: widget.args.page == null
-                                    ? l.photoMakeSheet
-                                    : l.commonSave,
-                                dense: true,
-                                loading: _saving,
-                                onPressed: _placement == null ? null : _next,
+                            Row(
+                              children: [
+                                for (final (i, label) in [
+                                  l.photoSize35x45,
+                                  l.photoSize2x2,
+                                  if (custom)
+                                    '${_size.widthMm.round()} × ${_size.heightMm.round()} mm'
+                                  else
+                                    l.photoSizeCustom,
+                                ].indexed) ...[
+                                  if (i > 0) const SizedBox(width: Space.x2),
+                                  Expanded(
+                                    child: _Choice(
+                                      label: label,
+                                      selected:
+                                          i ==
+                                          (custom ? 2 : sizes.indexOf(_size)),
+                                      onTap: () => i == 2
+                                          ? unawaited(_customSize())
+                                          : setState(() => _size = sizes[i]),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            // White / Light blue only where segmentation works.
+                            if (_segmentable ?? true) ...[
+                              const SizedBox(height: Space.x3),
+                              SectionLabel(
+                                l.photoBackgroundLabel,
+                                padding: const EdgeInsets.only(
+                                  bottom: Space.x2,
+                                ),
                               ),
+                              Row(
+                                children: [
+                                  for (final (i, bg)
+                                      in PhotoBackground.values.indexed) ...[
+                                    if (i > 0) const SizedBox(width: Space.x2),
+                                    Expanded(
+                                      child: _Choice(
+                                        label: switch (bg) {
+                                          PhotoBackground.original =>
+                                            l.photoBackgroundOriginal,
+                                          PhotoBackground.white =>
+                                            l.photoBackgroundWhite,
+                                          PhotoBackground.lightBlue =>
+                                            l.photoBackgroundLightBlue,
+                                        },
+                                        swatch: switch (bg) {
+                                          PhotoBackground.original => null,
+                                          PhotoBackground.white => Colors.white,
+                                          PhotoBackground.lightBlue =>
+                                            const Color(0xFFCFE3F5),
+                                        },
+                                        selected: _background == bg,
+                                        // Ready once the person is found.
+                                        loading:
+                                            bg != PhotoBackground.original &&
+                                            _segmentable == null,
+                                        onTap:
+                                            bg == PhotoBackground.original ||
+                                                (_segmentable ?? false)
+                                            ? () => setState(
+                                                () => _background = bg,
+                                              )
+                                            : null,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: Space.x3),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: SecondaryButton(
+                                    label: l.photoRetake,
+                                    dense: true,
+                                    onPressed: _saving ? null : _retake,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  flex: 2,
+                                  child: PrimaryButton(
+                                    label: widget.args.page == null
+                                        ? l.photoMakeSheet
+                                        : l.commonSave,
+                                    dense: true,
+                                    loading: _saving,
+                                    onPressed: _placement == null
+                                        ? null
+                                        : _next,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -635,10 +812,104 @@ class _LoadFailed extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(l.photoLoadFailed, textAlign: TextAlign.center, style: context.text.bodyMedium),
+            Text(
+              l.photoLoadFailed,
+              textAlign: TextAlign.center,
+              style: context.text.bodyMedium,
+            ),
             const SizedBox(height: Space.x3),
-            SecondaryButton(label: l.photoRetake, expand: false, onPressed: onRetake),
+            SecondaryButton(
+              label: l.photoRetake,
+              expand: false,
+              onPressed: onRetake,
+            ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A choice in the bottom panel (photo size, background), artboard
+/// *Passport photo · crop*: accent border and tint when selected.
+class _Choice extends StatelessWidget {
+  const _Choice({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.swatch,
+    this.loading = false,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback? onTap;
+  final Color? swatch;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      child: Material(
+        color: selected ? c.accentSoft : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: selected ? c.accent : c.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(
+              horizontal: Space.x2,
+              vertical: 6,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (loading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 6),
+                    child: SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 1.6),
+                    ),
+                  )
+                else if (swatch != null)
+                  Container(
+                    width: 18,
+                    height: 18,
+                    margin: const EdgeInsets.only(right: 6),
+                    decoration: BoxDecoration(
+                      color: swatch,
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: c.borderStrong),
+                    ),
+                  ),
+                Flexible(
+                  child: FitText(
+                    label,
+                    // Two lines at the largest font ("Light / blue").
+                    maxLines: 2,
+                    style: context.text.labelLarge?.copyWith(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: enabled ? c.text : c.muted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

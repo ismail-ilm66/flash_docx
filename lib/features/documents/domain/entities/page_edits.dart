@@ -29,6 +29,12 @@ abstract class PageEdits with _$PageEdits {
     /// Passport photo (feature 5): the print size in millimetres.
     double? photoWidthMm,
     double? photoHeightMm,
+
+    /// Passport photo background: the person mask for the whole upright
+    /// photo (8-bit PNG, any size) and the colour behind them. Applied as
+    /// the crop is rendered, so every output gets it.
+    @Default(PhotoBackground.original) PhotoBackground photoBackground,
+    String? backgroundMaskPath,
   }) = _PageEdits;
   const PageEdits._();
 

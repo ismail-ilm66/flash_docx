@@ -55,8 +55,10 @@ class PhotoPlacement {
     final s = scale.clamp(minS, minS * maxZoom);
     final w = image.width * s;
     final h = image.height * s;
-    final x = offset.dx.clamp(frame.right - w, frame.left);
-    final y = offset.dy.clamp(frame.bottom - h, frame.top);
+    double fit(double v, double lo, double hi) =>
+        lo <= hi ? v.clamp(lo, hi) : (lo + hi) / 2;
+    final x = fit(offset.dx, frame.right - w, frame.left);
+    final y = fit(offset.dy, frame.bottom - h, frame.top);
     return PhotoPlacement(Offset(x, y), s);
   }
 

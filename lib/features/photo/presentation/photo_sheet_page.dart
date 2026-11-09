@@ -419,10 +419,19 @@ class _Body extends StatelessWidget {
   Widget build(BuildContext context) {
     final large = MediaQuery.textScalerOf(context).scale(10) > 13;
     if (!large) {
-      return Column(children: [for (final c in children) c is _StageSlot ? Expanded(child: c) : c]);
+      return Column(
+        children: [
+          for (final c in children) c is _StageSlot ? Expanded(child: c) : c,
+        ],
+      );
     }
     return SingleChildScrollView(
-      child: Column(children: [for (final c in children) c is _StageSlot ? SizedBox(height: 360, child: c) : c]),
+      child: Column(
+        children: [
+          for (final c in children)
+            c is _StageSlot ? SizedBox(height: 360, child: c) : c,
+        ],
+      ),
     );
   }
 }

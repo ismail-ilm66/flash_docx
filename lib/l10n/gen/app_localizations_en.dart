@@ -1262,4 +1262,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String sharePhotoCantFit(String size) {
     return 'Can\'t get the photo under $size and keep it clear. Try a bigger limit.';
   }
+
+  @override
+  String get photoBackgroundLabel => 'Background';
+
+  @override
+  String get photoBackgroundOriginal => 'Original';
+
+  @override
+  String get photoBackgroundWhite => 'White';
+
+  @override
+  String get photoBackgroundLightBlue => 'Light blue';
 }

@@ -24,6 +24,10 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
       const <PageOverlay>[],
   photoWidthMm: (json['photoWidthMm'] as num?)?.toDouble(),
   photoHeightMm: (json['photoHeightMm'] as num?)?.toDouble(),
+  photoBackground:
+      $enumDecodeNullable(_$PhotoBackgroundEnumMap, json['photoBackground']) ??
+      PhotoBackground.original,
+  backgroundMaskPath: json['backgroundMaskPath'] as String?,
 );
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
@@ -37,6 +41,8 @@ Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
       'overlays': instance.overlays.map((e) => e.toJson()).toList(),
       'photoWidthMm': instance.photoWidthMm,
       'photoHeightMm': instance.photoHeightMm,
+      'photoBackground': _$PhotoBackgroundEnumMap[instance.photoBackground]!,
+      'backgroundMaskPath': instance.backgroundMaskPath,
     };
 
 const _$FilterTypeEnumMap = {
@@ -46,4 +52,10 @@ const _$FilterTypeEnumMap = {
   FilterType.colorBoost: 'colorBoost',
   FilterType.grayscale: 'grayscale',
   FilterType.bwPrint: 'bwPrint',
+};
+
+const _$PhotoBackgroundEnumMap = {
+  PhotoBackground.original: 'original',
+  PhotoBackground.white: 'white',
+  PhotoBackground.lightBlue: 'lightBlue',
 };

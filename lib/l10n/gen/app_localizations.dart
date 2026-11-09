@@ -2319,6 +2319,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Can\'t get the photo under {size} and keep it clear. Try a bigger limit.'**
   String sharePhotoCantFit(String size);
+
+  /// No description provided for @photoBackgroundLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Background'**
+  String get photoBackgroundLabel;
+
+  /// No description provided for @photoBackgroundOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get photoBackgroundOriginal;
+
+  /// No description provided for @photoBackgroundWhite.
+  ///
+  /// In en, this message translates to:
+  /// **'White'**
+  String get photoBackgroundWhite;
+
+  /// No description provided for @photoBackgroundLightBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Light blue'**
+  String get photoBackgroundLightBlue;
 }
 
 class _AppLocalizationsDelegate

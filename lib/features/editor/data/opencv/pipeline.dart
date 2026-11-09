@@ -1399,9 +1399,74 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   cropped.dispose();
   final adjusted = brightnessContrast(filtered, edits);
   filtered.dispose();
-  final out = withOverlays(adjusted, edits.overlays);
-  disposeUnless(adjusted, out);
+  final backed = _withPhotoBackground(adjusted, edits);
+  disposeUnless(adjusted, backed);
+  final out = withOverlays(backed, edits.overlays);
+  disposeUnless(backed, out);
   return out;
+}
+
+/// Background colours (BGR): white, and the artboard's light blue #CFE3F5.
+cv.Scalar? photoBackgroundColor(PhotoBackground b) => switch (b) {
+      PhotoBackground.original => null,
+      PhotoBackground.white => cv.Scalar(255, 255, 255),
+      PhotoBackground.lightBlue => cv.Scalar(245, 227, 207),
+    };
+
+/// Passport photo: the person mask (whole upright photo) warped with the
+/// same crop as the photo, then [replaceBackground]. Returns [page] itself
+/// when there's nothing to do or the mask is missing.
+cv.Mat _withPhotoBackground(cv.Mat page, PageEdits edits) {
+  final color = photoBackgroundColor(edits.photoBackground);
+  final path = edits.backgroundMaskPath;
+  if (color == null || path == null) return page;
+  final mask = cv.imread(path, flags: cv.IMREAD_GRAYSCALE);
+  if (mask.isEmpty) {
+    mask.dispose();
+    return page;
+  }
+  // The crop is in fractions of the upright photo, so it fits the mask too.
+  final warped = cropAndRotate(mask, edits);
+  disposeUnless(mask, warped);
+  try {
+    return replaceBackground(page, warped, color);
+  } finally {
+    warped.dispose();
+  }
+}
+
+/// Puts [color] behind the person: [mask] (8-bit, 255 = person, any size)
+/// is scaled to [img], feathered by about 2–3 px, and used as the alpha.
+cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
+  final bgr = img.channels == 1 ? cv.cvtColor(img, cv.COLOR_GRAY2BGR) : img;
+  final sized = cv.resize(mask, (bgr.cols, bgr.rows), interpolation: cv.INTER_LINEAR);
+  final sigma = math.max(1.0, math.max(bgr.cols, bgr.rows) / 400);
+  final soft = cv.gaussianBlur(sized, (0, 0), sigma);
+  final a = soft.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
+  final a3 = cv.merge(cv.VecMat.fromList([a, a, a]));
+  final imgF = bgr.convertTo(cv.MatType.CV_32FC3);
+  final bgF = cv.Mat.fromScalar(bgr.rows, bgr.cols, cv.MatType.CV_32FC3, color);
+  // out = bg + (img − bg) · alpha
+  final diff = cv.subtract(imgF, bgF);
+  final scaled = cv.multiply(diff, a3);
+  final sum = cv.add(bgF, scaled);
+  final out = sum.convertTo(cv.MatType.CV_8UC3);
+  for (final m in [sized, soft, a, a3, imgF, bgF, diff, scaled, sum]) {
+    m.dispose();
+  }
+  if (!identical(bgr, img)) bgr.dispose();
+  return out;
+}
+
+/// Writes 8-bit gray [data] (row-major, [width] × [height]) as a PNG.
+void writeGray(Uint8List data, int width, int height, String path) {
+  final m = cv.Mat.fromList(height, width, cv.MatType.CV_8UC1, data);
+  try {
+    File(path).parent.createSync(recursive: true);
+    if (!cv.imwrite(path, m)) throw StateError('Could not write $path');
+  } finally {
+    m.dispose();
+  }
 }
 
 /// Ink colours (BGR): black #15171A, blue #1F3FAE.

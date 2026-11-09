@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -68,6 +70,13 @@ abstract interface class ImageProcessor {
   /// [capture] says; null for imports). Interactive lane. Returns the
   /// `[orient]` line.
   Future<String> normalizeCapture(String path, CaptureMeta? capture);
+
+  /// Writes 8-bit gray pixels as a PNG (a segmentation mask).
+  Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath);
+
+  /// The upright photo at preview size with [background] behind the person
+  /// ([maskPath]), for the passport photo screen's live preview.
+  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath});
 
   /// Scan from paper (feature 4): a photo of a signature → transparent PNG
   /// at [outputPath], made upright from [capture] first. Throws when no
