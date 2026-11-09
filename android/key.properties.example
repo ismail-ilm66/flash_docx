@@ -2,5 +2,5 @@
 # storeFile is relative to android/.
 storePassword=
 keyPassword=
-keyAlias=upload
+keyAlias=mykey
 storeFile=upload-keystore.jks
