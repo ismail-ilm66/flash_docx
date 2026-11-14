@@ -61,6 +61,17 @@ class PreviewCache {
     }();
   }
 
+  /// The Enhance preview made for exactly this look, if it's still on disk:
+  /// right after Done it's the best stand-in for the viewer's processed page.
+  /// Null when the page has things that preview leaves out (sliders,
+  /// signatures, a passport photo's finish).
+  String? lookIfReady(ScanPage page) {
+    final e = page.edits;
+    if (e.hasSliders || e.overlays.isNotEmpty || e.photoWidthMm != null) return null;
+    final path = _files.lookPath(page.id, page.originalPath, e);
+    return File(path).existsSync() ? path : null;
+  }
+
   /// [quick] if it already exists on disk, else null (no render started).
   String? quickIfReady(ScanPage page) {
     final path = _files.quickPath(page.id, page.originalPath, page.edits);

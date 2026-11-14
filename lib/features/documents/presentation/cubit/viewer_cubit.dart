@@ -19,6 +19,7 @@ class ViewerState extends Equatable {
     this.failure,
     this.deleted = false,
     this.quick = const {},
+    this.quickVersions = const {},
   });
 
   final ScanDocument? document;
@@ -27,16 +28,23 @@ class ViewerState extends Equatable {
   final Failure? failure;
   final bool deleted;
 
-  /// Crop-only placeholders while a page's processed preview is made (P0-4).
+  /// Placeholders while a page's processed preview is made (P0-4): the
+  /// editor's preview of that look, else the crop-only render.
   final Map<String, String> quick;
 
-  /// What page [p] shows: processed preview, else the placeholder, else
-  /// null (spinner). Never the original photo.
+  /// The [versionOf] each [quick] entry was made for. After an edit the old
+  /// one (an older crop or filter) is never shown.
+  final Map<String, int> quickVersions;
+
+  /// What page [p] shows: processed preview, else the placeholder made for
+  /// its current edits, else null (spinner). Never the original photo.
   String? imageFor(ScanPage p) {
     final processed = p.processedPath;
     if (processed != null && File(processed).existsSync()) return processed;
-    return quick[p.id];
+    return quickVersions[p.id] == versionOf(p) ? quick[p.id] : null;
   }
+
+  static int versionOf(ScanPage p) => Object.hash(p.originalPath, p.edits);
 
   List<ScanPage> get pages => document?.sortedPages ?? const [];
   ScanPage? get current => pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
@@ -48,6 +56,7 @@ class ViewerState extends Equatable {
     Failure? failure,
     bool? deleted,
     Map<String, String>? quick,
+    Map<String, int>? quickVersions,
   }) =>
       ViewerState(
         document: document ?? this.document,
@@ -56,10 +65,11 @@ class ViewerState extends Equatable {
         failure: failure,
         deleted: deleted ?? this.deleted,
         quick: quick ?? this.quick,
+        quickVersions: quickVersions ?? this.quickVersions,
       );
 
   @override
-  List<Object?> get props => [document, index, loading, failure, deleted, quick];
+  List<Object?> get props => [document, index, loading, failure, deleted, quick, quickVersions];
 }
 
 @injectable
@@ -99,7 +109,24 @@ class ViewerCubit extends Cubit<ViewerState> {
       emit(state.copyWith(loading: false, deleted: state.document != null));
       return;
     }
-    emit(state.copyWith(document: doc, loading: false, index: state.index.clamp(0, doc.pages.isEmpty ? 0 : doc.pages.length - 1)));
+    // Placeholders already on disk (the editor's previews right after Done)
+    // go in with the document, so an edited page never shows its old crop.
+    final quick = {...state.quick};
+    final versions = {...state.quickVersions};
+    for (final p in doc.pages) {
+      if (state.imageFor(p) != null) continue;
+      final ready = _previews.lookIfReady(p) ?? _previews.quickIfReady(p);
+      if (ready == null) continue;
+      quick[p.id] = ready;
+      versions[p.id] = ViewerState.versionOf(p);
+    }
+    emit(state.copyWith(
+      document: doc,
+      loading: false,
+      index: state.index.clamp(0, doc.pages.isEmpty ? 0 : doc.pages.length - 1),
+      quick: quick,
+      quickVersions: versions,
+    ));
     unawaited(_placeholders(doc));
     unawaited(_render.ensureCaches(doc).catchError((Object e) => debugPrint('cache: $e')));
   }
@@ -151,7 +178,10 @@ class ViewerCubit extends Cubit<ViewerState> {
       try {
         final path = await _previews.quick(p);
         if (isClosed) return;
-        emit(state.copyWith(quick: {...state.quick, p.id: path}));
+        emit(state.copyWith(
+          quick: {...state.quick, p.id: path},
+          quickVersions: {...state.quickVersions, p.id: ViewerState.versionOf(p)},
+        ));
         if (p.id == state.current?.id) debugPrint('[perf] viewer first image in ${sw.elapsedMilliseconds} ms');
       } catch (e) {
         debugPrint('quick preview failed: $e');
