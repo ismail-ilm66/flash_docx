@@ -441,4 +441,60 @@ void main() {
       },
     );
   });
+
+  group('a 12 MP phone photo (the crash after Next)', () {
+    // 3000 × 4000 with a person, the passport crop a third of it; dark blue
+    // and Natural, like a fresh passport photo.
+    late String big;
+    late String bigMask;
+    const crop = Quad(tl: Pt(0.32, 0.19), tr: Pt(0.68, 0.19), br: Pt(0.68, 0.53), bl: Pt(0.32, 0.53));
+
+    setUp(() {
+      final img = cv.Mat.fromScalar(4000, 3000, cv.MatType.CV_8UC3, cv.Scalar(214, 216, 218));
+      final m = cv.Mat.zeros(4000, 3000, cv.MatType.CV_8UC1);
+      for (final (mat, colour) in [(img, cv.Scalar(60, 90, 140)), (m, cv.Scalar.all(255))]) {
+        cv.ellipse(mat, cv.Point(1500, 1400), cv.Point(380, 500), 0, 0, 360, colour, thickness: -1);
+        cv.ellipse(mat, cv.Point(1500, 3300), cv.Point(1100, 1300), 0, 0, 360, colour, thickness: -1);
+      }
+      big = p.join(tmp.path, 'big.jpg');
+      bigMask = p.join(tmp.path, 'big_mask.png');
+      cv.imwrite(big, img);
+      cv.imwrite(bigMask, cv.resize(m, (600, 800), interpolation: cv.INTER_AREA));
+      img.dispose();
+      m.dispose();
+    });
+
+    PageEdits edits() => PageEdits(
+      crop: crop,
+      outputAspect: 35 / 45,
+      photoWidthMm: 35,
+      photoHeightMm: 45,
+      photoBackground: PhotoBackground.darkBlue,
+      photoEnhance: PhotoEnhance.natural,
+      backgroundMaskPath: bigMask,
+    );
+
+    // First in the group: the process's peak memory only ever grows, so a
+    // big render before this would hide the growth it measures.
+    test('rendering it never needs gigabytes', () {
+      final before = ProcessInfo.maxRss;
+      for (final out in [
+        pipe.renderSized(big, edits(), widthMm: 35, heightMm: 45, dpi: 300),
+        pipe.renderEdits(big, edits()),
+      ]) {
+        expect(math.max(out.cols, out.rows), lessThanOrEqualTo(pipe.photoFinishLongEdge));
+        out.dispose();
+      }
+      // Was +1.1 GB (every step at the camera's full resolution, all kept
+      // to the end): Android killed the app.
+      final grew = (ProcessInfo.maxRss - before) / 1e6;
+      expect(grew, lessThan(600), reason: '+${grew.round()} MB');
+    });
+
+    test('the print render is exactly the print size', () {
+      final out = pipe.renderSized(big, edits(), widthMm: 35, heightMm: 45, dpi: 300);
+      expect((out.cols, out.rows), (413, 531));
+      out.dispose();
+    });
+  });
 }

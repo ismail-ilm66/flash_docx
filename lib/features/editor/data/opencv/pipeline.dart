@@ -951,13 +951,16 @@ cv.Mat cropAndRotate(cv.Mat src, PageEdits edits, {int? maxLongEdge}) {
   }
 
   final crop = edits.crop;
-  // Keep ≥2× the target in the source so the final INTER_AREA shrink does
-  // the quality work; exports (standard/full) pass through at full size.
-  if (maxLongEdge != null &&
-      crop != null &&
-      crop.area < 0.9 &&
-      math.max(src.cols, src.rows) > maxLongEdge * 2) {
-    step(fitLongEdge(cur, maxLongEdge * 2));
+  // Keep ≥2× the target in the cropped part of the source so the final
+  // INTER_AREA shrink does the quality work; exports (standard/full) pass
+  // through at full size. Measured on the crop itself: a passport crop is
+  // a third of the photo, and shrinking the whole photo to 2× the target
+  // left it smaller than the target.
+  if (maxLongEdge != null && crop != null && crop.area < 0.9) {
+    final b = crop.bounds();
+    final cropLong = math.max((b.right - b.left) * src.cols, (b.bottom - b.top) * src.rows);
+    final k = maxLongEdge * 2 / math.max(cropLong, 1);
+    if (k < 1) step(fitLongEdge(cur, (math.max(src.cols, src.rows) * k).round()));
   }
   if (crop != null) step(warpToQuad(cur, crop, aspect: edits.outputAspect));
   if (maxLongEdge != null) step(fitLongEdge(cur, maxLongEdge));
@@ -1582,7 +1585,10 @@ double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
 /// filter, so the table never feeds the filter statistics. Never enlarges.
 cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   final img = readUpright(path);
-  final cropped = cropAndRotate(img, edits, maxLongEdge: maxLongEdge);
+  // A passport photo never needs more than [photoFinishLongEdge]: crop
+  // straight to it rather than at the camera's full resolution.
+  final cap = edits.photoWidthMm == null ? maxLongEdge : math.min(maxLongEdge ?? photoFinishLongEdge, photoFinishLongEdge);
+  final cropped = cropAndRotate(img, edits, maxLongEdge: cap);
   disposeUnless(img, cropped);
   final filtered = applyFilter(cropped, edits.filter);
   cropped.dispose();
@@ -1622,12 +1628,29 @@ cv.Mat _withPhotoFinish(cv.Mat page, PageEdits edits) {
       disposeUnless(mask, warped);
     }
   }
+  // A passport photo never needs more than this (35 × 45 mm at ~900 dpi;
+  // the largest pixel size offered is 1200 × 1543), and the finish holds
+  // several full-size float copies: a 48 MP crop would need gigabytes.
+  final long = math.max(page.cols, page.rows);
+  final capped = long <= photoFinishLongEdge
+      ? page
+      : cv.resize(
+          page,
+          ((page.cols * photoFinishLongEdge / long).round(), (page.rows * photoFinishLongEdge / long).round()),
+          interpolation: cv.INTER_AREA,
+        );
   try {
-    return finishPhoto(page, warped, color: color, enhance: enhance);
+    final out = finishPhoto(capped, warped, color: color, enhance: enhance);
+    if (!identical(capped, page) && !identical(out, capped)) capped.dispose();
+    return out;
   } finally {
     warped?.dispose();
   }
 }
+
+/// The long edge a passport photo is finished (enhanced, background
+/// changed) at, at most.
+const photoFinishLongEdge = 1600;
 
 /// [enhancePhoto] then [replaceBackground] on [img] with [mask] (8-bit,
 /// 255 = person, any size, or null). Returns [img] itself when neither
@@ -1674,170 +1697,123 @@ cv.Mat enhancePhoto(cv.Mat img, cv.Mat? person, PhotoEnhance level) {
     PhotoEnhance.natural => (0.45, 0.45, 0.30, 0.60),
     PhotoEnhance.smooth => (0.75, 0.30, 0.25, 0.60),
   };
+  if (level == PhotoEnhance.off) {
+    return img.channels == 1 ? cv.cvtColor(img, cv.COLOR_GRAY2BGR) : img.clone();
+  }
   final tmp = <cv.Mat>[];
   cv.Mat t(cv.Mat m) {
     tmp.add(m);
     return m;
   }
 
-  cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
+  // Each step runs in a _stage so its full-size working copies are freed
+  // before the next (a 2 MP float image is 24 MB).
   try {
     var bgr = img.channels == 1 ? t(cv.cvtColor(img, cv.COLOR_GRAY2BGR)) : img;
-    if (level == PhotoEnhance.off) return bgr.clone();
     final (w, h) = (bgr.cols, bgr.rows);
     final long = math.max(w, h);
-    final personF = person == null
-        ? null
-        : t(person.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255));
-
     if (person != null) bgr = t(_wallWhiteBalance(bgr, person));
     bgr = t(_exposure(bgr));
 
     // Skin: a soft YCrCb box (works across skin tones), on the person.
-    final ycc = cv.split(t(cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb)));
-    final (cr, cb) = (t(ycc[1].clone()), t(ycc[2].clone()));
-    ycc.dispose();
-    cv.Mat soft(cv.Mat v, double lo, double hi, double f) => t(
-      _clamp01(
-        t(
-          cv.min(
-            t(v.convertTo(cv.MatType.CV_32FC1, alpha: 1 / f, beta: -lo / f)),
-            t(v.convertTo(cv.MatType.CV_32FC1, alpha: -1 / f, beta: hi / f)),
-          ),
-        ),
-        t,
-      ),
-    );
-    var skin = t(cv.multiply(soft(cr, 133, 180, 6), soft(cb, 77, 130, 6)));
-    if (personF != null) {
-      skin = t(
-        cv.multiply(
-          skin,
-          t(
-            _clamp01(
-              t(personF.convertTo(cv.MatType.CV_32FC1, alpha: 2, beta: -1)),
-              t,
+    final skin = t(
+      _stage((s) {
+        final ycc = cv.split(s(cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb)));
+        final (cr, cb) = (s(ycc[1].clone()), s(ycc[2].clone()));
+        ycc.dispose();
+        cv.Mat soft(cv.Mat v, double lo, double hi, double f) => s(
+          _clamp01(
+            s(
+              cv.min(
+                s(v.convertTo(cv.MatType.CV_32FC1, alpha: 1 / f, beta: -lo / f)),
+                s(v.convertTo(cv.MatType.CV_32FC1, alpha: -1 / f, beta: hi / f)),
+              ),
             ),
+            s.call,
           ),
-        ),
-      );
-    }
+        );
+        final colour = s(cv.multiply(soft(cr, 133, 180, 6), soft(cb, 77, 130, 6)));
+        if (person == null) return colour;
+        final onPerson = s(person.convertTo(cv.MatType.CV_32FC1, alpha: 2 / 255, beta: -1));
+        return cv.multiply(colour, s(_clamp01(onPerson, s.call)));
+      }),
+    );
     final size = math.max(60.0, math.sqrt(cv.sum(skin).val1));
 
-    // Shadow fill on lightness; the broad light measured on a small copy.
-    final lab = cv.split(t(cv.cvtColor(bgr, cv.COLOR_BGR2Lab)));
-    final (lL, la, lb) = (
-      t(lab[0].clone()),
-      t(lab[1].clone()),
-      t(lab[2].clone()),
-    );
-    lab.dispose();
-    final s = math.min(1.0, 256 / long);
-    final small = (math.max(1, (w * s).round()), math.max(1, (h * s).round()));
-    cv.Mat upFull(cv.Mat m) =>
-        t(cv.resize(m, (w, h), interpolation: cv.INTER_LINEAR));
-    cv.Mat broad(cv.Mat m, double sigma) => upFull(
-      t(
-        cv.gaussianBlur(t(cv.resize(m, small, interpolation: cv.INTER_AREA)), (
-          0,
-          0,
-        ), math.max(1, sigma * s)),
+    // Broad light, measured on a small copy and scaled back up.
+    final k = math.min(1.0, 256 / long);
+    final small = (math.max(1, (w * k).round()), math.max(1, (h * k).round()));
+    cv.Mat broad(cv.Mat m, double sigma, _Track s) => s(
+      cv.resize(
+        s(cv.gaussianBlur(s(cv.resize(m, small, interpolation: cv.INTER_AREA)), (0, 0), math.max(1, sigma * k))),
+        (w, h),
+        interpolation: cv.INTER_LINEAR,
       ),
     );
-    final base = broad(lL, size / 5);
-    final (_, skinMask) = cv.threshold(skin, 0.5, 255, cv.THRESH_BINARY);
-    final skin8 = t(t(skinMask).convertTo(cv.MatType.CV_8UC1));
-    if (cv.countNonZero(skin8) > 200) {
-      final ref = _percentile(base, skin8, 0.75);
-      // lift = max(0.92 · ref − base, 0) · fill, faded out off the person.
-      final (_, lift) = cv.threshold(
-        t(
-          base.convertTo(
-            cv.MatType.CV_32FC1,
-            alpha: -fill,
-            beta: 0.92 * ref * fill,
-          ),
-        ),
-        0,
-        0,
-        cv.THRESH_TOZERO,
-      );
-      t(lift);
-      // Only on and around skin: dark hair and clothes keep their tone.
-      final near = t(
-        _clamp01(
-          t(broad(skin, size / 12).convertTo(cv.MatType.CV_32FC1, alpha: 2)),
-          t,
-        ),
-      );
-      final region = t(cv.multiply(lift, near));
-      final lifted = t(cv.add(t(lL.convertTo(cv.MatType.CV_32FC1)), region));
-      bgr = t(
-        cv.cvtColor(
-          t(
-            cv.merge(
-              cv.VecMat.fromList([
-                t(lifted.convertTo(cv.MatType.CV_8UC1)),
-                la,
-                lb,
-              ]),
-            ),
-          ),
-          cv.COLOR_Lab2BGR,
-        ),
-      );
-    }
+
+    // Shadow fill on lightness, only on and around skin: dark hair and
+    // clothes keep their tone.
+    bgr = t(
+      _stage((s) {
+        final lab = cv.split(s(cv.cvtColor(bgr, cv.COLOR_BGR2Lab)));
+        final (lL, la, lb) = (s(lab[0].clone()), s(lab[1].clone()), s(lab[2].clone()));
+        lab.dispose();
+        final base = broad(lL, size / 5, s.call);
+        final (_, skinMask) = cv.threshold(skin, 0.5, 255, cv.THRESH_BINARY);
+        final skin8 = s(s(skinMask).convertTo(cv.MatType.CV_8UC1));
+        if (cv.countNonZero(skin8) <= 200) return bgr.clone();
+        final ref = _percentile(base, skin8, 0.75);
+        // lift = max(0.92 · ref − base, 0) · fill
+        final (_, lift) = cv.threshold(
+          s(base.convertTo(cv.MatType.CV_32FC1, alpha: -fill, beta: 0.92 * ref * fill)),
+          0,
+          0,
+          cv.THRESH_TOZERO,
+        );
+        s(lift);
+        final near = s(_clamp01(s(broad(skin, size / 12, s.call).convertTo(cv.MatType.CV_32FC1, alpha: 2)), s.call));
+        final lifted = s(cv.add(s(lL.convertTo(cv.MatType.CV_32FC1)), s(cv.multiply(lift, near))));
+        final merged = s(cv.merge(cv.VecMat.fromList([s(lifted.convertTo(cv.MatType.CV_8UC1)), la, lb])));
+        return cv.cvtColor(merged, cv.COLOR_Lab2BGR);
+      }),
+    );
 
     // Soften skin: bilateral base (on a copy of at most 700 px) plus the
-    // finest texture back.
-    final f = t(bgr.convertTo(cv.MatType.CV_32FC3));
-    final ws = math.min(1.0, 700 / long);
-    final work = ws < 1
-        ? t(
-            cv.resize(bgr, (
-              math.max(1, (w * ws).round()),
-              math.max(1, (h * ws).round()),
-            ), interpolation: cv.INTER_AREA),
-          )
-        : bgr;
-    var smoothBase = t(
-      cv.bilateralFilter(work, 0, 30, math.max(2, size * ws / 40)),
+    // finest texture back. out = f + w · (smooth − f)
+    final softened = t(
+      _stage((s) {
+        final f = s(bgr.convertTo(cv.MatType.CV_32FC3));
+        // smooth = bilateral base + keep · fine texture
+        final ws = math.min(1.0, 700 / long);
+        final work = ws < 1
+            ? s(cv.resize(bgr, (math.max(1, (w * ws).round()), math.max(1, (h * ws).round())), interpolation: cv.INTER_AREA))
+            : bgr;
+        var base = s(cv.bilateralFilter(work, 0, 30, math.max(2, size * ws / 40)));
+        if (ws < 1) base = s(cv.resize(base, (w, h), interpolation: cv.INTER_LINEAR));
+        final smooth = s(base.convertTo(cv.MatType.CV_32FC3));
+        s.free(base);
+        final fine = s(cv.gaussianBlur(f, (0, 0), math.max(0.6, size / 300)));
+        cv.subtract(f, fine, dst: fine);
+        cv.addWeighted(smooth, 1, fine, keep, 0, dst: smooth);
+        s.free(fine);
+        // out = f + weight · (smooth − f)
+        cv.subtract(smooth, f, dst: smooth);
+        final weight = s(s(cv.gaussianBlur(skin, (0, 0), math.max(1, size / 60))).convertTo(cv.MatType.CV_32FC1, alpha: soften));
+        cv.multiply(smooth, _three(weight, s.call), dst: smooth);
+        cv.add(f, smooth, dst: smooth);
+        return smooth;
+      }),
     );
-    if (ws < 1) smoothBase = upFull(smoothBase);
-    final fine = t(
-      cv.subtract(f, t(cv.gaussianBlur(f, (0, 0), math.max(0.6, size / 300)))),
-    );
-    final smooth = t(
-      cv.add(
-        t(smoothBase.convertTo(cv.MatType.CV_32FC3)),
-        t(fine.convertTo(cv.MatType.CV_32FC3, alpha: keep)),
-      ),
-    );
-    final weight = three(
-      t(
-        t(
-          cv.gaussianBlur(skin, (0, 0), math.max(1, size / 60)),
-        ).convertTo(cv.MatType.CV_32FC1, alpha: soften),
-      ),
-    );
-    var out = t(cv.add(f, t(cv.multiply(weight, t(cv.subtract(smooth, f))))));
 
-    // Sharpen what isn't skin.
-    final detail = t(
-      cv.subtract(
-        out,
-        t(cv.gaussianBlur(out, (0, 0), math.max(0.7, size / 250))),
-      ),
-    );
-    final notSkin = three(
-      t(
-        t(
-          cv.gaussianBlur(skin, (0, 0), 2),
-        ).convertTo(cv.MatType.CV_32FC1, alpha: -sharpen, beta: sharpen),
-      ),
-    );
-    out = t(cv.add(out, t(cv.multiply(notSkin, detail))));
-    return out.convertTo(cv.MatType.CV_8UC3);
+    // Sharpen what isn't skin: out = s + (1 − skin) · amount · (s − blur(s)).
+    return _stage((s) {
+      final detail = s(cv.gaussianBlur(softened, (0, 0), math.max(0.7, size / 250)));
+      cv.subtract(softened, detail, dst: detail);
+      final notSkin = s(s(cv.gaussianBlur(skin, (0, 0), 2)).convertTo(cv.MatType.CV_32FC1, alpha: -sharpen, beta: sharpen));
+      cv.multiply(detail, _three(notSkin, s.call), dst: detail);
+      cv.add(softened, detail, dst: detail);
+      return detail.convertTo(cv.MatType.CV_8UC3);
+    });
   } finally {
     for (final m in tmp) {
       m.dispose();
@@ -1962,129 +1938,130 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
     return m;
   }
 
+  void drop(cv.Mat m) {
+    tmp.remove(m);
+    m.dispose();
+  }
+
   try {
-    final bgr = img.channels == 1
-        ? t(cv.cvtColor(img, cv.COLOR_GRAY2BGR))
-        : img;
+    final bgr = img.channels == 1 ? t(cv.cvtColor(img, cv.COLOR_GRAY2BGR)) : img;
     final (w, h) = (bgr.cols, bgr.rows);
     final long = math.max(w, h);
     final scale = math.min(1.0, 320 / long);
-    final (sw, sh) = (
-      math.max(1, (w * scale).round()),
-      math.max(1, (h * scale).round()),
-    );
-    cv.Mat down(cv.Mat m) =>
-        t(cv.resize(m, (sw, sh), interpolation: cv.INTER_AREA));
-    cv.Mat up(cv.Mat m) =>
-        t(cv.resize(m, (w, h), interpolation: cv.INTER_LINEAR));
+    final (sw, sh) = (math.max(1, (w * scale).round()), math.max(1, (h * scale).round()));
+    cv.Mat down(cv.Mat m, _Track s) => s(cv.resize(m, (sw, sh), interpolation: cv.INTER_AREA));
+    cv.Mat up(cv.Mat m, _Track s) => s(cv.resize(m, (w, h), interpolation: cv.INTER_LINEAR));
     int px(double fullPx) => math.max(1, (fullPx * scale).round());
-    cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
 
+    // Full-size float images are big (a 2 MP photo: 24 MB each), so every
+    // step below runs in a _stage that frees its working copies on return.
     final image = t(bgr.convertTo(cv.MatType.CV_32FC3, alpha: 1 / 255));
-    final coarse = t(
-      t(
-        cv.resize(mask, (w, h), interpolation: cv.INTER_LINEAR),
-      ).convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255),
-    );
-    final smallImage = down(image);
-    final smallCoarse = down(coarse);
+    final smallImage = down(image, t);
+    final smallCoarse = t(down(mask, t).convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255));
 
     // 1. Fast colour guided filter: coefficients on the small copy,
     // applied to the full-size photo. Colour, not just lightness, tells
-    // brown hair from a beige wall.
-    final (gA, gB) = _guidedCoefficients(
-      smallImage,
-      smallCoarse,
-      px(math.max(2, long / 100)),
-      1e-3,
-      t,
-    );
-    final channels = cv.split(image);
-    var guided = up(gB);
-    for (var c = 0; c < 3; c++) {
-      guided = t(cv.add(guided, t(cv.multiply(up(gA[c]), channels[c]))));
-    }
-    channels.dispose();
-    // Tighten: 0.3 → 0, 0.8 → 1. A crisp edge; the coarse map leans
-    // generous.
+    // brown hair from a beige wall. Then tighten: 0.3 → 0, 0.8 → 1, a
+    // crisp edge (the coarse map leans generous).
+    final (gA, gB) = _guidedCoefficients(smallImage, smallCoarse, px(math.max(2, long / 100)), 1e-3, t);
     final tight = t(
-      _clamp01(
-        t(
-          guided.convertTo(
-            cv.MatType.CV_32FC1,
-            alpha: 1 / 0.5,
-            beta: -0.3 / 0.5,
-          ),
-        ),
-        t,
-      ),
+      _stage((s) {
+        final channels = cv.split(image);
+        var guided = up(gB, s.call);
+        for (var c = 0; c < 3; c++) {
+          guided = s(cv.add(guided, s(cv.multiply(up(gA[c], s.call), channels[c]))));
+        }
+        channels.dispose();
+        return _clamp01(s(guided.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 0.5, beta: -0.3 / 0.5)), s.call);
+      }),
     );
 
-    // 2. Colour near the outline.
-    final model = _colourModel(
-      smallImage,
-      smallCoarse,
-      down(tight),
-      px(long / 10),
-      px(long / 40),
-      t,
+    // 2. Colour near the outline. α = α + trust · (α_c − α), never above
+    // the guided α plus a little: the colour can only take wall away, not
+    // add person.
+    final model = _colourModel(smallImage, smallCoarse, down(tight, t), px(long / 10), px(long / 40), t);
+    final alpha = t(
+      _stage((s) {
+        // proj = Σ (I − B̄) · d, computed in place.
+        final diff = s(cv.subtract(image, up(model.bgMean, s.call)));
+        cv.multiply(diff, up(model.d, s.call), dst: diff);
+        final proj = s(_sum3(diff, s.call));
+        s.free(diff);
+        final colour = s(_clamp01(s(cv.divide(proj, s(up(model.dist2, s.call).addF32(1e-5)))), s.call));
+        final mixed = s(cv.add(tight, s(cv.multiply(up(model.trust, s.call), s(cv.subtract(colour, tight))))));
+        return cv.min(mixed, s(tight.addF32(0.05)));
+      }),
     );
-    final bgMean = up(model.bgMean);
-    final d = up(model.d);
-    final proj = t(_sum3(t(cv.multiply(t(cv.subtract(image, bgMean)), d)), t));
-    final colour = t(
-      _clamp01(t(cv.divide(proj, t(up(model.dist2).addF32(1e-5)))), t),
-    );
-    // α = α + trust · (α_c − α), never above the guided α plus a little:
-    // the colour can only take wall away, not add person.
-    final mixed = t(
-      cv.add(
-        tight,
-        t(cv.multiply(up(model.trust), t(cv.subtract(colour, tight)))),
-      ),
-    );
-    final alpha = t(cv.min(mixed, t(tight.addF32(0.05))));
-    final a3 = three(alpha);
-    final inv3 = three(
-      t(alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1)),
-    );
+    drop(tight);
 
     // 3. Blur fusion: the wide pass's averages on the small copy, the fine
     // pass at full size.
-    final (smallF, smallB) = _fusionMeans(
-      smallImage,
-      smallImage,
-      smallImage,
-      down(alpha),
-      px(long / 12) | 1,
-      t,
+    final (smallF, smallB) = _fusionMeans(smallImage, smallImage, smallImage, down(alpha, t), px(long / 12) | 1, t);
+    final fg = t(
+      _stage((s) {
+        final roughB = up(smallB, s.call);
+        final roughF = up(smallF, s.call);
+        final rough = _fusionStep(image, roughF, roughB, alpha, s.call);
+        s.free(roughF);
+        final (fineF, fineB) = _fusionMeans(image, rough, roughB, alpha, math.max(3, long ~/ 170) | 1, s.call);
+        s
+          ..free(rough)
+          ..free(roughB);
+        return _fusionStep(image, fineF, fineB, alpha, s.call);
+      }),
     );
-    var fg = _fusionStep(image, up(smallF), up(smallB), a3, inv3, t);
-    var bg = up(smallB);
-    final (fineF, fineB) = _fusionMeans(
-      image,
-      fg,
-      bg,
-      alpha,
-      math.max(3, long ~/ 170) | 1,
-      t,
-    );
-    fg = _fusionStep(image, fineF, fineB, a3, inv3, t);
-    bg = fineB;
+    drop(image);
 
-    final fill = t(cv.Mat.fromScalar(h, w, cv.MatType.CV_32FC3, color));
     // out = fill + (fg · 255 − fill) · alpha
-    final diff = t(
-      cv.subtract(t(fg.convertTo(cv.MatType.CV_32FC3, alpha: 255)), fill),
-    );
-    final sum = t(cv.add(fill, t(cv.multiply(diff, a3))));
-    return sum.convertTo(cv.MatType.CV_8UC3);
+    return _stage((s) {
+      final fill = s(cv.Mat.fromScalar(h, w, cv.MatType.CV_32FC3, color));
+      final out = s(fg.convertTo(cv.MatType.CV_32FC3, alpha: 255));
+      cv.subtract(out, fill, dst: out);
+      cv.multiply(out, _three(alpha, s.call), dst: out);
+      cv.add(fill, out, dst: out);
+      return out.convertTo(cv.MatType.CV_8UC3);
+    });
   } finally {
     for (final m in tmp) {
       m.dispose();
     }
   }
 }
+
+/// Registers a temporary [cv.Mat] for disposal; returns it.
+typedef _Track = cv.Mat Function(cv.Mat m);
+
+/// A stage's temporaries: `s(m)` registers one, [free] drops one as soon
+/// as it's no longer needed.
+class _Scope {
+  final _mats = <cv.Mat>[];
+
+  cv.Mat call(cv.Mat m) {
+    _mats.add(m);
+    return m;
+  }
+
+  void free(cv.Mat m) {
+    if (_mats.remove(m)) m.dispose();
+  }
+}
+
+/// Runs [body] with its own temporaries and frees all of them except the
+/// one it returns, so a long chain of full-size steps never holds more
+/// than one step's working copies.
+cv.Mat _stage(cv.Mat Function(_Scope s) body) {
+  final scope = _Scope();
+  cv.Mat? out;
+  try {
+    return out = body(scope);
+  } finally {
+    for (final m in scope._mats) {
+      if (!identical(m, out)) m.dispose();
+    }
+  }
+}
+
+cv.Mat _three(cv.Mat m, _Track s) => s(cv.merge(cv.VecMat.fromList([m, m, m])));
 
 /// Colour guided filter coefficients (He et al. 2010): `q = Σ A_c · I_c`
 /// `+ B` follows the edges of the 3-channel float [guide] within [r] px.
@@ -2238,50 +2215,47 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
 }
 
 /// Blur-fusion box means ([k] px): F̄ = box(F·α) / box(α) and
-/// B̄ = box(B·(1 − α)) / box(1 − α).
-(cv.Mat, cv.Mat) _fusionMeans(
-  cv.Mat image,
-  cv.Mat fg,
-  cv.Mat bg,
-  cv.Mat alpha,
-  int k,
-  cv.Mat Function(cv.Mat) t,
-) {
-  cv.Mat box(cv.Mat m) => t(cv.blur(m, (k, k)));
-  cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
-  final inv = t(alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1));
-  final blurF = t(
-    cv.divide(
-      box(t(cv.multiply(fg, three(alpha)))),
-      three(t(box(alpha).addF32(1e-5))),
-    ),
+/// B̄ = box(B·(1 − α)) / box(1 − α). Both registered with [t].
+(cv.Mat, cv.Mat) _fusionMeans(cv.Mat image, cv.Mat fg, cv.Mat bg, cv.Mat alpha, int k, _Track t) {
+  cv.Mat mean(cv.Mat x, cv.Mat weight) => t(
+    _stage((s) {
+      final w3 = _three(weight, s.call);
+      final prod = s(cv.multiply(x, w3));
+      s.free(w3);
+      final sum = s(cv.blur(prod, (k, k)));
+      s.free(prod);
+      final norm = s(cv.blur(weight, (k, k)).addF32(1e-5));
+      cv.divide(sum, _three(norm, s.call), dst: sum);
+      return sum;
+    }),
   );
-  final blurB = t(
-    cv.divide(
-      box(t(cv.multiply(bg, three(inv)))),
-      three(t(box(inv).addF32(1e-5))),
-    ),
-  );
-  return (blurF, blurB);
+  final inv = alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1);
+  try {
+    return (mean(fg, alpha), mean(bg, inv));
+  } finally {
+    inv.dispose();
+  }
 }
 
-/// F = F̄ + α (I − α F̄ − (1 − α) B̄), clamped to 0…1.
-cv.Mat _fusionStep(
-  cv.Mat image,
-  cv.Mat blurF,
-  cv.Mat blurB,
-  cv.Mat a3,
-  cv.Mat inv3,
-  cv.Mat Function(cv.Mat) t,
-) {
-  final residual = t(
-    cv.subtract(
-      t(cv.subtract(image, t(cv.multiply(a3, blurF)))),
-      t(cv.multiply(inv3, blurB)),
-    ),
-  );
-  return t(_clamp01(t(cv.add(blurF, t(cv.multiply(a3, residual)))), t));
-}
+/// F = F̄ + α (I − α F̄ − (1 − α) B̄), clamped to 0…1, computed in place
+/// (three full-size copies at most). Registered with [t].
+cv.Mat _fusionStep(cv.Mat image, cv.Mat blurF, cv.Mat blurB, cv.Mat alpha, _Track t) => t(
+  _stage((s) {
+    final a3 = _three(alpha, s.call);
+    final r = s(cv.multiply(a3, blurF));
+    cv.subtract(image, r, dst: r);
+    final rest = _three(s(alpha.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 1)), s.call);
+    cv.multiply(rest, blurB, dst: rest);
+    cv.subtract(r, rest, dst: r);
+    s.free(rest);
+    cv.multiply(a3, r, dst: r);
+    s.free(a3);
+    cv.add(blurF, r, dst: r);
+    cv.threshold(r, 0, 0, cv.THRESH_TOZERO, dst: r);
+    cv.threshold(r, 1, 1, cv.THRESH_TRUNC, dst: r);
+    return r;
+  }),
+);
 
 /// Sum of a 3-channel float image's channels.
 cv.Mat _sum3(cv.Mat m, cv.Mat Function(cv.Mat) t) {
@@ -2588,9 +2562,10 @@ cv.Mat renderSized(
   required double heightMm,
   required int dpi,
 }) {
-  final full = renderEdits(originalPath, edits);
   final tw = (widthMm / 25.4 * dpi).round();
   final th = (heightMm / 25.4 * dpi).round();
+  // Crop straight to about the print size: no full-resolution copy.
+  final full = renderEdits(originalPath, edits, maxLongEdge: math.max(tw, th));
   if (full.cols <= tw) return full;
   final out = cv.resize(full, (tw, th), interpolation: cv.INTER_AREA);
   full.dispose();
