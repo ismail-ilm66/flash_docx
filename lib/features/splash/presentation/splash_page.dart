@@ -64,8 +64,13 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
 
   Future<void> _start() async {
     final minimum = Future<void>.delayed(_hold);
-    // Housekeeping: export temp files from the previous run.
-    final work = getIt<FileStore>().clearExportTemp().catchError((_) {});
+    // Housekeeping: export temp files from the previous run; the export
+    // page cache is kept (first Share after launch) but trimmed.
+    final files = getIt<FileStore>();
+    final work = Future.wait([
+      files.clearExportTemp(),
+      files.trimExportCache(),
+    ]).catchError((_) => const <void>[]);
     await Future.wait([minimum, work]);
     if (!mounted) return;
     context.go(Routes.home);

@@ -2577,6 +2577,9 @@ void signatureFromPhoto(String src, String out, {int maxLongEdge = 1600}) {
 /// the real card shape, filtered, then shrunk with area averaging to the
 /// pixel size for [dpi] at [widthMm] × [heightMm] — never above the photo's
 /// own resolution. Always landscape (portrait renders are turned).
+///
+/// The filter runs on at most 2× the print size (it used to run on the
+/// whole camera image, seconds per side on a mid-range phone).
 cv.Mat renderCard(
   String originalPath,
   PageEdits edits, {
@@ -2584,14 +2587,14 @@ cv.Mat renderCard(
   required double heightMm,
   required int dpi,
 }) {
-  final full = renderEdits(originalPath, edits);
+  final tw = (widthMm / 25.4 * dpi).round();
+  final th = (heightMm / 25.4 * dpi).round();
+  final full = renderEdits(originalPath, edits, maxLongEdge: 2 * math.max(tw, th));
   var card = full;
   if (card.rows > card.cols) {
     card = cv.rotate(full, cv.ROTATE_90_COUNTERCLOCKWISE);
     full.dispose();
   }
-  final tw = (widthMm / 25.4 * dpi).round();
-  final th = (heightMm / 25.4 * dpi).round();
   if (card.cols <= tw) return card; // native resolution is lower: keep it
   final out = cv.resize(card, (tw, th), interpolation: cv.INTER_AREA);
   card.dispose();

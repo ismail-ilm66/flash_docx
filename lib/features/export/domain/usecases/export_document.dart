@@ -228,7 +228,9 @@ class ExportDocument {
             sizeKey: size.name,
             jpegQuality: jpegQ,
           );
-          if (!File(cached).existsSync()) {
+          if (File(cached).existsSync()) {
+            _touch(cached);
+          } else {
             // Written under a temp name and renamed, so a cancelled or failed
             // render never leaves half a JPEG in the cache.
             final tmp = '${p.withoutExtension(cached)}.part.jpg';
@@ -306,7 +308,9 @@ class ExportDocument {
           sizeKey: 'shrinkBase',
           jpegQuality: _baseQuality,
         );
-        if (!File(base).existsSync()) {
+        if (File(base).existsSync()) {
+          _touch(base);
+        } else {
           final tmp = '${p.withoutExtension(base)}.part.jpg';
           await _render.renderForExport(
             page,
@@ -410,6 +414,13 @@ class ExportDocument {
     } catch (e) {
       return Left(PdfFailure(e.toString()));
     }
+  }
+
+  /// Marks a cached page render as just used, so the launch trim keeps it.
+  static void _touch(String path) {
+    try {
+      File(path).setLastModifiedSync(DateTime.now());
+    } on FileSystemException catch (_) {}
   }
 
   static const _baseQuality = 95;

@@ -106,6 +106,7 @@ class OpenCvImageProcessor implements ImageProcessor {
       shrinkInIsolate,
       ShrinkMsg(bases, targetBytes, overheadBytes, grayscale, outputs, minEdge),
       debugLabel: 'shrink',
+      priority: JobPriority.interactive, // the share sheet is waiting
     );
   }
 
@@ -292,6 +293,7 @@ class OpenCvImageProcessor implements ImageProcessor {
       cardInIsolate,
       CardMsg(originalPath, edits, widthMm, heightMm, dpi, outputPath),
       debugLabel: 'card',
+      priority: JobPriority.interactive, // share, print or its preview
     );
   }
 
@@ -382,7 +384,7 @@ class IngestResult {
 }
 
 class LookMsg {
-  const LookMsg(this.path, this.edits, this.workPath, this.out, this.autoBasePath);
+  const LookMsg(this.path, this.edits, this.workPath, this.out, [this.autoBasePath]);
   final String path;
   final PageEdits edits;
   final String workPath;

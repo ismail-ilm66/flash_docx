@@ -32,6 +32,7 @@ class SheetImageRenderer {
     _render,
     _Msg(spec, front, back, dpi, outputPath, jpegQuality),
     debugLabel: 'sheetImage',
+    priority: JobPriority.interactive, // a share or print is waiting
   );
 }
 

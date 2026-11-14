@@ -341,7 +341,7 @@ void main() {
   );
 
   test(
-    'after a crop, Enhance shows the new shape, never the old crop\'s look',
+    "after a crop, Enhance shows the new shape, never the old crop's look",
     () async {
       final bloc = build();
       await settle();
@@ -367,7 +367,7 @@ void main() {
       expect(
         bloc.state.shownPreview,
         files.quickPath(cur.id, cur.originalPath, cur.edits),
-        reason: 'the new crop\'s placeholder, rendered on its own after the drag',
+        reason: "the new crop's placeholder, rendered on its own after the drag",
       );
       await bloc.close();
     },

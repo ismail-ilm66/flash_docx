@@ -26,6 +26,7 @@ class PdfBuilderImpl implements PdfBuilder {
       _buildPages,
       _PagesMsg(imagePaths, options.pageSize, options.title),
       debugLabel: 'pdfPages',
+      priority: JobPriority.interactive,
     );
     final f = File(outputPath);
     await f.parent.create(recursive: true);
@@ -45,6 +46,7 @@ class PdfBuilderImpl implements PdfBuilder {
       _buildPhotoSheet,
       _PhotoSheetMsg(photoPath, items, paper, cutLines, title),
       debugLabel: 'pdfPhotos',
+      priority: JobPriority.interactive,
     );
     final f = File(outputPath);
     await f.parent.create(recursive: true);
@@ -56,7 +58,7 @@ class PdfBuilderImpl implements PdfBuilder {
     PrintLayoutSpec spec, {
     required String outputPath,
   }) async {
-    final bytes = await _runner.run(_buildSheet, spec, debugLabel: 'pdfSheet');
+    final bytes = await _runner.run(_buildSheet, spec, debugLabel: 'pdfSheet', priority: JobPriority.interactive);
     final f = File(outputPath);
     await f.parent.create(recursive: true);
     return f.writeAsBytes(bytes, flush: true);

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -12,12 +13,14 @@ import 'package:path_provider/path_provider.dart';
 /// <app documents>/flashdox/docs/<docId>/processed/<pageId>.jpg   # cache
 /// <app documents>/flashdox/docs/<docId>/thumb/<pageId>.jpg       # cache
 /// <temp>/flashdox_export/                                        # cleared on launch
+/// <temp>/flashdox_export_cache/pages/                            # export page renders, trimmed on launch
 /// <temp>/flashdox_capture/                                       # raw camera shots awaiting a document
 /// ```
 @lazySingleton
 class FileStore {
   late final Directory _root;
   late final Directory _exportTemp;
+  late final Directory _exportCache;
   late final Directory _captureTemp;
 
   Directory get root => _root;
@@ -31,7 +34,9 @@ class FileStore {
     _root = Directory(p.join(docs.path, 'flashdox'));
     _exportTemp = Directory(p.join(tmp.path, 'flashdox_export'));
     _captureTemp = Directory(p.join(tmp.path, 'flashdox_capture'));
+    _exportCache = Directory(p.join(tmp.path, 'flashdox_export_cache', 'pages'));
     await Future.wait([
+      _exportCache.create(recursive: true),
       Directory(p.join(_root.path, 'docs')).create(recursive: true),
       _exportTemp.create(recursive: true),
       _captureTemp.create(recursive: true),
@@ -135,18 +140,32 @@ class FileStore {
 
   /// One page rendered for export at one size and JPEG quality (P0-4).
   /// Shared by every export of the same look, so a page-size or format change
-  /// doesn't re-render.
+  /// doesn't re-render. Kept across launches (trimmed by [trimExportCache]),
+  /// so the name must be the same on every run: no `Object.hash` here.
   String exportPagePath(
     String pageId,
     String originalPath,
     PageEdits edits, {
     required String sizeKey,
     required int jpegQuality,
-  }) => p.join(
-    _exportTemp.path,
-    'pages',
-    '${pageId}_${Object.hash(_stamp(originalPath), edits, sizeKey, jpegQuality)}.jpg',
-  );
+  }) {
+    final f = File(originalPath);
+    final mtime = f.existsSync() ? f.lastModifiedSync().microsecondsSinceEpoch : 0;
+    final key = stableKey('$originalPath|$mtime|${jsonEncode(edits.toJson())}|$sizeKey|$jpegQuality');
+    return p.join(_exportCache.path, '${pageId}_$key.jpg');
+  }
+
+  /// FNV-1a (64-bit) of [s] as 16 hex digits: a file-name key that, unlike
+  /// `Object.hash`, is the same on every launch.
+  static String stableKey(String s) {
+    var h = (0xcbf29ce4 << 32) | 0x84222325; // the FNV offset basis
+    for (final b in utf8.encode(s)) {
+      h ^= b;
+      h *= 0x100000001b3;
+    }
+    String hex(int v) => v.toRadixString(16).padLeft(8, '0');
+    return '${hex(h >>> 32)}${hex(h & 0xffffffff)}';
+  }
 
   /// Identifies one version of an original: its path plus modification time,
   /// so a retake saved over the same path still gets fresh previews.
@@ -249,6 +268,8 @@ class FileStore {
   /// Export temp + processed/thumb caches. They rebuild on demand.
   Future<void> clearCaches() async {
     await clearExportTemp();
+    if (_exportCache.existsSync()) await _exportCache.delete(recursive: true);
+    await _exportCache.create(recursive: true);
     final docs = Directory(p.join(_root.path, 'docs'));
     if (!docs.existsSync()) return;
     await for (final doc in docs.list()) {
@@ -267,6 +288,20 @@ class FileStore {
     for (final dir in [_exportTemp, _captureTemp]) {
       if (dir.existsSync()) await dir.delete(recursive: true);
       await dir.create(recursive: true);
+    }
+  }
+
+  /// Keeps the export page cache under [maxBytes], dropping the renders
+  /// used longest ago (a reuse touches the file).
+  Future<void> trimExportCache({int maxBytes = 150 * 1024 * 1024}) async {
+    if (!_exportCache.existsSync()) return;
+    final files = [
+      for (final e in _exportCache.listSync()) if (e is File) (file: e, stat: e.statSync()),
+    ]..sort((a, b) => b.stat.modified.compareTo(a.stat.modified));
+    var total = 0;
+    for (final f in files) {
+      total += f.stat.size;
+      if (total > maxBytes) await f.file.delete();
     }
   }
 

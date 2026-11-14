@@ -31,6 +31,41 @@ void main() {
 
   tearDownAll(() => tmp.delete(recursive: true));
 
+  test('the ID colour filter at 2x print size looks like the full-size render', () {
+    // A busy card: fine lines and noise, where filtering at another scale
+    // would show.
+    final m = cv.Mat.fromScalar(3000, 4000, cv.MatType.CV_8UC3, cv.Scalar(150, 170, 190));
+    for (var y = 700; y < 2000; y += 23) {
+      cv.line(m, cv.Point(500, y), cv.Point(3500, y + 40), cv.Scalar(60, 70, 90), thickness: 3);
+    }
+    final n = cv.Mat.zeros(3000, 4000, cv.MatType.CV_8UC3);
+    cv.randn(n, cv.Scalar.all(0), cv.Scalar.all(8));
+    final noisy = cv.add(m, n);
+    final path = p.join(tmp.path, 'busy.jpg');
+    pipe.writeJpeg(noisy, path, quality: 92);
+    for (final x in [m, n, noisy]) {
+      x.dispose();
+    }
+    const id = PageEdits(crop: crop, filter: FilterType.idColor, outputAspect: 85.6 / 54);
+    final card = pipe.renderCard(path, id, widthMm: 85.6, heightMm: 54, dpi: 300);
+    // The old path: filter the whole camera image, then shrink.
+    final full = pipe.renderEdits(path, id);
+    final old = cv.resize(full, (card.cols, card.rows), interpolation: cv.INTER_AREA);
+    // Same picture: the fine texture differs (the sharpening now works at
+    // print scale, a little crisper), so compare at a light blur.
+    final a = cv.gaussianBlur(card, (5, 5), 1.5);
+    final b = cv.gaussianBlur(old, (5, 5), 1.5);
+    final psnr = cv.PSNR(a, b);
+    expect(psnr, greaterThan(32), reason: 'PSNR $psnr dB');
+    final (mn, mo) = (cv.mean(card), cv.mean(old));
+    for (final (x, y) in [(mn.val1, mo.val1), (mn.val2, mo.val2), (mn.val3, mo.val3)]) {
+      expect(x, closeTo(y, 4), reason: 'brightness kept');
+    }
+    for (final x in [card, full, old, a, b]) {
+      x.dispose();
+    }
+  });
+
   test('ID card at 300 DPI is 1011 × 638 px; at 600 DPI 2022 × 1276 px', () {
     for (final (dpi, w, h) in [(300, 1011, 638), (600, 2022, 1276)]) {
       final card = pipe.renderCard(bigPhoto, edits, widthMm: 85.6, heightMm: 54, dpi: dpi);
