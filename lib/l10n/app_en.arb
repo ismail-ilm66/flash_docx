@@ -594,6 +594,13 @@
   },
   "photoSizeLabel": "Photo size",
   "photoRetake": "Retake",
+  "photoEnhanceLabel": "Enhance",
+  "photoEnhanceOff": "Off",
+  "photoEnhanceNatural": "Natural",
+  "photoEnhanceSmooth": "Soft",
+  "photoEnhanceOffHint": "The photo as taken.",
+  "photoEnhanceNaturalHint": "Fixes light and colour, sharpens the eyes and softens skin a little.",
+  "photoEnhanceSmoothHint": "Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.",
   "photoMakeSheet": "Make print sheet",
   "photoUpTo": "Up to {count} photos",
   "@photoUpTo": {

@@ -144,13 +144,49 @@ class OpenCvImageProcessor implements ImageProcessor {
       _runner.run(grayInIsolate, (data, width, height, outputPath), debugLabel: 'mask', priority: JobPriority.interactive);
 
   @override
-  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath}) =>
-      _runner.run(
-        backgroundPreviewInIsolate,
-        (photoPath, maskPath, background, outputPath),
-        debugLabel: 'background',
-        priority: JobPriority.interactive,
-      );
+  Future<String> previewWithBackground(
+    String photoPath,
+    String? maskPath,
+    PhotoBackground background, {
+    required String outputPath,
+    PhotoEnhance enhance = PhotoEnhance.off,
+  }) => _runner.run(
+    backgroundPreviewInIsolate,
+    (photoPath, maskPath, background, enhance, outputPath),
+    debugLabel: 'background',
+    priority: JobPriority.interactive,
+  );
+
+  @override
+  Future<({int width, int height})> renderRegion(
+    String photoPath,
+    FracRect region, {
+    required int longEdge,
+    required String outputPath,
+  }) async {
+    final (w, h) = await _runner.run(
+      regionInIsolate,
+      (photoPath, region, longEdge, outputPath),
+      debugLabel: 'region',
+      priority: JobPriority.interactive,
+    );
+    return (width: w, height: h);
+  }
+
+  @override
+  Future<void> composeMask(
+    String? base,
+    Uint8List data,
+    int width,
+    int height,
+    FracRect region,
+    String outputPath,
+  ) => _runner.run(
+    composeMaskInIsolate,
+    (base, data, width, height, region, outputPath),
+    debugLabel: 'mask',
+    priority: JobPriority.interactive,
+  );
 
   @override
   Future<String> signatureFromPhoto(String photo, {required String outputPath, CaptureMeta? capture}) {
@@ -512,23 +548,39 @@ String exactInIsolate((String, int, int, String, int) m) {
 
 void grayInIsolate((Uint8List, int, int, String) m) => pipe.writeGray(m.$1, m.$2, m.$3, m.$4);
 
-String backgroundPreviewInIsolate((String, String, PhotoBackground, String) m) {
+String backgroundPreviewInIsolate(
+  (String, String?, PhotoBackground, PhotoEnhance, String) m,
+) {
   final img = pipe.readUprightAtMost(m.$1, RenderPx.previewLongEdge);
   final small = pipe.fitLongEdge(img, RenderPx.previewLongEdge);
   pipe.disposeUnless(img, small);
-  final mask = cv.imread(m.$2, flags: cv.IMREAD_GRAYSCALE);
+  final path = m.$2;
+  final read = path == null
+      ? null
+      : cv.imread(path, flags: cv.IMREAD_GRAYSCALE);
+  final mask = read == null || read.isEmpty ? null : read;
   try {
-    final color = pipe.photoBackgroundColor(m.$3);
-    final out = color == null || mask.isEmpty ? small.clone() : pipe.replaceBackground(small, mask, color);
-    File(m.$4).parent.createSync(recursive: true);
-    pipe.writeJpeg(out, m.$4, quality: 88);
-    out.dispose();
-    return m.$4;
+    final out = pipe.finishPhoto(
+      small,
+      mask,
+      color: pipe.photoBackgroundColor(m.$3),
+      enhance: m.$4,
+    );
+    File(m.$5).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.$5, quality: 88);
+    if (!identical(out, small)) out.dispose();
+    return m.$5;
   } finally {
     small.dispose();
-    mask.dispose();
+    read?.dispose();
   }
 }
+
+(int, int) regionInIsolate((String, FracRect, int, String) m) =>
+    pipe.writeRegion(m.$1, m.$2, m.$3, m.$4);
+
+void composeMaskInIsolate((String?, Uint8List, int, int, FracRect, String) m) =>
+    pipe.composeMask(m.$1, m.$2, m.$3, m.$4, m.$5, m.$6);
 
 class SignatureMsg {
   const SignatureMsg(this.photo, this.out, this.capture);

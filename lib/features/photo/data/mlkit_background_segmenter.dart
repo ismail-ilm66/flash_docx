@@ -11,8 +11,9 @@ import 'package:injectable/injectable.dart';
 
 /// ML Kit selfie segmentation (Android and iOS). The model ships inside the
 /// app, so it works offline and without Play services downloads. Runs on an
-/// 800 px copy: the mask comes back over the platform channel as one number
-/// per pixel.
+/// 800 px copy (of the whole photo, or of the passport crop for a sharp
+/// mask): the mask comes back over the platform channel as one number per
+/// pixel.
 @LazySingleton(as: BackgroundSegmenter)
 class MlKitBackgroundSegmenter implements BackgroundSegmenter {
   MlKitBackgroundSegmenter(this._processor, this._files);
@@ -24,19 +25,34 @@ class MlKitBackgroundSegmenter implements BackgroundSegmenter {
   bool _available = true;
 
   @override
-  Future<String?> maskFor(String photoPath) async {
+  Future<String?> maskFor(
+    String photoPath, {
+    Quad? focus,
+    String? coarse,
+  }) async {
     if (!_available) return null;
     final id = newId();
     final small = _files.newCapturePath('seg_$id');
     final segmenter = SelfieSegmenter(mode: SegmenterMode.single);
+    // The crop plus 15 % each side, so hair at the frame edge has context.
+    final region = focus?.bounds(margin: 0.15);
     try {
-      await _processor.render(
-        photoPath,
-        const PageEdits(filter: FilterType.original),
-        size: RenderSize.mask,
-        outputPath: small,
-        jpegQuality: 90,
-      );
+      if (region == null) {
+        await _processor.render(
+          photoPath,
+          const PageEdits(filter: FilterType.original),
+          size: RenderSize.mask,
+          outputPath: small,
+          jpegQuality: 90,
+        );
+      } else {
+        await _processor.renderRegion(
+          photoPath,
+          region,
+          longEdge: RenderSize.mask.longEdge!,
+          outputPath: small,
+        );
+      }
       final mask = await segmenter.processImage(InputImage.fromFilePath(small));
       if (mask == null) return null;
       final bytes = Uint8List(mask.width * mask.height);
@@ -45,8 +61,21 @@ class MlKitBackgroundSegmenter implements BackgroundSegmenter {
         bytes[i] = (c[i] * 255).round().clamp(0, 255);
       }
       final out = _files.newCapturePath('mask_$id').replaceAll('.jpg', '.png');
-      await _processor.writeGrayImage(bytes, mask.width, mask.height, out);
-      debugPrint('[background] mask ${mask.width}x${mask.height}');
+      if (region == null) {
+        await _processor.writeGrayImage(bytes, mask.width, mask.height, out);
+      } else {
+        await _processor.composeMask(
+          coarse,
+          bytes,
+          mask.width,
+          mask.height,
+          region,
+          out,
+        );
+      }
+      debugPrint(
+        '[background] mask ${mask.width}x${mask.height}${region == null ? '' : ' (crop)'}',
+      );
       return out;
     } on MissingPluginException {
       _available = false;

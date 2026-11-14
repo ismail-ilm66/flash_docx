@@ -31,12 +31,20 @@ abstract class PageEdits with _$PageEdits {
     double? photoHeightMm,
 
     /// Passport photo background: the person mask for the whole upright
-    /// photo (8-bit PNG, any size) and the colour behind them. Applied as
+    /// photo (8-bit PNG, any size; sharper inside the crop, see
+    /// `BackgroundSegmenter.maskFor`) and the colour behind them. The
+    /// mask is also kept with an original background, for Enhance. Applied as
     /// the crop is rendered, so every output gets it.
     @JsonKey(unknownEnumValue: PhotoBackground.darkBlue)
     @Default(PhotoBackground.original)
     PhotoBackground photoBackground,
     String? backgroundMaskPath,
+
+    /// Passport photo touch-up, before the background. Off for photos saved
+    /// before it existed, so they keep their look.
+    @JsonKey(unknownEnumValue: PhotoEnhance.off)
+    @Default(PhotoEnhance.off)
+    PhotoEnhance photoEnhance,
   }) = _PageEdits;
   const PageEdits._();
 

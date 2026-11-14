@@ -2152,6 +2152,48 @@ abstract class AppLocalizations {
   /// **'Retake'**
   String get photoRetake;
 
+  /// No description provided for @photoEnhanceLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Enhance'**
+  String get photoEnhanceLabel;
+
+  /// No description provided for @photoEnhanceOff.
+  ///
+  /// In en, this message translates to:
+  /// **'Off'**
+  String get photoEnhanceOff;
+
+  /// No description provided for @photoEnhanceNatural.
+  ///
+  /// In en, this message translates to:
+  /// **'Natural'**
+  String get photoEnhanceNatural;
+
+  /// No description provided for @photoEnhanceSmooth.
+  ///
+  /// In en, this message translates to:
+  /// **'Soft'**
+  String get photoEnhanceSmooth;
+
+  /// No description provided for @photoEnhanceOffHint.
+  ///
+  /// In en, this message translates to:
+  /// **'The photo as taken.'**
+  String get photoEnhanceOffHint;
+
+  /// No description provided for @photoEnhanceNaturalHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Fixes light and colour, sharpens the eyes and softens skin a little.'**
+  String get photoEnhanceNaturalHint;
+
+  /// No description provided for @photoEnhanceSmoothHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.'**
+  String get photoEnhanceSmoothHint;
+
   /// No description provided for @photoMakeSheet.
   ///
   /// In en, this message translates to:

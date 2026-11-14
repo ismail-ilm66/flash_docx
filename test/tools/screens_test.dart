@@ -1,6 +1,7 @@
 @Tags(['screens'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show driftRuntimeOptions;
@@ -13,6 +14,7 @@ import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/features/documents/data/db/app_database.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -154,6 +156,18 @@ void main() {
     await shot(tester, 'print');
     await close(tester);
   }, skip: !File('store/sample_docs/idfront.jpg').existsSync());
+
+  // SCREENS_FACE=<a portrait photo> to see the crop screen with a real face.
+  testWidgets('passport photo crop', (tester) async {
+    final path = getIt<FileStore>().newCapturePath('face');
+    File(Platform.environment['SCREENS_FACE']!).copySync(path);
+    final router = await pumpApp(tester, Routes.home);
+    await real(tester, rounds: 5);
+    unawaited(router.push(Routes.photoCrop, extra: PhotoCropArgs(photoPath: path)));
+    await real(tester, rounds: 60);
+    await shot(tester, 'photo_crop');
+    await close(tester);
+  }, skip: Platform.environment['SCREENS_FACE'] == null);
 
   testWidgets('passport photo sheet and single photo', (tester) async {
     final path = getIt<FileStore>().newCapturePath('face');

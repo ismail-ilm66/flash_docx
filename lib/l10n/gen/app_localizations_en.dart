@@ -1162,6 +1162,29 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoRetake => 'Retake';
 
   @override
+  String get photoEnhanceLabel => 'Enhance';
+
+  @override
+  String get photoEnhanceOff => 'Off';
+
+  @override
+  String get photoEnhanceNatural => 'Natural';
+
+  @override
+  String get photoEnhanceSmooth => 'Soft';
+
+  @override
+  String get photoEnhanceOffHint => 'The photo as taken.';
+
+  @override
+  String get photoEnhanceNaturalHint =>
+      'Fixes light and colour, sharpens the eyes and softens skin a little.';
+
+  @override
+  String get photoEnhanceSmoothHint =>
+      'Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.';
+
+  @override
   String get photoMakeSheet => 'Make print sheet';
 
   @override

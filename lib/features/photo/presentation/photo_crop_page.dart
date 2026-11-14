@@ -113,14 +113,22 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   bool _saving = false;
   bool _loadFailed = false;
 
-  /// Background (artboard *Passport photo · crop*): the choice, the person
-  /// mask for [_photo], whether segmentation works here (null while
-  /// finding out) and the preview of each colour.
+  /// Background (artboard *Passport photo · crop*) and Enhance: the
+  /// choices, the person mask for [_photo], whether segmentation works
+  /// here (null while finding out) and a preview per combination.
   late PhotoBackground _background =
       widget.args.page?.edits.photoBackground ?? PhotoBackground.original;
+  // New photos start Natural; a saved one keeps its choice (Off if it was
+  // made before Enhance existed).
+  late PhotoEnhance _enhance =
+      widget.args.page?.edits.photoEnhance ?? PhotoEnhance.natural;
   late String? _mask = widget.args.page?.edits.backgroundMaskPath;
   bool? _segmentable;
-  final Map<PhotoBackground, String> _bgPreview = {};
+  final Map<(PhotoBackground, PhotoEnhance), String> _previews = {};
+  final Set<(PhotoBackground, PhotoEnhance)> _rendering = {};
+
+  /// The last preview shown, kept on screen while the next one renders.
+  String? _displayed;
 
   // Gesture state.
   PhotoPlacement? _start;
@@ -158,11 +166,13 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     }
   }
 
-  /// The photo as it will print: with the chosen background once its
-  /// preview is ready.
-  String get _shown => _background == PhotoBackground.original
-      ? _photo
-      : _bgPreview[_background] ?? _photo;
+  /// The photo as it will print: with the chosen background and Enhance
+  /// once that preview is ready (the previous one until then).
+  String get _shown {
+    final key = (_background, _enhance);
+    if (key == (PhotoBackground.original, PhotoEnhance.off)) return _photo;
+    return _previews[key] ?? _displayed ?? _photo;
+  }
 
   /// Fits the frame into the stage, leaving room for the guide labels.
   Rect _frameFor(Size stage) {
@@ -217,13 +227,15 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       _loadFailed = false;
       _mask = null;
       _segmentable = null;
-      _bgPreview.clear();
+      _previews.clear();
+      _displayed = null;
     });
     await _loadSize();
   }
 
-  /// Finds the person once per photo, then renders the White and Light
-  /// blue previews. If segmentation isn't available the options go away.
+  /// Finds the person once per photo, then renders the previews. If
+  /// segmentation isn't available the colour options go away; Enhance
+  /// still works (without the wall's white balance).
   Future<void> _segment() async {
     final photo = _photo;
     final saved = _mask;
@@ -231,33 +243,62 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
         ? saved
         : await getIt<BackgroundSegmenter>().maskFor(photo);
     if (!mounted || photo != _photo) return;
-    if (mask == null) {
-      setState(() {
-        _segmentable = false;
-        _background = PhotoBackground.original;
-      });
-      return;
-    }
     setState(() {
       _mask = mask;
-      _segmentable = true;
+      _segmentable = mask != null;
+      if (mask == null) _background = PhotoBackground.original;
     });
+    await _refreshPreviews();
+  }
+
+  /// The preview for the current choices first, then the two colours with
+  /// the current Enhance, so tapping one is instant.
+  Future<void> _refreshPreviews() async {
+    if (_segmentable == null) return; // the mask (or its absence) first
+    await _renderPreview((_background, _enhance));
+    if (!(_segmentable ?? false)) return;
     for (final bg in [PhotoBackground.white, PhotoBackground.darkBlue]) {
-      try {
-        final out = await getIt<ImageProcessor>().previewWithBackground(
-          photo,
-          mask,
-          bg,
-          outputPath: getIt<FileStore>().newCapturePath(
-            'bg_${bg.name}_${newId()}',
-          ),
-        );
-        if (!mounted || photo != _photo) return;
-        setState(() => _bgPreview[bg] = out);
-      } on Object catch (e) {
-        debugPrint('[background] preview: $e');
-      }
+      await _renderPreview((bg, _enhance));
     }
+  }
+
+  Future<void> _renderPreview((PhotoBackground, PhotoEnhance) key) async {
+    if (key == (PhotoBackground.original, PhotoEnhance.off)) return;
+    if (_previews.containsKey(key) || _rendering.contains(key)) return;
+    final photo = _photo;
+    final mask = _mask;
+    if (key.$1 != PhotoBackground.original && mask == null) return;
+    _rendering.add(key);
+    try {
+      final out = await getIt<ImageProcessor>().previewWithBackground(
+        photo,
+        mask,
+        key.$1,
+        enhance: key.$2,
+        outputPath: getIt<FileStore>().newCapturePath(
+          'bg_${key.$1.name}_${key.$2.name}_${newId()}',
+        ),
+      );
+      if (!mounted || photo != _photo) return;
+      setState(() {
+        _previews[key] = out;
+        if (key == (_background, _enhance)) _displayed = out;
+      });
+    } on Object catch (e) {
+      debugPrint('[background] preview: $e');
+    } finally {
+      _rendering.remove(key);
+    }
+  }
+
+  void _choose({PhotoBackground? background, PhotoEnhance? enhance}) {
+    setState(() {
+      _background = background ?? _background;
+      _enhance = enhance ?? _enhance;
+      final ready = _previews[(_background, _enhance)];
+      if (ready != null) _displayed = ready;
+    });
+    unawaited(_refreshPreviews());
   }
 
   /// Copies the mask into the document so it outlives the temp folder.
@@ -349,12 +390,27 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       photoBackground: _segmentable ?? false
           ? _background
           : PhotoBackground.original,
+      photoEnhance: _enhance,
       backgroundMaskPath: null,
     );
-    final mask =
-        _background != PhotoBackground.original && (_segmentable ?? false)
+    // The mask serves the background and Enhance. Segment the crop itself
+    // now: far sharper hair and ears than the whole-photo mask.
+    var mask =
+        (_segmentable ?? false) &&
+            (_background != PhotoBackground.original ||
+                _enhance != PhotoEnhance.off)
         ? _mask
         : null;
+    if (mask != null) {
+      mask =
+          await getIt<BackgroundSegmenter>().maskFor(
+            _photo,
+            focus: edits.crop,
+            coarse: mask,
+          ) ??
+          mask;
+      if (!mounted) return;
+    }
     final page = widget.args.page;
     if (page != null) {
       // Re-crop: same page, new frame; previews re-render.
@@ -650,9 +706,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                         onTap:
                                             bg == PhotoBackground.original ||
                                                 (_segmentable ?? false)
-                                            ? () => setState(
-                                                () => _background = bg,
-                                              )
+                                            ? () => _choose(background: bg)
                                             : null,
                                       ),
                                     ),
@@ -660,6 +714,46 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                 ],
                               ),
                             ],
+                            // Light, colour and skin (works without
+                            // segmentation too).
+                            const SizedBox(height: Space.x3),
+                            SectionLabel(
+                              l.photoEnhanceLabel,
+                              padding: const EdgeInsets.only(bottom: Space.x2),
+                            ),
+                            Row(
+                              children: [
+                                for (final (i, e)
+                                    in PhotoEnhance.values.indexed) ...[
+                                  if (i > 0) const SizedBox(width: Space.x2),
+                                  Expanded(
+                                    child: _Choice(
+                                      label: switch (e) {
+                                        PhotoEnhance.off => l.photoEnhanceOff,
+                                        PhotoEnhance.natural =>
+                                          l.photoEnhanceNatural,
+                                        PhotoEnhance.smooth =>
+                                          l.photoEnhanceSmooth,
+                                      },
+                                      selected: _enhance == e,
+                                      onTap: () => _choose(enhance: e),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: Space.x1),
+                            Text(
+                              switch (_enhance) {
+                                PhotoEnhance.off => l.photoEnhanceOffHint,
+                                PhotoEnhance.natural =>
+                                  l.photoEnhanceNaturalHint,
+                                PhotoEnhance.smooth => l.photoEnhanceSmoothHint,
+                              },
+                              style: context.text.bodySmall?.copyWith(
+                                color: c.muted,
+                              ),
+                            ),
                             const SizedBox(height: Space.x3),
                             Row(
                               children: [

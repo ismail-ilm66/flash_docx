@@ -24,6 +24,9 @@ abstract class Pt with _$Pt {
 
 /// Document corners in normalised coordinates, ordered TL, TR, BR, BL.
 @freezed
+/// A rectangle in fractions of an image (0…1 on each axis).
+typedef FracRect = ({double left, double top, double right, double bottom});
+
 abstract class Quad with _$Quad {
   const factory Quad({
     required Pt tl,
@@ -57,6 +60,22 @@ abstract class Quad with _$Quad {
   }
 
   List<Pt> get points => [tl, tr, br, bl];
+
+  /// The axis-aligned box around the quad, grown by [margin] (fraction of
+  /// its width / height) on each side and kept inside the image.
+  FracRect bounds({double margin = 0}) {
+    final xs = points.map((p) => p.x);
+    final ys = points.map((p) => p.y);
+    final (l, r) = (xs.reduce(math.min), xs.reduce(math.max));
+    final (t, b) = (ys.reduce(math.min), ys.reduce(math.max));
+    final (mx, my) = ((r - l) * margin, (b - t) * margin);
+    return (
+      left: (l - mx).clamp(0.0, 1.0),
+      top: (t - my).clamp(0.0, 1.0),
+      right: (r + mx).clamp(0.0, 1.0),
+      bottom: (b + my).clamp(0.0, 1.0),
+    );
+  }
 
   Quad withPoint(int index, Pt p) => switch (index) {
         0 => copyWith(tl: p),

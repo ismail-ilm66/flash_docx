@@ -192,4 +192,253 @@ void main() {
       }
     });
   });
+
+  group('Enhance', () {
+    // Head and shoulders: skin face, dark hair and jacket, white teeth-like
+    // highlight; [cast] tints the whole photo like room light.
+    const w = 413;
+    const h = 531;
+
+    (cv.Mat, cv.Mat) portrait({
+      required cv.Scalar skin,
+      double exposure = 1,
+      List<double> cast = const [1, 1, 1],
+    }) {
+      final img = cv.Mat.fromScalar(
+        h,
+        w,
+        cv.MatType.CV_8UC3,
+        cv.Scalar(214, 216, 218),
+      );
+      final mask = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
+      void head(cv.Mat m, cv.Scalar hair, cv.Scalar face, cv.Scalar jacket) {
+        cv.ellipse(
+          m,
+          cv.Point(206, 560),
+          cv.Point(220, 170),
+          0,
+          0,
+          360,
+          jacket,
+          thickness: -1,
+        );
+        cv.ellipse(
+          m,
+          cv.Point(206, 230),
+          cv.Point(130, 165),
+          0,
+          0,
+          360,
+          hair,
+          thickness: -1,
+        );
+        cv.ellipse(
+          m,
+          cv.Point(206, 260),
+          cv.Point(100, 130),
+          0,
+          0,
+          360,
+          face,
+          thickness: -1,
+        );
+      }
+
+      head(img, cv.Scalar(30, 32, 36), skin, cv.Scalar(90, 50, 20));
+      cv.rectangle(
+        img,
+        cv.Rect(180, 320, 52, 10),
+        cv.Scalar(240, 240, 240),
+        thickness: -1,
+      ); // teeth
+      head(mask, cv.Scalar.all(255), cv.Scalar.all(255), cv.Scalar.all(255));
+      final f = img.convertTo(cv.MatType.CV_32FC3, alpha: exposure);
+      final tinted = cv.multiply(
+        f,
+        cv.Mat.fromScalar(
+          h,
+          w,
+          cv.MatType.CV_32FC3,
+          cv.Scalar(cast[0], cast[1], cast[2]),
+        ),
+      );
+      final out = tinted.convertTo(cv.MatType.CV_8UC3);
+      for (final m in [img, f, tinted]) {
+        m.dispose();
+      }
+      return (out, mask);
+    }
+
+    double luma(cv.Mat img, cv.Rect r) {
+      final roi = img.region(r);
+      final m = cv.mean(roi);
+      roi.dispose();
+      return 0.114 * m.val1 + 0.587 * m.val2 + 0.299 * m.val3;
+    }
+
+    final cheek = cv.Rect(140, 230, 40, 40);
+    final wallBox = cv.Rect(5, 5, 50, 50);
+    final jacketBox = cv.Rect(30, 500, 40, 25);
+
+    test('off leaves the photo alone', () {
+      final (img, mask) = portrait(skin: cv.Scalar(120, 150, 200));
+      expect(identical(pipe.finishPhoto(img, mask), img), isTrue);
+      final out = pipe.enhancePhoto(img, mask, PhotoEnhance.off);
+      expect(cv.norm1(out, img), 0);
+      for (final m in [img, mask, out]) {
+        m.dispose();
+      }
+    });
+
+    test(
+      'a dark, warm indoor photo: brighter, and the wall is neutral again',
+      () {
+        final (img, mask) = portrait(
+          skin: cv.Scalar(120, 150, 200),
+          exposure: 0.6,
+          cast: const [0.8, 0.95, 1.12],
+        );
+        final out = pipe.enhancePhoto(img, mask, PhotoEnhance.natural);
+        expect(
+          luma(out, cheek),
+          greaterThan(luma(img, cheek) + 15),
+          reason: 'brighter face',
+        );
+        double cast(cv.Mat m) {
+          final roi = m.region(wallBox);
+          final v = cv.mean(roi);
+          roi.dispose();
+          return v.val3 - v.val1; // red minus blue
+        }
+
+        expect(
+          cast(out).abs(),
+          lessThan(cast(img).abs() / 3),
+          reason: 'wall ${cast(img)} → ${cast(out)}',
+        );
+        for (final m in [img, mask, out]) {
+          m.dispose();
+        }
+      },
+    );
+
+    test(
+      'a well-lit photo: darker skin is not lightened, dark clothes keep their tone',
+      () {
+        final (img, mask) = portrait(skin: cv.Scalar(60, 85, 120));
+        final out = pipe.enhancePhoto(img, mask, PhotoEnhance.natural);
+        expect(
+          (luma(out, cheek) - luma(img, cheek)).abs(),
+          lessThan(6),
+          reason: 'skin tone kept',
+        );
+        expect(
+          (luma(out, jacketBox) - luma(img, jacketBox)).abs(),
+          lessThan(6),
+          reason: 'jacket kept',
+        );
+        for (final m in [img, mask, out]) {
+          m.dispose();
+        }
+      },
+    );
+
+    test(
+      'soft smooths skin more than natural; both keep the face where it was',
+      () {
+        final (base, mask) = portrait(skin: cv.Scalar(120, 150, 200));
+        // Skin texture: fine noise on the face only.
+        final noise = cv.Mat.zeros(h, w, cv.MatType.CV_8UC3);
+        cv.randn(noise, cv.Scalar.all(0), cv.Scalar.all(12));
+        final img = cv.add(base, noise);
+        double texture(cv.Mat m) {
+          final roi = m.region(cheek);
+          final (_, sd) = cv.meanStdDev(roi);
+          roi.dispose();
+          return sd.val2;
+        }
+
+        final natural = pipe.enhancePhoto(img, mask, PhotoEnhance.natural);
+        final soft = pipe.enhancePhoto(img, mask, PhotoEnhance.smooth);
+        expect(texture(natural), lessThan(texture(img)));
+        expect(texture(soft), lessThan(texture(natural)));
+        expect(
+          texture(natural),
+          greaterThan(0.2 * texture(img)),
+          reason: 'texture kept, not plastic',
+        );
+        for (final m in [base, mask, noise, img, natural, soft]) {
+          m.dispose();
+        }
+      },
+    );
+
+    test('old edits read as Off; a new choice round-trips', () {
+      expect(PageEdits.fromJson(const {}).photoEnhance, PhotoEnhance.off);
+      expect(
+        PageEdits.fromJson(const {'photoEnhance': 'sparkle'}).photoEnhance,
+        PhotoEnhance.off,
+      );
+      const e = PageEdits(photoEnhance: PhotoEnhance.smooth);
+      expect(PageEdits.fromJson(e.toJson()).photoEnhance, PhotoEnhance.smooth);
+    });
+  });
+
+  group('sharp mask from the crop', () {
+    test(
+      'Quad.bounds: the box around the crop plus a margin, inside the photo',
+      () {
+        final q = Quad.fromUnordered(const [
+          Pt(0.2, 0.1),
+          Pt(0.6, 0.1),
+          Pt(0.6, 0.5),
+          Pt(0.2, 0.5),
+        ]);
+        final b = q.bounds(margin: 0.25);
+        expect(
+          [b.left, b.top, b.right, b.bottom].map((v) => (v * 100).round()),
+          [10, 0, 70, 60],
+        );
+      },
+    );
+
+    test(
+      'composeMask pastes the crop mask over the scaled-up whole-photo mask',
+      () {
+        final base = p.join(tmp.path, 'coarse.png');
+        // Coarse: whole photo 100 × 200, left half person.
+        final coarse = Uint8List(100 * 200);
+        for (var y = 0; y < 200; y++) {
+          for (var x = 0; x < 50; x++) {
+            coarse[y * 100 + x] = 255;
+          }
+        }
+        pipe.writeGray(coarse, 100, 200, base);
+        // Sharp: the region x 0.5–0.75, y 0.25–0.5 at 80 × 160, all person.
+        final sharp = Uint8List(80 * 160)..fillRange(0, 80 * 160, 255);
+        final out = p.join(tmp.path, 'composed.png');
+        pipe.composeMask(base, sharp, 80, 160, (
+          left: 0.5,
+          top: 0.25,
+          right: 0.75,
+          bottom: 0.5,
+        ), out);
+        final m = cv.imread(out, flags: cv.IMREAD_GRAYSCALE);
+        expect(
+          (m.cols, m.rows),
+          (320, 640),
+          reason: 'the region keeps its resolution',
+        );
+        expect(m.at<int>(320, 100), 255, reason: 'coarse person, scaled up');
+        expect(m.at<int>(240, 200), 255, reason: 'the sharp region');
+        expect(
+          m.at<int>(100, 200),
+          0,
+          reason: 'coarse background above the region',
+        );
+        expect(m.at<int>(320, 300), 0, reason: 'coarse background beside it');
+        m.dispose();
+      },
+    );
+  });
 }

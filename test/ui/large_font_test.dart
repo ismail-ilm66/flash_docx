@@ -86,7 +86,7 @@ class _PhotoProcessor extends _PendingProcessor {
   }
 
   @override
-  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath}) async {
+  Future<String> previewWithBackground(String photoPath, String? maskPath, PhotoBackground background, {required String outputPath, PhotoEnhance enhance = PhotoEnhance.off}) async {
     File(outputPath)
       ..parent.createSync(recursive: true)
       ..writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
@@ -99,9 +99,13 @@ class _FakeSegmenter implements BackgroundSegmenter {
   _FakeSegmenter({required this.available});
   final bool available;
 
+  /// The crop each call segmented (null: the whole photo).
+  final focuses = <Quad?>[];
+
   @override
-  Future<String?> maskFor(String photoPath) async {
+  Future<String?> maskFor(String photoPath, {Quad? focus, String? coarse}) async {
     if (!available) return null;
+    focuses.add(focus);
     final out = getIt<FileStore>().newCapturePath('mask').replaceAll('.jpg', '.png');
     File(out).writeAsBytesSync(File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync());
     return out;
@@ -370,6 +374,12 @@ void main() {
     expect(find.text(l.photoTopOfHead), findsOneWidget);
     expect(find.text(l.photoBackgroundWhite), findsNothing);
     expect(find.text(l.photoBackgroundDarkBlue), findsNothing);
+    await tester.ensureVisible(find.text(l.photoEnhanceNatural));
+    expect(
+      find.text(l.photoEnhanceNatural),
+      findsOneWidget,
+      reason: 'Enhance works without segmentation',
+    );
     await close(tester);
   });
 
@@ -541,7 +551,16 @@ void main() {
     await tester.tap(find.text(l.photoBackgroundWhite));
     await real(tester);
     final stage = tester.widgetList<Image>(find.byType(Image)).map((i) => i.image).whereType<ResizeImage>().map((r) => (r.imageProvider as FileImage).file.path);
-    expect(stage.any((p) => p.contains('bg_white_')), isTrue, reason: 'the white preview is on the stage');
+    expect(stage.any((p) => p.contains('bg_white_natural_')), isTrue, reason: 'the white, enhanced preview is on the stage');
+    // Enhance: Natural for a new photo, with what it does said under it.
+    await tester.ensureVisible(find.text(l.photoEnhanceSmooth));
+    expect(find.text(l.photoEnhanceNaturalHint), findsOneWidget);
+    await tester.tap(find.text(l.photoEnhanceSmooth));
+    await real(tester);
+    expect(find.text(l.photoEnhanceSmoothHint), findsOneWidget);
+    expectNothingCutOff(tester, 'Passport photo crop, Soft');
+    await tester.tap(find.text(l.photoEnhanceNatural));
+    await real(tester);
     // P1-3.5: both look and are enabled once the photo is placed.
     expect(tester.widget<PrimaryButton>(find.widgetWithText(PrimaryButton, l.photoMakeSheet)).onPressed, isNotNull);
     expect(tester.widget<TopBarTextAction>(find.widgetWithText(TopBarTextAction, l.adjustNext)).onPressed, isNotNull);
@@ -582,6 +601,18 @@ void main() {
     final docs = (await tester.runAsync(() => getIt<DocumentRepository>().watchAll().first))!;
     final saved = docs.firstWhere((d) => d.mode == ScanMode.photo);
     expect(saved.pages.single.edits.photoBackground, PhotoBackground.white);
+    expect(saved.pages.single.edits.photoEnhance, PhotoEnhance.natural);
+    final focuses = (getIt<BackgroundSegmenter>() as _FakeSegmenter).focuses;
+    expect(
+      focuses.first,
+      isNull,
+      reason: 'the whole photo first, for the previews',
+    );
+    expect(
+      focuses.last,
+      saved.pages.single.edits.crop,
+      reason: 'then the crop itself, for a sharp mask',
+    );
     final mask = saved.pages.single.edits.backgroundMaskPath!;
     expect(p.isWithin(getIt<FileStore>().docDir(saved.id).path, mask), isTrue, reason: 'the mask is kept with the document');
     expect(saved.folder, DocFolder.ids);

@@ -1588,7 +1588,7 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
   cropped.dispose();
   final adjusted = brightnessContrast(filtered, edits);
   filtered.dispose();
-  final backed = _withPhotoBackground(adjusted, edits);
+  final backed = _withPhotoFinish(adjusted, edits);
   disposeUnless(adjusted, backed);
   final out = withOverlays(backed, edits.overlays);
   disposeUnless(backed, out);
@@ -1603,34 +1603,349 @@ cv.Scalar? photoBackgroundColor(PhotoBackground b) => switch (b) {
   PhotoBackground.darkBlue => cv.Scalar(140, 78, 31),
 };
 
-/// Passport photo: the person mask (whole upright photo) warped with the
-/// same crop as the photo, then [replaceBackground]. Returns [page] itself
-/// when there's nothing to do or the mask is missing.
-cv.Mat _withPhotoBackground(cv.Mat page, PageEdits edits) {
+/// Passport photo finish: [enhancePhoto] (if on), then the background
+/// colour. The person mask (whole upright photo) is warped with the same
+/// crop as the photo. Returns [page] itself when there's nothing to do.
+cv.Mat _withPhotoFinish(cv.Mat page, PageEdits edits) {
   final color = photoBackgroundColor(edits.photoBackground);
+  final enhance = edits.photoEnhance;
+  if (color == null && enhance == PhotoEnhance.off) return page;
+  cv.Mat? warped;
   final path = edits.backgroundMaskPath;
-  if (color == null || path == null) return page;
-  final mask = cv.imread(path, flags: cv.IMREAD_GRAYSCALE);
-  if (mask.isEmpty) {
-    mask.dispose();
-    return page;
+  if (path != null) {
+    final mask = cv.imread(path, flags: cv.IMREAD_GRAYSCALE);
+    if (mask.isEmpty) {
+      mask.dispose();
+    } else {
+      // The crop is in fractions of the upright photo, so it fits the mask too.
+      warped = cropAndRotate(mask, edits);
+      disposeUnless(mask, warped);
+    }
   }
-  // The crop is in fractions of the upright photo, so it fits the mask too.
-  final warped = cropAndRotate(mask, edits);
-  disposeUnless(mask, warped);
   try {
-    return replaceBackground(page, warped, color);
+    return finishPhoto(page, warped, color: color, enhance: enhance);
   } finally {
-    warped.dispose();
+    warped?.dispose();
   }
+}
+
+/// [enhancePhoto] then [replaceBackground] on [img] with [mask] (8-bit,
+/// 255 = person, any size, or null). Returns [img] itself when neither
+/// applies.
+cv.Mat finishPhoto(
+  cv.Mat img,
+  cv.Mat? mask, {
+  cv.Scalar? color,
+  PhotoEnhance enhance = PhotoEnhance.off,
+}) {
+  var out = img;
+  if (enhance != PhotoEnhance.off) {
+    final sized = mask == null
+        ? null
+        : cv.resize(mask, (img.cols, img.rows), interpolation: cv.INTER_LINEAR);
+    out = enhancePhoto(img, sized, enhance);
+    sized?.dispose();
+  }
+  if (color != null && mask != null) {
+    final backed = replaceBackground(out, mask, color);
+    if (!identical(out, img)) out.dispose();
+    out = backed;
+  }
+  return out;
+}
+
+/// Passport photo Enhance: what a photo studio does, kept natural.
+///  1. White balance from the wall (a light, near-neutral wall is a grey
+///     card for the room's light), only with a [person] mask.
+///  2. Exposure from the whole photo's highlights, one gain on linear
+///     light with a soft shoulder. Never judged from skin, so darker skin
+///     isn't lightened.
+///  3. Shadow fill: only parts of the face and neck clearly darker than
+///     the rest, lifted by a smooth field (texture kept); hair and clothes
+///     keep their tone.
+///  4. Skin softened (edge-preserving), keeping fine texture so it isn't
+///     plastic; smooth more than natural.
+///  5. Eyes, brows, lips and hair sharpened a little; skin not.
+/// [person]: 8-bit, 255 = person, the size of [img], or null (skin found
+/// by colour alone). Always returns a new BGR image.
+cv.Mat enhancePhoto(cv.Mat img, cv.Mat? person, PhotoEnhance level) {
+  final (soften, keep, sharpen, fill) = switch (level) {
+    PhotoEnhance.off => (0.0, 1.0, 0.0, 0.0),
+    PhotoEnhance.natural => (0.45, 0.45, 0.30, 0.60),
+    PhotoEnhance.smooth => (0.75, 0.30, 0.25, 0.60),
+  };
+  final tmp = <cv.Mat>[];
+  cv.Mat t(cv.Mat m) {
+    tmp.add(m);
+    return m;
+  }
+
+  cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
+  try {
+    var bgr = img.channels == 1 ? t(cv.cvtColor(img, cv.COLOR_GRAY2BGR)) : img;
+    if (level == PhotoEnhance.off) return bgr.clone();
+    final (w, h) = (bgr.cols, bgr.rows);
+    final long = math.max(w, h);
+    final personF = person == null
+        ? null
+        : t(person.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255));
+
+    if (person != null) bgr = t(_wallWhiteBalance(bgr, person));
+    bgr = t(_exposure(bgr));
+
+    // Skin: a soft YCrCb box (works across skin tones), on the person.
+    final ycc = cv.split(t(cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb)));
+    final (cr, cb) = (t(ycc[1].clone()), t(ycc[2].clone()));
+    ycc.dispose();
+    cv.Mat soft(cv.Mat v, double lo, double hi, double f) => t(
+      _clamp01(
+        t(
+          cv.min(
+            t(v.convertTo(cv.MatType.CV_32FC1, alpha: 1 / f, beta: -lo / f)),
+            t(v.convertTo(cv.MatType.CV_32FC1, alpha: -1 / f, beta: hi / f)),
+          ),
+        ),
+        t,
+      ),
+    );
+    var skin = t(cv.multiply(soft(cr, 133, 180, 6), soft(cb, 77, 130, 6)));
+    if (personF != null) {
+      skin = t(
+        cv.multiply(
+          skin,
+          t(
+            _clamp01(
+              t(personF.convertTo(cv.MatType.CV_32FC1, alpha: 2, beta: -1)),
+              t,
+            ),
+          ),
+        ),
+      );
+    }
+    final size = math.max(60.0, math.sqrt(cv.sum(skin).val1));
+
+    // Shadow fill on lightness; the broad light measured on a small copy.
+    final lab = cv.split(t(cv.cvtColor(bgr, cv.COLOR_BGR2Lab)));
+    final (lL, la, lb) = (
+      t(lab[0].clone()),
+      t(lab[1].clone()),
+      t(lab[2].clone()),
+    );
+    lab.dispose();
+    final s = math.min(1.0, 256 / long);
+    final small = (math.max(1, (w * s).round()), math.max(1, (h * s).round()));
+    cv.Mat upFull(cv.Mat m) =>
+        t(cv.resize(m, (w, h), interpolation: cv.INTER_LINEAR));
+    cv.Mat broad(cv.Mat m, double sigma) => upFull(
+      t(
+        cv.gaussianBlur(t(cv.resize(m, small, interpolation: cv.INTER_AREA)), (
+          0,
+          0,
+        ), math.max(1, sigma * s)),
+      ),
+    );
+    final base = broad(lL, size / 5);
+    final (_, skinMask) = cv.threshold(skin, 0.5, 255, cv.THRESH_BINARY);
+    final skin8 = t(t(skinMask).convertTo(cv.MatType.CV_8UC1));
+    if (cv.countNonZero(skin8) > 200) {
+      final ref = _percentile(base, skin8, 0.75);
+      // lift = max(0.92 · ref − base, 0) · fill, faded out off the person.
+      final (_, lift) = cv.threshold(
+        t(
+          base.convertTo(
+            cv.MatType.CV_32FC1,
+            alpha: -fill,
+            beta: 0.92 * ref * fill,
+          ),
+        ),
+        0,
+        0,
+        cv.THRESH_TOZERO,
+      );
+      t(lift);
+      // Only on and around skin: dark hair and clothes keep their tone.
+      final near = t(
+        _clamp01(
+          t(broad(skin, size / 12).convertTo(cv.MatType.CV_32FC1, alpha: 2)),
+          t,
+        ),
+      );
+      final region = t(cv.multiply(lift, near));
+      final lifted = t(cv.add(t(lL.convertTo(cv.MatType.CV_32FC1)), region));
+      bgr = t(
+        cv.cvtColor(
+          t(
+            cv.merge(
+              cv.VecMat.fromList([
+                t(lifted.convertTo(cv.MatType.CV_8UC1)),
+                la,
+                lb,
+              ]),
+            ),
+          ),
+          cv.COLOR_Lab2BGR,
+        ),
+      );
+    }
+
+    // Soften skin: bilateral base (on a copy of at most 700 px) plus the
+    // finest texture back.
+    final f = t(bgr.convertTo(cv.MatType.CV_32FC3));
+    final ws = math.min(1.0, 700 / long);
+    final work = ws < 1
+        ? t(
+            cv.resize(bgr, (
+              math.max(1, (w * ws).round()),
+              math.max(1, (h * ws).round()),
+            ), interpolation: cv.INTER_AREA),
+          )
+        : bgr;
+    var smoothBase = t(
+      cv.bilateralFilter(work, 0, 30, math.max(2, size * ws / 40)),
+    );
+    if (ws < 1) smoothBase = upFull(smoothBase);
+    final fine = t(
+      cv.subtract(f, t(cv.gaussianBlur(f, (0, 0), math.max(0.6, size / 300)))),
+    );
+    final smooth = t(
+      cv.add(
+        t(smoothBase.convertTo(cv.MatType.CV_32FC3)),
+        t(fine.convertTo(cv.MatType.CV_32FC3, alpha: keep)),
+      ),
+    );
+    final weight = three(
+      t(
+        t(
+          cv.gaussianBlur(skin, (0, 0), math.max(1, size / 60)),
+        ).convertTo(cv.MatType.CV_32FC1, alpha: soften),
+      ),
+    );
+    var out = t(cv.add(f, t(cv.multiply(weight, t(cv.subtract(smooth, f))))));
+
+    // Sharpen what isn't skin.
+    final detail = t(
+      cv.subtract(
+        out,
+        t(cv.gaussianBlur(out, (0, 0), math.max(0.7, size / 250))),
+      ),
+    );
+    final notSkin = three(
+      t(
+        t(
+          cv.gaussianBlur(skin, (0, 0), 2),
+        ).convertTo(cv.MatType.CV_32FC1, alpha: -sharpen, beta: sharpen),
+      ),
+    );
+    out = t(cv.add(out, t(cv.multiply(notSkin, detail))));
+    return out.convertTo(cv.MatType.CV_8UC3);
+  } finally {
+    for (final m in tmp) {
+      m.dispose();
+    }
+  }
+}
+
+/// Neutralises the room light's colour cast, using the wall around the
+/// [person] as a grey card. Only a light, near-neutral wall counts (a
+/// painted wall says little about the light). New image.
+cv.Mat _wallWhiteBalance(cv.Mat bgr, cv.Mat person) {
+  final (_, wall) = cv.threshold(person, 12, 255, cv.THRESH_BINARY_INV);
+  final lab = cv.cvtColor(bgr, cv.COLOR_BGR2Lab);
+  try {
+    if (cv.countNonZero(wall) < 500) return bgr.clone();
+    final m = cv.mean(lab, mask: wall);
+    final (da, db) = (m.val2 - 128, m.val3 - 128);
+    if (m.val1 < 110 || math.sqrt(da * da + db * db) > 30) return bgr.clone();
+    final ch = cv.split(lab);
+    final a = ch[1].convertTo(cv.MatType.CV_8UC1, beta: -0.8 * da);
+    final b = ch[2].convertTo(cv.MatType.CV_8UC1, beta: -0.8 * db);
+    final merged = cv.merge(cv.VecMat.fromList([ch[0], a, b]));
+    final out = cv.cvtColor(merged, cv.COLOR_Lab2BGR);
+    for (final x in [a, b, merged]) {
+      x.dispose();
+    }
+    ch.dispose();
+    return out;
+  } finally {
+    wall.dispose();
+    lab.dispose();
+  }
+}
+
+/// Brightens an under-exposed photo like a longer exposure: one gain on
+/// linear light from the whole photo's highlights (99.5th percentile:
+/// wall, shirt, eyes, teeth), with a soft shoulder so nothing clips. Never
+/// from the person alone: on a well-lit photo of darker skin the brightest
+/// person pixels can be skin, and that would lighten it. A per-value
+/// lookup table, the same for all three channels. New image.
+cv.Mat _exposure(cv.Mat bgr) {
+  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
+  final hi = _toLinear(_percentile(gray, null, 0.995) / 255);
+  gray.dispose();
+  final gain = (0.72 / math.max(hi, 1e-3)).clamp(1.0, 1.6);
+  if (gain <= 1.10) return bgr.clone();
+  const knee = 0.8;
+  final lut = Uint8List(256);
+  for (var v = 0; v < 256; v++) {
+    var x = _toLinear(v / 255) * gain;
+    if (x > knee) {
+      final over = x - knee;
+      x = knee + over / (1 + over / (1 - knee));
+    }
+    lut[v] = (_toSrgb(x) * 255).round().clamp(0, 255);
+  }
+  final table = cv.Mat.fromList(1, 256, cv.MatType.CV_8UC1, lut);
+  try {
+    return cv.LUT(bgr, table);
+  } finally {
+    table.dispose();
+  }
+}
+
+double _toLinear(double x) =>
+    x <= 0.04045 ? x / 12.92 : math.pow((x + 0.055) / 1.055, 2.4).toDouble();
+
+double _toSrgb(double x) {
+  final c = x.clamp(0.0, 1.0);
+  return c <= 0.0031308 ? c * 12.92 : 1.055 * math.pow(c, 1 / 2.4) - 0.055;
+}
+
+/// The [q] quantile (0…1) of an 8-bit single-channel image, over the
+/// pixels where [mask] (8-bit, same size) is above half, or all of them.
+double _percentile(cv.Mat gray8, cv.Mat? mask, double q) {
+  final gm = gray8.isContinuous ? gray8 : gray8.clone();
+  final mm = mask == null || mask.isContinuous ? mask : mask.clone();
+  final hist = List<int>.filled(256, 0);
+  var n = 0;
+  try {
+    final g = gm.data;
+    final m = mm?.data;
+    for (var i = 0; i < g.length; i++) {
+      if (m != null && m[i] < 128) continue;
+      hist[g[i]]++;
+      n++;
+    }
+  } finally {
+    if (!identical(gm, gray8)) gm.dispose();
+    if (mm != null && !identical(mm, mask)) mm.dispose();
+  }
+  if (n == 0) return 255;
+  final target = q * n;
+  var acc = 0;
+  for (var v = 0; v < 256; v++) {
+    acc += hist[v];
+    if (acc >= target) return v.toDouble();
+  }
+  return 255;
 }
 
 /// Puts [color] behind the person. [mask] (8-bit, 255 = person, any size)
 /// is ML Kit's coarse confidence map, so on its own its edge is a soft band
 /// a few pixels wide where the old wall shows through as a pale fringe.
 /// Three fixes before blending:
-///  1. a guided filter snaps the band to the photo's own edges (hair,
-///     shoulders), then a slight tighten keeps it off the wall;
+///  1. a colour guided filter snaps the band to the photo's own edges
+///     (hair, shoulders), then a tighten makes the edge crisp and keeps
+///     it off the wall;
 ///  2. near the outline, where the wall and the person clearly differ in
 ///     colour, each pixel's share is read from its colour between the two
 ///     (a plain wall is easy to model), so a wedge of wall the mask took
@@ -1666,7 +1981,6 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
     cv.Mat three(cv.Mat m) => t(cv.merge(cv.VecMat.fromList([m, m, m])));
 
     final image = t(bgr.convertTo(cv.MatType.CV_32FC3, alpha: 1 / 255));
-    final gray = t(cv.cvtColor(image, cv.COLOR_BGR2GRAY));
     final coarse = t(
       t(
         cv.resize(mask, (w, h), interpolation: cv.INTER_LINEAR),
@@ -1675,24 +1989,31 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
     final smallImage = down(image);
     final smallCoarse = down(coarse);
 
-    // 1. Fast guided filter: coefficients on the small copy, applied to the
-    // full-size guide.
+    // 1. Fast colour guided filter: coefficients on the small copy,
+    // applied to the full-size photo. Colour, not just lightness, tells
+    // brown hair from a beige wall.
     final (gA, gB) = _guidedCoefficients(
-      down(gray),
+      smallImage,
       smallCoarse,
       px(math.max(2, long / 100)),
-      2e-3,
+      1e-3,
       t,
     );
-    final guided = t(cv.add(t(cv.multiply(up(gA), gray)), up(gB)));
-    // Tighten: 0.2 → 0, 0.9 → 1. The coarse map leans generous.
+    final channels = cv.split(image);
+    var guided = up(gB);
+    for (var c = 0; c < 3; c++) {
+      guided = t(cv.add(guided, t(cv.multiply(up(gA[c]), channels[c]))));
+    }
+    channels.dispose();
+    // Tighten: 0.3 → 0, 0.8 → 1. A crisp edge; the coarse map leans
+    // generous.
     final tight = t(
       _clamp01(
         t(
           guided.convertTo(
             cv.MatType.CV_32FC1,
-            alpha: 1 / 0.7,
-            beta: -0.2 / 0.7,
+            alpha: 1 / 0.5,
+            beta: -0.3 / 0.5,
           ),
         ),
         t,
@@ -1765,10 +2086,11 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
   }
 }
 
-/// Guided filter coefficients (He et al. 2010): q = A · guide + B follows
-/// the guide's edges within [r] px. Single-channel float; [eps] in the
-/// guide's units squared.
-(cv.Mat, cv.Mat) _guidedCoefficients(
+/// Colour guided filter coefficients (He et al. 2010): `q = Σ A_c · I_c`
+/// `+ B` follows the edges of the 3-channel float [guide] within [r] px.
+/// [p] single-channel float; [eps] in the guide's units squared. The 3 × 3
+/// colour covariance is inverted per pixel by cofactors.
+(List<cv.Mat>, cv.Mat) _guidedCoefficients(
   cv.Mat guide,
   cv.Mat p,
   int r,
@@ -1777,20 +2099,59 @@ cv.Mat replaceBackground(cv.Mat img, cv.Mat mask, cv.Scalar color) {
 ) {
   final k = (2 * r + 1, 2 * r + 1);
   cv.Mat box(cv.Mat m) => t(cv.blur(m, k));
-  final meanI = box(guide);
-  final meanP = box(p);
-  final varI = t(
-    cv.subtract(
-      box(t(cv.multiply(guide, guide))),
-      t(cv.multiply(meanI, meanI)),
-    ),
+  cv.Mat mul(cv.Mat a, cv.Mat b) => t(cv.multiply(a, b));
+  cv.Mat sub(cv.Mat a, cv.Mat b) => t(cv.subtract(a, b));
+  cv.Mat add(cv.Mat a, cv.Mat b) => t(cv.add(a, b));
+  final split = cv.split(guide);
+  final g = [for (var c = 0; c < 3; c++) t(split[c].clone())];
+  split.dispose();
+  final mI = [for (final c in g) box(c)];
+  final mP = box(p);
+  final cov = [
+    for (var c = 0; c < 3; c++) sub(box(mul(g[c], p)), mul(mI[c], mP)),
+  ];
+  cv.Mat v(int i, int j) {
+    final m = sub(box(mul(g[i], g[j])), mul(mI[i], mI[j]));
+    return i == j ? t(m.addF32(eps)) : m;
+  }
+
+  final (a11, a12, a13, a22, a23, a33) = (
+    v(0, 0),
+    v(0, 1),
+    v(0, 2),
+    v(1, 1),
+    v(1, 2),
+    v(2, 2),
   );
-  final covIp = t(
-    cv.subtract(box(t(cv.multiply(guide, p))), t(cv.multiply(meanI, meanP))),
-  );
-  final a = t(cv.divide(covIp, t(varI.addF32(eps))));
-  final b = t(cv.subtract(meanP, t(cv.multiply(a, meanI))));
-  return (box(a), box(b));
+  final c11 = sub(mul(a22, a33), mul(a23, a23));
+  final c12 = sub(mul(a13, a23), mul(a12, a33));
+  final c13 = sub(mul(a12, a23), mul(a13, a22));
+  final c22 = sub(mul(a11, a33), mul(a13, a13));
+  final c23 = sub(mul(a12, a13), mul(a11, a23));
+  final c33 = sub(mul(a11, a22), mul(a12, a12));
+  final det = add(add(mul(a11, c11), mul(a12, c12)), mul(a13, c13));
+  final inv = [
+    [c11, c12, c13],
+    [c12, c22, c23],
+    [c13, c23, c33],
+  ];
+  final a = [
+    for (var c = 0; c < 3; c++)
+      t(
+        cv.divide(
+          add(
+            add(mul(inv[c][0], cov[0]), mul(inv[c][1], cov[1])),
+            mul(inv[c][2], cov[2]),
+          ),
+          det,
+        ),
+      ),
+  ];
+  var b = mP;
+  for (var c = 0; c < 3; c++) {
+    b = sub(b, mul(a[c], mI[c]));
+  }
+  return ([for (final x in a) box(x)], box(b));
 }
 
 /// Local wall colour, person − wall colour difference, its squared length,
@@ -1955,6 +2316,76 @@ cv.Mat coverResize(cv.Mat img, int width, int height) {
   roi.dispose();
   scaled.dispose();
   return out;
+}
+
+/// Pixel rectangle of [region] (fractions: left, top, right, bottom) in a
+/// [w] × [h] image, at least 1 px and inside it.
+cv.Rect _regionRect(FracRect region, int w, int h) {
+  final x0 = (region.left * w).floor().clamp(0, w - 1);
+  final y0 = (region.top * h).floor().clamp(0, h - 1);
+  final x1 = (region.right * w).ceil().clamp(x0 + 1, w);
+  final y1 = (region.bottom * h).ceil().clamp(y0 + 1, h);
+  return cv.Rect(x0, y0, x1 - x0, y1 - y0);
+}
+
+/// The upright photo's [region] at most [longEdge] px as a JPEG at [out]:
+/// the passport crop, segmented on its own for a sharper person mask.
+/// Returns its size.
+(int, int) writeRegion(String path, FracRect region, int longEdge, String out) {
+  final img = readUpright(path);
+  final roi = img.region(_regionRect(region, img.cols, img.rows));
+  final fitted = fitLongEdge(roi, longEdge);
+  try {
+    File(out).parent.createSync(recursive: true);
+    writeJpeg(fitted, out, quality: 92);
+    return (fitted.cols, fitted.rows);
+  } finally {
+    disposeUnless(roi, fitted);
+    roi.dispose();
+    img.dispose();
+  }
+}
+
+/// A person mask for the whole upright photo that is sharp inside
+/// [region]: the [base] whole-photo mask (or nothing) scaled up to the
+/// region's resolution, with [data] ([width] × [height], covering exactly
+/// [region]) pasted over it. At most 4096 px on the long edge.
+void composeMask(
+  String? base,
+  Uint8List data,
+  int width,
+  int height,
+  FracRect region,
+  String out,
+) {
+  var cw = width / (region.right - region.left);
+  var ch = height / (region.bottom - region.top);
+  final k = math.min(1.0, 4096 / math.max(cw, ch));
+  cw *= k;
+  ch *= k;
+  final (w, h) = (math.max(1, cw.round()), math.max(1, ch.round()));
+  final part = cv.Mat.fromList(height, width, cv.MatType.CV_8UC1, data);
+  final baseMat = base == null
+      ? null
+      : cv.imread(base, flags: cv.IMREAD_GRAYSCALE);
+  final canvas = baseMat == null || baseMat.isEmpty
+      ? cv.Mat.zeros(h, w, cv.MatType.CV_8UC1)
+      : cv.resize(baseMat, (w, h), interpolation: cv.INTER_LINEAR);
+  final rect = _regionRect(region, w, h);
+  final sized = cv.resize(part, (
+    rect.width,
+    rect.height,
+  ), interpolation: k < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
+  final roi = canvas.region(rect);
+  try {
+    sized.copyTo(roi);
+    File(out).parent.createSync(recursive: true);
+    if (!cv.imwrite(out, canvas)) throw StateError('Could not write $out');
+  } finally {
+    for (final m in [roi, sized, canvas, part, ?baseMat]) {
+      m.dispose();
+    }
+  }
 }
 
 /// Writes 8-bit gray [data] (row-major, [width] × [height]) as a PNG.

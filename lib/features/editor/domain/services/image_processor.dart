@@ -78,9 +78,37 @@ abstract interface class ImageProcessor {
   /// Writes 8-bit gray pixels as a PNG (a segmentation mask).
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath);
 
-  /// The upright photo at preview size with [background] behind the person
-  /// ([maskPath]), for the passport photo screen's live preview.
-  Future<String> previewWithBackground(String photoPath, String maskPath, PhotoBackground background, {required String outputPath});
+  /// The upright photo at preview size, enhanced ([enhance]) and with
+  /// [background] behind the person ([maskPath]; without one only the
+  /// enhancement applies), for the passport photo screen's live preview.
+  Future<String> previewWithBackground(
+    String photoPath,
+    String? maskPath,
+    PhotoBackground background, {
+    required String outputPath,
+    PhotoEnhance enhance = PhotoEnhance.off,
+  });
+
+  /// The upright photo's [region] at most [longEdge] px as a JPEG at
+  /// [outputPath], for segmenting just the passport crop. Returns its size.
+  Future<({int width, int height})> renderRegion(
+    String photoPath,
+    FracRect region, {
+    required int longEdge,
+    required String outputPath,
+  });
+
+  /// Writes a whole-photo person mask that is sharp inside [region]: [base]
+  /// (the coarse whole-photo mask, or none) with [data] ([width] ×
+  /// [height] gray, covering [region]) pasted over it.
+  Future<void> composeMask(
+    String? base,
+    Uint8List data,
+    int width,
+    int height,
+    FracRect region,
+    String outputPath,
+  );
 
   /// Scan from paper (feature 4): a photo of a signature → transparent PNG
   /// at [outputPath], made upright from [capture] first. Throws when no

@@ -25,6 +25,10 @@ enum ActivityType {
 /// old "lightBlue" (first build) reads as dark blue.
 enum PhotoBackground { original, white, darkBlue }
 
+/// Passport photo touch-up: light and colour fixed, skin softened (smooth
+/// more than natural), eyes and hair sharpened. Stored by name.
+enum PhotoEnhance { off, natural, smooth }
+
 /// Home folders (round 4, feature 3). Stored by index: append only (office
 /// came in round 5). Display order is `FolderChips.order`.
 enum DocFolder { other, bills, ids, education, receipts, office }

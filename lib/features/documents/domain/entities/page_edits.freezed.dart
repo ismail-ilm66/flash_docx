@@ -23,9 +23,13 @@ mixin _$PageEdits {
  double? get outputAspect;/// Signatures and date stamps (feature 4), drawn over the finished page.
  List<PageOverlay> get overlays;/// Passport photo (feature 5): the print size in millimetres.
  double? get photoWidthMm; double? get photoHeightMm;/// Passport photo background: the person mask for the whole upright
-/// photo (8-bit PNG, any size) and the colour behind them. Applied as
+/// photo (8-bit PNG, any size; sharper inside the crop, see
+/// `BackgroundSegmenter.maskFor`) and the colour behind them. The
+/// mask is also kept with an original background, for Enhance. Applied as
 /// the crop is rendered, so every output gets it.
-@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground get photoBackground; String? get backgroundMaskPath;
+@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground get photoBackground; String? get backgroundMaskPath;/// Passport photo touch-up, before the background. Off for photos saved
+/// before it existed, so they keep their look.
+@JsonKey(unknownEnumValue: PhotoEnhance.off) PhotoEnhance get photoEnhance;
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -38,16 +42,16 @@ $PageEditsCopyWith<PageEdits> get copyWith => _$PageEditsCopyWithImpl<PageEdits>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other.overlays, overlays)&&(identical(other.photoWidthMm, photoWidthMm) || other.photoWidthMm == photoWidthMm)&&(identical(other.photoHeightMm, photoHeightMm) || other.photoHeightMm == photoHeightMm)&&(identical(other.photoBackground, photoBackground) || other.photoBackground == photoBackground)&&(identical(other.backgroundMaskPath, backgroundMaskPath) || other.backgroundMaskPath == backgroundMaskPath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other.overlays, overlays)&&(identical(other.photoWidthMm, photoWidthMm) || other.photoWidthMm == photoWidthMm)&&(identical(other.photoHeightMm, photoHeightMm) || other.photoHeightMm == photoHeightMm)&&(identical(other.photoBackground, photoBackground) || other.photoBackground == photoBackground)&&(identical(other.backgroundMaskPath, backgroundMaskPath) || other.backgroundMaskPath == backgroundMaskPath)&&(identical(other.photoEnhance, photoEnhance) || other.photoEnhance == photoEnhance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(overlays),photoWidthMm,photoHeightMm,photoBackground,backgroundMaskPath);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(overlays),photoWidthMm,photoHeightMm,photoBackground,backgroundMaskPath,photoEnhance);
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays, photoWidthMm: $photoWidthMm, photoHeightMm: $photoHeightMm, photoBackground: $photoBackground, backgroundMaskPath: $backgroundMaskPath)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays, photoWidthMm: $photoWidthMm, photoHeightMm: $photoHeightMm, photoBackground: $photoBackground, backgroundMaskPath: $backgroundMaskPath, photoEnhance: $photoEnhance)';
 }
 
 
@@ -58,7 +62,7 @@ abstract mixin class $PageEditsCopyWith<$Res>  {
   factory $PageEditsCopyWith(PageEdits value, $Res Function(PageEdits) _then) = _$PageEditsCopyWithImpl;
 @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath,@JsonKey(unknownEnumValue: PhotoEnhance.off) PhotoEnhance photoEnhance
 });
 
 
@@ -75,7 +79,7 @@ class _$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,Object? photoWidthMm = freezed,Object? photoHeightMm = freezed,Object? photoBackground = null,Object? backgroundMaskPath = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,Object? photoWidthMm = freezed,Object? photoHeightMm = freezed,Object? photoBackground = null,Object? backgroundMaskPath = freezed,Object? photoEnhance = null,}) {
   return _then(_self.copyWith(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
@@ -88,7 +92,8 @@ as List<PageOverlay>,photoWidthMm: freezed == photoWidthMm ? _self.photoWidthMm 
 as double?,photoHeightMm: freezed == photoHeightMm ? _self.photoHeightMm : photoHeightMm // ignore: cast_nullable_to_non_nullable
 as double?,photoBackground: null == photoBackground ? _self.photoBackground : photoBackground // ignore: cast_nullable_to_non_nullable
 as PhotoBackground,backgroundMaskPath: freezed == backgroundMaskPath ? _self.backgroundMaskPath : backgroundMaskPath // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,photoEnhance: null == photoEnhance ? _self.photoEnhance : photoEnhance // ignore: cast_nullable_to_non_nullable
+as PhotoEnhance,
   ));
 }
 /// Create a copy of PageEdits
@@ -112,7 +117,7 @@ $QuadCopyWith<$Res>? get crop {
 @JsonSerializable()
 
 class _PageEdits extends PageEdits {
-  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect, final  List<PageOverlay> overlays = const <PageOverlay>[], this.photoWidthMm, this.photoHeightMm, @JsonKey(unknownEnumValue: PhotoBackground.darkBlue) this.photoBackground = PhotoBackground.original, this.backgroundMaskPath}): _overlays = overlays,super._();
+  const _PageEdits({this.crop, this.quarterTurns = 0, this.filter = FilterType.auto, this.brightness = 0, this.contrast = 0, this.outputAspect, final  List<PageOverlay> overlays = const <PageOverlay>[], this.photoWidthMm, this.photoHeightMm, @JsonKey(unknownEnumValue: PhotoBackground.darkBlue) this.photoBackground = PhotoBackground.original, this.backgroundMaskPath, @JsonKey(unknownEnumValue: PhotoEnhance.off) this.photoEnhance = PhotoEnhance.off}): _overlays = overlays,super._();
   factory _PageEdits.fromJson(Map<String, dynamic> json) => _$PageEditsFromJson(json);
 
 /// null = full image.
@@ -139,10 +144,15 @@ class _PageEdits extends PageEdits {
 @override final  double? photoWidthMm;
 @override final  double? photoHeightMm;
 /// Passport photo background: the person mask for the whole upright
-/// photo (8-bit PNG, any size) and the colour behind them. Applied as
+/// photo (8-bit PNG, any size; sharper inside the crop, see
+/// `BackgroundSegmenter.maskFor`) and the colour behind them. The
+/// mask is also kept with an original background, for Enhance. Applied as
 /// the crop is rendered, so every output gets it.
 @override@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) final  PhotoBackground photoBackground;
 @override final  String? backgroundMaskPath;
+/// Passport photo touch-up, before the background. Off for photos saved
+/// before it existed, so they keep their look.
+@override@JsonKey(unknownEnumValue: PhotoEnhance.off) final  PhotoEnhance photoEnhance;
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
@@ -157,16 +167,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other._overlays, _overlays)&&(identical(other.photoWidthMm, photoWidthMm) || other.photoWidthMm == photoWidthMm)&&(identical(other.photoHeightMm, photoHeightMm) || other.photoHeightMm == photoHeightMm)&&(identical(other.photoBackground, photoBackground) || other.photoBackground == photoBackground)&&(identical(other.backgroundMaskPath, backgroundMaskPath) || other.backgroundMaskPath == backgroundMaskPath));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PageEdits&&(identical(other.crop, crop) || other.crop == crop)&&(identical(other.quarterTurns, quarterTurns) || other.quarterTurns == quarterTurns)&&(identical(other.filter, filter) || other.filter == filter)&&(identical(other.brightness, brightness) || other.brightness == brightness)&&(identical(other.contrast, contrast) || other.contrast == contrast)&&(identical(other.outputAspect, outputAspect) || other.outputAspect == outputAspect)&&const DeepCollectionEquality().equals(other._overlays, _overlays)&&(identical(other.photoWidthMm, photoWidthMm) || other.photoWidthMm == photoWidthMm)&&(identical(other.photoHeightMm, photoHeightMm) || other.photoHeightMm == photoHeightMm)&&(identical(other.photoBackground, photoBackground) || other.photoBackground == photoBackground)&&(identical(other.backgroundMaskPath, backgroundMaskPath) || other.backgroundMaskPath == backgroundMaskPath)&&(identical(other.photoEnhance, photoEnhance) || other.photoEnhance == photoEnhance));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(_overlays),photoWidthMm,photoHeightMm,photoBackground,backgroundMaskPath);
+int get hashCode => Object.hash(runtimeType,crop,quarterTurns,filter,brightness,contrast,outputAspect,const DeepCollectionEquality().hash(_overlays),photoWidthMm,photoHeightMm,photoBackground,backgroundMaskPath,photoEnhance);
 
 @override
 String toString() {
-  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays, photoWidthMm: $photoWidthMm, photoHeightMm: $photoHeightMm, photoBackground: $photoBackground, backgroundMaskPath: $backgroundMaskPath)';
+  return 'PageEdits(crop: $crop, quarterTurns: $quarterTurns, filter: $filter, brightness: $brightness, contrast: $contrast, outputAspect: $outputAspect, overlays: $overlays, photoWidthMm: $photoWidthMm, photoHeightMm: $photoHeightMm, photoBackground: $photoBackground, backgroundMaskPath: $backgroundMaskPath, photoEnhance: $photoEnhance)';
 }
 
 
@@ -177,7 +187,7 @@ abstract mixin class _$PageEditsCopyWith<$Res> implements $PageEditsCopyWith<$Re
   factory _$PageEditsCopyWith(_PageEdits value, $Res Function(_PageEdits) _then) = __$PageEditsCopyWithImpl;
 @override @useResult
 $Res call({
- Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath
+ Quad? crop, int quarterTurns, FilterType filter, double brightness, double contrast, double? outputAspect, List<PageOverlay> overlays, double? photoWidthMm, double? photoHeightMm,@JsonKey(unknownEnumValue: PhotoBackground.darkBlue) PhotoBackground photoBackground, String? backgroundMaskPath,@JsonKey(unknownEnumValue: PhotoEnhance.off) PhotoEnhance photoEnhance
 });
 
 
@@ -194,7 +204,7 @@ class __$PageEditsCopyWithImpl<$Res>
 
 /// Create a copy of PageEdits
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,Object? photoWidthMm = freezed,Object? photoHeightMm = freezed,Object? photoBackground = null,Object? backgroundMaskPath = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? crop = freezed,Object? quarterTurns = null,Object? filter = null,Object? brightness = null,Object? contrast = null,Object? outputAspect = freezed,Object? overlays = null,Object? photoWidthMm = freezed,Object? photoHeightMm = freezed,Object? photoBackground = null,Object? backgroundMaskPath = freezed,Object? photoEnhance = null,}) {
   return _then(_PageEdits(
 crop: freezed == crop ? _self.crop : crop // ignore: cast_nullable_to_non_nullable
 as Quad?,quarterTurns: null == quarterTurns ? _self.quarterTurns : quarterTurns // ignore: cast_nullable_to_non_nullable
@@ -207,7 +217,8 @@ as List<PageOverlay>,photoWidthMm: freezed == photoWidthMm ? _self.photoWidthMm 
 as double?,photoHeightMm: freezed == photoHeightMm ? _self.photoHeightMm : photoHeightMm // ignore: cast_nullable_to_non_nullable
 as double?,photoBackground: null == photoBackground ? _self.photoBackground : photoBackground // ignore: cast_nullable_to_non_nullable
 as PhotoBackground,backgroundMaskPath: freezed == backgroundMaskPath ? _self.backgroundMaskPath : backgroundMaskPath // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,photoEnhance: null == photoEnhance ? _self.photoEnhance : photoEnhance // ignore: cast_nullable_to_non_nullable
+as PhotoEnhance,
   ));
 }
 
