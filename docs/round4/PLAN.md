@@ -79,6 +79,7 @@ Each file is the artboard's complete source. Open it in a browser next to the ap
 
 **Fix**
 1. **1.5× zoom** in ID and Passport modes. Call `setZoomLevel(min(1.5, maxZoom))` when the mode opens, and reset to 1× for Document.
+   - *14 Nov 2026:* lowered to **1.2×** (`_cardZoom` in `camera_page.dart`). At 1.5× users had to hold the phone too far from the card. The zoom is now also applied again after the app resumes and after a lens flip (it used to stay at 1× there).
 2. **Focus on the frame:**
    - When the mode opens and after every tap, set the focus and exposure points to the guide-frame centre.
    - On shutter: refocus on the frame centre, wait 400 ms (the camera plugin has no focus-done callback), then `takePicture()`.

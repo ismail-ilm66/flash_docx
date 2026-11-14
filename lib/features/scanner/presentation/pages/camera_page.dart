@@ -180,6 +180,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         return;
       }
       _controller = ctrl;
+      // A new controller (resume, lens flip) starts at 1×: apply the mode again.
+      _cameraMode = null;
       final session = context.read<ScanSessionBloc>().state;
       await _applyFlash(session.flashOn);
       await _applyModeCamera(session.mode);
@@ -275,7 +277,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   ScanMode? _cameraMode;
 
-  /// P0-2: 1.5× zoom in ID / passport (or the device maximum if lower) so
+  /// ID / passport zoom. Round 4 (P0-2) used 1.5× against blur; users had
+  /// to hold the phone too far away, so 14 Nov 2026 it came down 20 %.
+  static const _cardZoom = 1.2;
+
+  /// P0-2: [_cardZoom] in ID / passport (or the device maximum if lower) so
   /// the card fills more of the sensor; 1× for Document. Focus and exposure
   /// go to the frame centre.
   Future<void> _applyModeCamera(ScanMode mode) async {
@@ -286,7 +292,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     try {
       final max = await c.getMaxZoomLevel();
       final min = await c.getMinZoomLevel();
-      await c.setZoomLevel((card ? math.min(1.5, max) : 1.0).clamp(min, max));
+      await c.setZoomLevel((card ? math.min(_cardZoom, max) : 1.0).clamp(min, max));
     } catch (_) {}
     final focus = _cardFocusPoint();
     if (focus != null) {
