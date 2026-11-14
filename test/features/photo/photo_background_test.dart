@@ -402,6 +402,17 @@ void main() {
       },
     );
 
+    test('writeRegion cuts the crop out at the segmentation size (crashed on every phone photo)', () {
+      // A crop bigger than the asked size, so it is shrunk: the case that
+      // freed the crop twice.
+      final out = p.join(tmp.path, 'region.jpg');
+      final (w, h) = pipe.writeRegion(photo, (left: 0.25, top: 0.25, right: 0.75, bottom: 0.75), 400, out);
+      expect((w, h), (300, 400));
+      final m = cv.imread(out);
+      expect((m.cols, m.rows), (300, 400));
+      m.dispose();
+    });
+
     test(
       'composeMask pastes the crop mask over the scaled-up whole-photo mask',
       () {

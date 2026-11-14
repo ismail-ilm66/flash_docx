@@ -2314,7 +2314,8 @@ cv.Rect _regionRect(FracRect region, int w, int h) {
     writeJpeg(fitted, out, quality: 92);
     return (fitted.cols, fitted.rows);
   } finally {
-    disposeUnless(roi, fitted);
+    // fitted is roi itself when the crop is already small enough.
+    disposeUnless(fitted, roi);
     roi.dispose();
     img.dispose();
   }
