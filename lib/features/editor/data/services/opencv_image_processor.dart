@@ -80,13 +80,15 @@ class OpenCvImageProcessor implements ImageProcessor {
     PageEdits edits, {
     required String workPath,
     required String outputPath,
+    String? autoBasePath,
+    JobPriority priority = JobPriority.interactive,
     CancelToken? cancel,
   }) {
     return _runner.run(
       lookInIsolate,
-      LookMsg(originalPath, edits, workPath, outputPath),
+      LookMsg(originalPath, edits, workPath, outputPath, autoBasePath),
       debugLabel: 'look',
-      priority: JobPriority.interactive,
+      priority: priority,
       cancel: cancel,
     );
   }
@@ -226,6 +228,7 @@ class OpenCvImageProcessor implements ImageProcessor {
         600,
         outputPath,
         80,
+        previewDecode: true,
       ),
       debugLabel: 'quick',
       priority: JobPriority.interactive,
@@ -329,12 +332,15 @@ class DetectResult {
 }
 
 class RenderMsg {
-  const RenderMsg(this.path, this.edits, this.longEdge, this.out, this.quality);
+  const RenderMsg(this.path, this.edits, this.longEdge, this.out, this.quality, {this.previewDecode = false});
   final String path;
   final PageEdits edits;
   final int? longEdge;
   final String out;
   final int quality;
+
+  /// Placeholders: decode at a reduced size when the crop allows it.
+  final bool previewDecode;
 }
 
 class IngestMsg {
@@ -376,11 +382,12 @@ class IngestResult {
 }
 
 class LookMsg {
-  const LookMsg(this.path, this.edits, this.workPath, this.out);
+  const LookMsg(this.path, this.edits, this.workPath, this.out, this.autoBasePath);
   final String path;
   final PageEdits edits;
   final String workPath;
   final String out;
+  final String? autoBasePath;
 }
 
 class CachesMsg {
@@ -433,6 +440,7 @@ String lookInIsolate(LookMsg m) {
     m.edits,
     workPath: m.workPath,
     previewLongEdge: RenderPx.previewLongEdge,
+    autoBasePath: m.autoBasePath,
   );
   try {
     File(m.out).parent.createSync(recursive: true);
@@ -701,7 +709,7 @@ String renderInIsolate(RenderMsg m) {
 }
 
 String _renderOnce(RenderMsg m, int? longEdge) {
-  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: longEdge);
+  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: longEdge, previewDecode: m.previewDecode);
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(out, m.out, quality: m.quality);

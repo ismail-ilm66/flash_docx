@@ -84,7 +84,7 @@ void main() {
     when(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath'))).thenAnswer((inv) async => write(inv));
     // The filtered render never finishes: the screen stays on its placeholder.
     when(
-      () => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
+      () => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), autoBasePath: any(named: 'autoBasePath'), priority: any(named: 'priority'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
     ).thenAnswer((_) => Completer<String>().future);
     when(
       () => proc.renderFilterStrip(any(), any(), outputs: any(named: 'outputs')),

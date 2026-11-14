@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flash_dox/core/services/file_store.dart';
@@ -89,6 +90,8 @@ void main() {
         any(),
         any(),
         workPath: any(named: 'workPath'),
+        autoBasePath: any(named: 'autoBasePath'),
+        priority: any(named: 'priority'),
         outputPath: any(named: 'outputPath'),
         cancel: any(named: 'cancel'),
       ),
@@ -186,6 +189,8 @@ void main() {
           any(),
           any(),
           workPath: any(named: 'workPath'),
+          autoBasePath: any(named: 'autoBasePath'),
+          priority: any(named: 'priority'),
           outputPath: any(named: 'outputPath'),
           cancel: any(named: 'cancel'),
         ),
@@ -198,6 +203,8 @@ void main() {
           any(),
           any(),
           workPath: any(named: 'workPath'),
+          autoBasePath: any(named: 'autoBasePath'),
+          priority: any(named: 'priority'),
           outputPath: any(named: 'outputPath'),
           cancel: any(named: 'cancel'),
         ),
@@ -329,6 +336,39 @@ void main() {
       expect(p2.edits.filter, FilterType.bwPrint, reason: 'look kept');
       expect(p2.edits.brightness, 12);
       expect(bloc.state.pages[0].id, 'front', reason: 'other page untouched');
+      await bloc.close();
+    },
+  );
+
+  test(
+    'after a crop, Enhance shows the new shape, never the old crop\'s look',
+    () async {
+      final bloc = build();
+      await settle();
+      final oldLook = bloc.state.shownPreview;
+      expect(oldLook, files.lookPath(page.id, page.originalPath, page.edits));
+      // The new crop's filtered render never finishes: only its placeholder.
+      when(
+        () => proc.renderLook(
+          any(),
+          any(),
+          workPath: any(named: 'workPath'),
+          autoBasePath: any(named: 'autoBasePath'),
+          priority: any(named: 'priority'),
+          outputPath: any(named: 'outputPath'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).thenAnswer((_) => Completer<String>().future);
+      bloc
+        ..add(EditorCropChanged(Quad.full(inset: 0.2)))
+        ..add(const EditorCornerDragEnded());
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      final cur = bloc.state.current!;
+      expect(
+        bloc.state.shownPreview,
+        files.quickPath(cur.id, cur.originalPath, cur.edits),
+        reason: 'the new crop\'s placeholder, rendered on its own after the drag',
+      );
       await bloc.close();
     },
   );

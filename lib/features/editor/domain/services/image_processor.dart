@@ -35,12 +35,16 @@ abstract interface class ImageProcessor {
   });
 
   /// Enhance preview (filter only; sliders are applied live in the UI).
-  /// [workPath] caches the cropped page at preview size between calls.
+  /// [workPath] caches the cropped page at preview size between calls, and
+  /// [autoBasePath] the Auto result that Colour Boost and Grayscale build on.
+  /// Interactive lane unless [priority] says otherwise (neighbour prefetch).
   Future<String> renderLook(
     String originalPath,
     PageEdits edits, {
     required String workPath,
     required String outputPath,
+    String? autoBasePath,
+    JobPriority priority = JobPriority.interactive,
     CancelToken? cancel,
   });
 

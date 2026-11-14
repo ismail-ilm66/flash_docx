@@ -20,6 +20,7 @@ class PageEditorState extends Equatable {
     this.savedDocumentId,
     this.snaps = const {},
     this.quickPreviews = const {},
+    this.quickShapes = const {},
     bool? applyAll,
     this.filterThumbs = const {},
   }) : applyAll = applyAll ?? args.isNewDocument;
@@ -39,6 +40,10 @@ class PageEditorState extends Equatable {
 
   /// Fast crop-only placeholders per page id (P0-4).
   final Map<String, String> quickPreviews;
+
+  /// The [shapeOf] each [quickPreviews] entry was made for: a placeholder
+  /// of an older crop is not the page's shape any more.
+  final Map<String, int> quickShapes;
 
   /// "All N pages": look changes go to every page. On by default for a new
   /// scan (P1-1); kept across page changes.
@@ -60,15 +65,29 @@ class PageEditorState extends Equatable {
       ? pages.any((p) => !_isDefault(p.edits))
       : (current != null && !_isDefault(current!.edits));
 
-  /// What page [p] shows on Enhance: its exact render, else its last
-  /// render, else its crop-only placeholder (never the uncropped photo).
-  String? previewFor(ScanPage p) =>
-      enhancePreviews[_previewKey(p)] ??
-      enhancePreviews.entries
-          .where((e) => e.key.startsWith('${p.id}:'))
-          .map((e) => e.value)
-          .lastOrNull ??
-      quickPreviews[p.id];
+  /// What page [p] shows on Enhance, in its current shape whenever possible:
+  /// its exact render, else a render of the same crop in another filter,
+  /// else the crop-only placeholder for this crop. Only when none exists yet
+  /// an older render or placeholder (never the uncropped photo).
+  String? previewFor(ScanPage p) {
+    final exact = enhancePreviews[_previewKey(p)];
+    if (exact != null) return exact;
+    final shape = '${p.id}:${shapeOf(p)}:';
+    String? sameShape;
+    String? older;
+    for (final e in enhancePreviews.entries) {
+      if (e.key.startsWith(shape)) {
+        sameShape = e.value;
+      } else if (e.key.startsWith('${p.id}:')) {
+        older = e.value;
+      }
+    }
+    return sameShape ?? quickFor(p) ?? older ?? quickPreviews[p.id];
+  }
+
+  /// [p]'s crop-only placeholder, only if it was made for its current crop.
+  String? quickFor(ScanPage p) =>
+      quickShapes[p.id] == shapeOf(p) ? quickPreviews[p.id] : null;
 
   ScanPage? get current =>
       pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
@@ -77,28 +96,27 @@ class PageEditorState extends Equatable {
   String? get enhancePreview =>
       current == null ? null : enhancePreviews[_previewKey(current!)];
 
-  /// What Enhance shows now (P0-4): the exact render, else the last render
-  /// of this page (another filter), else the crop-only placeholder. Never
-  /// the uncropped photo; null means "spinner".
-  String? get shownPreview {
-    final p = current;
-    if (p == null) return null;
-    return enhancePreview ??
-        enhancePreviews.entries
-            .where((e) => e.key.startsWith('${p.id}:'))
-            .map((e) => e.value)
-            .lastOrNull ??
-        quickPreviews[p.id];
-  }
+  /// What Enhance shows now (P0-4): see [previewFor]. Null means "spinner".
+  String? get shownPreview => current == null ? null : previewFor(current!);
 
   /// "Hold to compare": the same crop with no filter.
-  String? get comparePreview =>
-      current == null ? null : quickPreviews[current!.id];
+  String? get comparePreview => current == null
+      ? null
+      : quickFor(current!) ?? quickPreviews[current!.id];
+
+  /// Crop, rotation and output shape: what a page's previews look like
+  /// before the filter. In-memory keys only (not stable across launches).
+  static int shapeOf(ScanPage p) => Object.hash(
+    p.originalPath,
+    p.edits.crop,
+    p.edits.normalizedTurns,
+    p.edits.outputAspect,
+  );
 
   /// Sliders are excluded: they are applied live on the GPU, so moving them
   /// never needs a new render.
   static String _previewKey(ScanPage p) =>
-      '${p.id}:${Object.hash(p.originalPath, p.edits.crop, p.edits.normalizedTurns, p.edits.filter)}';
+      '${p.id}:${shapeOf(p)}:${p.edits.filter.name}';
 
   PageEditorState copyWith({
     List<ScanPage>? pages,
@@ -112,6 +130,7 @@ class PageEditorState extends Equatable {
     String? savedDocumentId,
     Map<String, SnapCandidates>? snaps,
     Map<String, String>? quickPreviews,
+    Map<String, int>? quickShapes,
     bool? applyAll,
     Map<String, Map<FilterType, String>>? filterThumbs,
   }) {
@@ -127,6 +146,7 @@ class PageEditorState extends Equatable {
       savedDocumentId: savedDocumentId ?? this.savedDocumentId,
       snaps: snaps ?? this.snaps,
       quickPreviews: quickPreviews ?? this.quickPreviews,
+      quickShapes: quickShapes ?? this.quickShapes,
       applyAll: applyAll ?? this.applyAll,
       filterThumbs: filterThumbs ?? this.filterThumbs,
     );
@@ -144,6 +164,7 @@ class PageEditorState extends Equatable {
     savedDocumentId,
     snaps,
     quickPreviews,
+    quickShapes,
     applyAll,
     filterThumbs,
   ];

@@ -142,6 +142,30 @@ cv.Mat readUprightAtMost(String path, int targetLongEdge) {
   return readUpright(path, flags: flags);
 }
 
+/// Previews only: decodes at 1/2 or 1/4 scale when the CROPPED part of the
+/// photo still has ≥ 1.25× [outLongEdge] pixels afterwards. A 12 MP page at
+/// 1200 px decodes at 1/2 (a quarter of the pixels), the 600 px placeholder
+/// at 1/4. Exports keep the full decode (their output must not change).
+cv.Mat readUprightForCrop(String path, Quad? crop, int outLongEdge) {
+  final size = jpegSize(path);
+  var flags = cv.IMREAD_COLOR;
+  if (size != null) {
+    // Upright size: EXIF orientations 5–8 swap width and height.
+    final swap = readJpegOrientation(path) >= 5;
+    final w = swap ? size.height : size.width;
+    final h = swap ? size.width : size.height;
+    final b = (crop ?? Quad.full()).bounds();
+    final cropLong = math.max((b.right - b.left) * w, (b.bottom - b.top) * h);
+    final need = outLongEdge * 1.25;
+    if (cropLong >= need * 4) {
+      flags = cv.IMREAD_REDUCED_COLOR_4;
+    } else if (cropLong >= need * 2) {
+      flags = cv.IMREAD_REDUCED_COLOR_2;
+    }
+  }
+  return readUpright(path, flags: flags);
+}
+
 /// Pixel size from a JPEG's SOF header without decoding, or null if the file
 /// isn't a JPEG or the header can't be found in the first 1 MB.
 ({int width, int height})? jpegSize(String path) {
@@ -1480,9 +1504,15 @@ cv.Mat _normalizedGray(cv.Mat bgr) {
 /// Auto → gray → normalise.
 cv.Mat grayscaleFilter(cv.Mat bgr) {
   final auto = autoFilter(bgr);
+  final out = grayscaleFrom(auto);
+  auto.dispose();
+  return out;
+}
+
+/// [grayscaleFilter] from an [autoFilter] result (Enhance caches that).
+cv.Mat grayscaleFrom(cv.Mat auto) {
   final gray = _normalizedGray(auto);
   final out = cv.cvtColor(gray, cv.COLOR_GRAY2BGR);
-  auto.dispose();
   gray.dispose();
   return out;
 }
@@ -1490,12 +1520,22 @@ cv.Mat grayscaleFilter(cv.Mat bgr) {
 /// Auto + 25 % saturation and a little contrast.
 cv.Mat colorBoostFilter(cv.Mat bgr) {
   final auto = autoFilter(bgr);
+  final out = colorBoostFrom(auto);
+  auto.dispose();
+  return out;
+}
+
+/// [colorBoostFilter] from an [autoFilter] result (Enhance caches that).
+cv.Mat colorBoostFrom(cv.Mat auto) {
   final sat = saturate(auto, 1.25);
   final out = sat.convertTo(cv.MatType.CV_8UC3, alpha: 1.1, beta: -12);
-  auto.dispose();
   sat.dispose();
   return out;
 }
+
+/// Filters built on [autoFilter]; Enhance reuses one Auto result for them.
+bool usesAutoBase(FilterType f) =>
+    f == FilterType.auto || f == FilterType.colorBoost || f == FilterType.grayscale;
 
 cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
   FilterType.original => bgr.clone(),
@@ -1583,8 +1623,13 @@ double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
 
 /// Applies [edits] to the upright original at [path]. Crop first, then
 /// filter, so the table never feeds the filter statistics. Never enlarges.
-cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge}) {
-  final img = readUpright(path);
+///
+/// [previewDecode] (placeholders only) decodes at a reduced size when the
+/// crop allows it; see [readUprightForCrop].
+cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool previewDecode = false}) {
+  final img = previewDecode && maxLongEdge != null
+      ? readUprightForCrop(path, edits.crop, maxLongEdge)
+      : readUpright(path);
   // A passport photo never needs more than [photoFinishLongEdge]: crop
   // straight to it rather than at the camera's full resolution.
   final cap = edits.photoWidthMm == null ? maxLongEdge : math.min(maxLongEdge ?? photoFinishLongEdge, photoFinishLongEdge);
@@ -2721,18 +2766,21 @@ IngestReport ingest({
 ///
 /// The cropped + rotated page at preview size is cached at [workPath], so
 /// switching filters decodes a ~1600 px image instead of the 12 MP original.
+/// The [autoFilter] result (the slow part: its denoise) is cached losslessly
+/// at [autoBasePath], so Auto, Colour Boost and Grayscale share one.
 cv.Mat renderLook(
   String originalPath,
   PageEdits edits, {
   required String workPath,
   required int previewLongEdge,
+  String? autoBasePath,
 }) {
   final cached = File(workPath).existsSync();
   final cv.Mat work;
   if (cached) {
     work = readUpright(workPath);
   } else {
-    final img = readUprightAtMost(originalPath, previewLongEdge * 2);
+    final img = readUprightForCrop(originalPath, edits.crop, previewLongEdge);
     final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
     if (identical(cropped, img)) {
       work = img;
@@ -2743,9 +2791,40 @@ cv.Mat renderLook(
     File(workPath).parent.createSync(recursive: true);
     writeJpeg(work, workPath, quality: 92);
   }
-  final out = applyFilter(work, edits.filter);
-  work.dispose();
-  return out;
+  try {
+    if (autoBasePath == null || !usesAutoBase(edits.filter)) {
+      return applyFilter(work, edits.filter);
+    }
+    final auto = _autoBase(work, autoBasePath);
+    final out = switch (edits.filter) {
+      FilterType.colorBoost => colorBoostFrom(auto),
+      FilterType.grayscale => grayscaleFrom(auto),
+      _ => auto,
+    };
+    disposeUnless(auto, out);
+    return out;
+  } finally {
+    work.dispose();
+  }
+}
+
+/// [autoFilter] of [work], read from [path] if an earlier look wrote it.
+cv.Mat _autoBase(cv.Mat work, String path) {
+  if (File(path).existsSync()) {
+    final m = cv.imread(path, flags: cv.IMREAD_COLOR);
+    if (!m.isEmpty) return m;
+    m.dispose();
+  }
+  final auto = autoFilter(work);
+  // Lossless and fast to write; renamed so a half-written file is never read.
+  final tmp = '$path.part.png';
+  final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);
+  try {
+    if (cv.imwrite(tmp, auto, params: params)) File(tmp).renameSync(path);
+  } finally {
+    params.dispose();
+  }
+  return auto;
 }
 
 /// Viewer caches in one decode: the processed page at [previewLongEdge] and

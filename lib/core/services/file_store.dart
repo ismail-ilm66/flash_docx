@@ -84,6 +84,17 @@ class FileStore {
     'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.jpg',
   );
 
+  /// The Auto filter of the [workPath] page, lossless (PNG): Auto, Colour Boost
+  /// and Grayscale previews all start from it.
+  String autoBasePath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.png',
+  );
+
   /// Enhance preview for one filter (sliders are applied live, not baked).
   String lookPath(
     String pageId,

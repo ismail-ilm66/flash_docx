@@ -218,6 +218,50 @@ void main() {
       }
     });
 
+    test('Enhance builds Colour Boost / Grayscale on one cached Auto result, same pixels', () {
+      final (path, quad) = makeSample(tmp, name: 'look');
+      final work = p.join(tmp.path, 'look_work.jpg');
+      final base = p.join(tmp.path, 'look_auto.png');
+      cv.Mat look(FilterType f) => pipe.renderLook(
+        path,
+        PageEdits(crop: quad, filter: f),
+        workPath: work,
+        previewLongEdge: RenderPx.previewLongEdge,
+        autoBasePath: base,
+      );
+      look(FilterType.auto).dispose();
+      expect(File(work).existsSync(), isTrue);
+      expect(File(base).existsSync(), isTrue);
+      // From now on the page is read from the work file; compare against the
+      // plain filters on that same image.
+      File(base).deleteSync();
+      final page = pipe.readUpright(work);
+      for (final (f, direct) in [
+        (FilterType.colorBoost, pipe.colorBoostFilter(page)),
+        (FilterType.grayscale, pipe.grayscaleFilter(page)),
+        (FilterType.auto, pipe.autoFilter(page)),
+      ]) {
+        final viaBase = look(f); // the first one writes the base, the rest read it
+        final diff = cv.absDiff(viaBase, direct);
+        expect(cv.countNonZero(cv.cvtColor(diff, cv.COLOR_BGR2GRAY)), 0, reason: '$f');
+        for (final m in [viaBase, direct, diff]) {
+          m.dispose();
+        }
+      }
+      page.dispose();
+    });
+
+    test('preview decode shrinks only while the crop keeps enough pixels', () {
+      final (path, _) = makeSample(tmp, name: 'decode'); // 1200 × 1600
+      final full = pipe.readUprightForCrop(path, null, 400);
+      expect(full.rows, 800); // 1/2: the page still has 800 ≥ 1.25 × 400
+      full.dispose();
+      final small = Quad.fromUnordered(const [Pt(0.4, 0.4), Pt(0.7, 0.4), Pt(0.7, 0.7), Pt(0.4, 0.7)]);
+      final crop = pipe.readUprightForCrop(path, small, 400);
+      expect(crop.rows, 1600); // a third of the photo: decoded in full
+      crop.dispose();
+    });
+
     test('never enlarges', () {
       final (path, quad) = makeSample(tmp, name: 'small', w: 600, h: 800, scale: 0.5);
       final out = pipe.renderEdits(path, PageEdits(crop: quad), maxLongEdge: 2480);

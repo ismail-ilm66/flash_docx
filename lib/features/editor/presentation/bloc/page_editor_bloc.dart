@@ -52,7 +52,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorStarted>(_onStarted);
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
-    on<EditorCornerDragEnded>((_, __) {});
+    on<EditorCornerDragEnded>(_onCornerDragEnded);
     on<EditorRotated>(_onRotated);
     on<EditorAutoEdgesRequested>(_onAutoEdges);
     on<EditorFilterChanged>(_onFilter);
@@ -175,7 +175,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       try {
         final q = await _previews.quick(page);
         if (isClosed) return;
-        emit(state.copyWith(quickPreviews: {...state.quickPreviews, page.id: q}));
+        emit(_withQuick(page, q));
       } on Object catch (err) {
         debugPrint('[editor] strip thumb: $err');
       }
@@ -203,7 +203,20 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (preview) add(const EditorPreviewRequested());
   }
 
+  /// Head start (crop → Next): once the corners have rested for 400 ms the
+  /// new crop's placeholder and filtered look render, so Enhance usually
+  /// opens on the finished page instead of the old shape.
+  Timer? _cropSettle;
+
+  void _onCornerDragEnded(EditorCornerDragEnded e, Emitter<PageEditorState> emit) {
+    _cropSettle?.cancel();
+    _cropSettle = Timer(const Duration(milliseconds: 400), () {
+      if (!isClosed) add(const EditorPreviewRequested());
+    });
+  }
+
   void _onCornerMoved(EditorCornerMoved e, Emitter<PageEditorState> emit) {
+    _cropSettle?.cancel();
     _updateCurrent(
       emit,
       (ed) {
@@ -220,6 +233,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   }
 
   void _onCropChanged(EditorCropChanged e, Emitter<PageEditorState> emit) {
+    _cropSettle?.cancel();
     final q = e.quad.clamp01();
     // A bent, crossed or mirrored shape is rejected: the crop stays put.
     if (!q.isConvex || q.area < 0.01) return;
@@ -271,6 +285,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       return;
     }
     try {
+      // The big image first: the strip queues behind the look being made.
+      final look = _lookDone;
+      if (look != null && !look.isCompleted) await look.future;
       if (!outputs.values.every((p) => File(p).existsSync())) {
         await _processor.renderFilterStrip(
           cur.originalPath,
@@ -462,30 +479,51 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   // ---------- preview ----------
 
   CancelToken? _lookCancel;
+  CancelToken? _prefetchCancel;
+
+  /// Completes when the current page's look render ends (or fails).
+  Completer<void>? _lookDone;
 
   Future<void> _onPreview(
     EditorPreviewRequested e,
     Emitter<PageEditorState> emit,
   ) async {
+    _prefetchCancel?.cancel();
     final cur = state.current;
     if (cur == null) return;
     final key = PageEditorState._previewKey(cur);
-    if (state.enhancePreviews.containsKey(key)) return;
+    if (!state.enhancePreviews.containsKey(key)) {
+      final done = _lookDone = Completer<void>();
+      try {
+        if (!await _showCurrent(cur, key, emit)) return;
+      } finally {
+        if (!done.isCompleted) done.complete();
+      }
+    }
+    await _prefetchNeighbours(emit);
+  }
+
+  /// The crop-only placeholder (if this shape has none yet), then the
+  /// filtered look. False when superseded or failed.
+  Future<bool> _showCurrent(
+    ScanPage cur,
+    String key,
+    Emitter<PageEditorState> emit,
+  ) async {
     final sw = Stopwatch()..start();
+    // A filter shown earlier this session is still on disk: no render.
+    final onDisk = _files.lookPath(cur.id, cur.originalPath, cur.edits);
+    if (File(onDisk).existsSync()) {
+      _addLook(emit, cur, key, onDisk);
+      return true;
+    }
     emit(state.copyWith(rendering: true));
-    // 1. A crop-only placeholder first, if nothing better is on screen.
-    final quickKey = cur.id;
-    final hasQuick =
-        state.quickPreviews[quickKey] != null &&
-        _files.quickPath(cur.id, cur.originalPath, cur.edits) ==
-            state.quickPreviews[quickKey];
-    if (!hasQuick) {
+    // 1. A crop-only placeholder first, if this crop has none.
+    if (state.quickFor(cur) == null) {
       try {
         final q = await _previews.quick(cur);
-        if (isClosed) return;
-        emit(
-          state.copyWith(quickPreviews: {...state.quickPreviews, quickKey: q}),
-        );
+        if (isClosed) return false;
+        emit(_withQuick(cur, q));
         debugPrint(
           '[perf] enhance first image in ${sw.elapsedMilliseconds} ms',
         );
@@ -496,25 +534,16 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     _lookCancel?.cancel();
     final token = _lookCancel = CancelToken();
     try {
-      final out = await _processor.renderLook(
-        cur.originalPath,
-        cur.edits,
-        workPath: _files.workPath(cur.id, cur.originalPath, cur.edits),
-        outputPath: _files.lookPath(cur.id, cur.originalPath, cur.edits),
-        cancel: token,
-      );
-      if (isClosed) return;
-      final map = Map<String, String>.from(state.enhancePreviews);
-      // Keep the map small: drop older previews of this page.
-      map.removeWhere((k, v) => k.startsWith('${cur.id}:') && k != key);
-      map[key] = out;
-      _previews.remember(cur.id, out);
-      emit(state.copyWith(enhancePreviews: map, rendering: false));
+      final out = await _renderLook(cur, cancel: token);
+      if (isClosed) return false;
+      _addLook(emit, cur, key, out);
       debugPrint(
         '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMilliseconds} ms',
       );
+      return true;
     } on JobCancelled {
       // Superseded by a newer request; it will set `rendering` itself.
+      return false;
     } catch (err) {
       if (!isClosed) {
         emit(
@@ -524,7 +553,79 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           ),
         );
       }
+      return false;
     }
+  }
+
+  /// The next and previous pages' looks, so a swipe lands on the filtered
+  /// page (an "All N pages" change included). Background lane, after a short
+  /// pause so quick filter taps don't wait behind a neighbour's render.
+  Future<void> _prefetchNeighbours(Emitter<PageEditorState> emit) async {
+    final token = _prefetchCancel = CancelToken();
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    for (final i in [state.index + 1, state.index - 1]) {
+      if (token.isCancelled || emit.isDone || isClosed) return;
+      if (i < 0 || i >= state.pages.length) continue;
+      final p = state.pages[i];
+      final key = PageEditorState._previewKey(p);
+      if (state.enhancePreviews.containsKey(key)) continue;
+      try {
+        final onDisk = _files.lookPath(p.id, p.originalPath, p.edits);
+        final out = File(onDisk).existsSync()
+            ? onDisk
+            : await _renderLook(p, priority: JobPriority.background, cancel: token);
+        if (isClosed) return;
+        _addLook(emit, p, key, out, settled: false);
+      } on JobCancelled {
+        return;
+      } catch (err) {
+        debugPrint('[editor] prefetch: $err');
+      }
+    }
+  }
+
+  Future<String> _renderLook(
+    ScanPage p, {
+    JobPriority priority = JobPriority.interactive,
+    CancelToken? cancel,
+  }) => _processor.renderLook(
+    p.originalPath,
+    p.edits,
+    workPath: _files.workPath(p.id, p.originalPath, p.edits),
+    outputPath: _files.lookPath(p.id, p.originalPath, p.edits),
+    autoBasePath: _files.autoBasePath(p.id, p.originalPath, p.edits),
+    priority: priority,
+    cancel: cancel,
+  );
+
+  /// Every look is kept (at most one per filter and crop), so going back to
+  /// a filter is instant. [settled]: the current page's render is done.
+  void _addLook(
+    Emitter<PageEditorState> emit,
+    ScanPage p,
+    String key,
+    String path, {
+    bool settled = true,
+  }) {
+    _previews.remember(p.id, path);
+    emit(
+      state.copyWith(
+        enhancePreviews: {...state.enhancePreviews, key: path},
+        rendering: settled ? false : null,
+      ),
+    );
+  }
+
+  PageEditorState _withQuick(ScanPage p, String path) => state.copyWith(
+    quickPreviews: {...state.quickPreviews, p.id: path},
+    quickShapes: {...state.quickShapes, p.id: PageEditorState.shapeOf(p)},
+  );
+
+  @override
+  Future<void> close() {
+    _cropSettle?.cancel();
+    _prefetchCancel?.cancel();
+    return super.close();
   }
 
   // ---------- save ----------
