@@ -259,12 +259,14 @@ class OpenCvImageProcessor implements ImageProcessor {
     required String outputPath,
     int jpegQuality = Limits.cacheJpegQuality,
     JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
   }) {
     return _runner.run(
       renderInIsolate,
       RenderMsg(originalPath, edits, size.longEdge, outputPath, jpegQuality),
       debugLabel: 'render',
       priority: priority,
+      cancel: cancel,
     );
   }
 

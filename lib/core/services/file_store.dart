@@ -86,7 +86,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.jpg',
+    'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
   );
 
   /// The Auto filter of the [workPath] page, lossless (PNG): Auto, Colour Boost
@@ -97,7 +97,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns)}.png',
+    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.png',
   );
 
   /// Enhance preview for one filter (sliders are applied live, not baked).
@@ -107,7 +107,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.filter)}.jpg',
+    'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, edits.filter)}.jpg',
   );
 
   /// The fast crop-only placeholder (P0-4) for one crop / rotation.

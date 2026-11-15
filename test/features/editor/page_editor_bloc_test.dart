@@ -359,15 +359,21 @@ void main() {
           cancel: any(named: 'cancel'),
         ),
       ).thenAnswer((_) => Completer<String>().future);
+      clearInteractions(proc);
       bloc
         ..add(EditorCropChanged(Quad.full(inset: 0.2)))
         ..add(const EditorCornerDragEnded());
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      // Moving the corners renders nothing (a look can't be stopped once
+      // started); Next asks for the preview.
+      verifyNever(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath')));
+      bloc.add(const EditorPreviewRequested());
       await Future<void>.delayed(const Duration(milliseconds: 700));
       final cur = bloc.state.current!;
       expect(
         bloc.state.shownPreview,
         files.quickPath(cur.id, cur.originalPath, cur.edits),
-        reason: "the new crop's placeholder, rendered on its own after the drag",
+        reason: "the new crop's placeholder, not the old crop's look",
       );
       await bloc.close();
     },

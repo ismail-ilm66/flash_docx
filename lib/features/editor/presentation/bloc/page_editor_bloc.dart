@@ -53,7 +53,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorStarted>(_onStarted);
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
-    on<EditorCornerDragEnded>(_onCornerDragEnded);
+    on<EditorCornerDragEnded>((_, _) {});
     on<EditorRotated>(_onRotated);
     on<EditorAutoEdgesRequested>(_onAutoEdges);
     on<EditorFilterChanged>(_onFilter);
@@ -204,20 +204,10 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (preview) add(const EditorPreviewRequested());
   }
 
-  /// Head start (crop → Next): once the corners have rested for 400 ms the
-  /// new crop's placeholder and filtered look render, so Enhance usually
-  /// opens on the finished page instead of the old shape.
-  Timer? _cropSettle;
-
-  void _onCornerDragEnded(EditorCornerDragEnded e, Emitter<PageEditorState> emit) {
-    _cropSettle?.cancel();
-    _cropSettle = Timer(const Duration(milliseconds: 400), () {
-      if (!isClosed) add(const EditorPreviewRequested());
-    });
-  }
-
+  // No render while the corners move or rest: a look takes ~5 s on a
+  // Kirin 710 and can't be stopped once started, so renders for in-between
+  // crops piled up (measured 15 Nov 2026). Enhance renders on Next.
   void _onCornerMoved(EditorCornerMoved e, Emitter<PageEditorState> emit) {
-    _cropSettle?.cancel();
     _updateCurrent(
       emit,
       (ed) {
@@ -234,7 +224,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   }
 
   void _onCropChanged(EditorCropChanged e, Emitter<PageEditorState> emit) {
-    _cropSettle?.cancel();
     final q = e.quad.clamp01();
     // A bent, crossed or mirrored shape is rejected: the crop stays put.
     if (!q.isConvex || q.area < 0.01) return;
@@ -631,7 +620,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
 
   @override
   Future<void> close() {
-    _cropSettle?.cancel();
     _prefetchCancel?.cancel();
     return super.close();
   }

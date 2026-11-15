@@ -240,6 +240,8 @@ class ExportDocument {
           if (File(cached).existsSync()) {
             _touch(cached);
             t.lap('page ${i + 1} from cache');
+          } else if (await _render.joinWarm(cached)) {
+            t.lap('page ${i + 1} from the warm-up render');
           } else {
             // Written under a temp name and renamed, so a cancelled or failed
             // render never leaves half a JPEG in the cache.

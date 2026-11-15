@@ -92,6 +92,7 @@ void main() {
       proc = _Proc(),
     );
     pdfBytes = [9];
+    when(() => render.joinWarm(any())).thenAnswer((_) async => false);
     when(
       () => render.renderForExport(
         any(),

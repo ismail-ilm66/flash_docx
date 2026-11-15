@@ -143,7 +143,7 @@ abstract interface class ImageProcessor {
   });
 
   /// Renders [edits] onto the original and writes a JPEG/PNG to [outputPath].
-  /// Returns the output path.
+  /// Returns the output path. [cancel] drops the job if it hasn't started.
   Future<String> render(
     String originalPath,
     PageEdits edits, {
@@ -151,6 +151,7 @@ abstract interface class ImageProcessor {
     required String outputPath,
     int jpegQuality,
     JobPriority priority,
+    CancelToken? cancel,
   });
 
   /// Full-resolution crop + rotate → gray → mild contrast → denoise, for text

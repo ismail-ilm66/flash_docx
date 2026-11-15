@@ -66,11 +66,19 @@ class PreviewCache {
   /// Null when the page has things that preview leaves out (sliders,
   /// signatures, a passport photo's finish).
   String? lookIfReady(ScanPage page) {
-    final e = page.edits;
-    if (e.hasSliders || e.overlays.isNotEmpty || e.photoWidthMm != null) return null;
-    final path = _files.lookPath(page.id, page.originalPath, e);
+    if (!lookCovers(page.edits)) return null;
+    final path = _files.lookPath(page.id, page.originalPath, page.edits);
     return File(path).existsSync() ? path : null;
   }
+
+  /// True when the Enhance look for [e] is the whole page: it leaves out
+  /// sliders, signatures and a passport photo's finish.
+  static bool lookCovers(PageEdits e) =>
+      !e.hasSliders &&
+      e.overlays.isEmpty &&
+      e.photoWidthMm == null &&
+      e.photoBackground == PhotoBackground.original &&
+      e.photoEnhance == PhotoEnhance.off;
 
   /// [quick] if it already exists on disk, else null (no render started).
   String? quickIfReady(ScanPage page) {
