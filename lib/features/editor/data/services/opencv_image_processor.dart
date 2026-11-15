@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/exif_orientation.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -437,16 +438,21 @@ IngestResult ingestInIsolate(IngestMsg m) {
 }
 
 String lookInIsolate(LookMsg m) {
+  final t = StepTimer('enhance look ${m.edits.filter.name}');
   final out = pipe.renderLook(
     m.path,
     m.edits,
     workPath: m.workPath,
     previewLongEdge: RenderPx.previewLongEdge,
     autoBasePath: m.autoBasePath,
+    timer: t,
   );
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(out, m.out, quality: 85);
+    t
+      ..lap('encode JPEG')
+      ..report();
     return m.out;
   } finally {
     out.dispose();
@@ -501,16 +507,21 @@ class CardMsg {
 }
 
 String cardInIsolate(CardMsg m) {
+  final t = StepTimer('card side ${m.dpi} dpi');
   final card = pipe.renderCard(
     m.path,
     m.edits,
     widthMm: m.widthMm,
     heightMm: m.heightMm,
     dpi: m.dpi,
+    timer: t,
   );
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(card, m.out, quality: 95);
+    t
+      ..lap('encode JPEG')
+      ..report();
     return m.out;
   } finally {
     card.dispose();
@@ -711,10 +722,15 @@ String renderInIsolate(RenderMsg m) {
 }
 
 String _renderOnce(RenderMsg m, int? longEdge) {
-  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: longEdge, previewDecode: m.previewDecode);
+  // Export pages, the Enhance placeholder ("quick") and other one-off renders.
+  final t = StepTimer(m.previewDecode ? 'quick preview' : 'render ${longEdge ?? 'full'} px q${m.quality}');
+  final out = pipe.renderEdits(m.path, m.edits, maxLongEdge: longEdge, previewDecode: m.previewDecode, timer: t);
   try {
     File(m.out).parent.createSync(recursive: true);
     pipe.writeJpeg(out, m.out, quality: m.quality);
+    t
+      ..lap('encode ${m.out.endsWith('.png') ? 'PNG' : 'JPEG'} ${File(m.out).lengthSync() ~/ 1024} KB')
+      ..report();
     return m.out;
   } finally {
     out.dispose();

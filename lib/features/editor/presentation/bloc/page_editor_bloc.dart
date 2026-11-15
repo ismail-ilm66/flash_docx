@@ -7,6 +7,7 @@ import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
@@ -510,11 +511,14 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     String key,
     Emitter<PageEditorState> emit,
   ) async {
-    final sw = Stopwatch()..start();
+    final sw = StepTimer('enhance filter change → ${cur.edits.filter.name}');
     // A filter shown earlier this session is still on disk: no render.
     final onDisk = _files.lookPath(cur.id, cur.originalPath, cur.edits);
     if (File(onDisk).existsSync()) {
       _addLook(emit, cur, key, onDisk);
+      sw
+        ..lap('shown from disk')
+        ..report();
       return true;
     }
     emit(state.copyWith(rendering: true));
@@ -524,8 +528,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         final q = await _previews.quick(cur);
         if (isClosed) return false;
         emit(_withQuick(cur, q));
+        sw.lap('crop-only placeholder (queue + worker)');
         debugPrint(
-          '[perf] enhance first image in ${sw.elapsedMilliseconds} ms',
+          '[perf] enhance first image in ${sw.elapsedMs} ms',
         );
       } catch (_) {}
     }
@@ -537,8 +542,11 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       final out = await _renderLook(cur, cancel: token);
       if (isClosed) return false;
       _addLook(emit, cur, key, out);
+      sw
+        ..lap('filtered image (queue + worker)')
+        ..report();
       debugPrint(
-        '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMilliseconds} ms',
+        '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMs} ms',
       );
       return true;
     } on JobCancelled {

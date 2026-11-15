@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
@@ -22,15 +23,15 @@ class PdfBuilderImpl implements PdfBuilder {
     PdfOptions options, {
     required String outputPath,
   }) async {
+    final t = StepTimer('PDF ${imagePaths.length} pages');
     final bytes = await _runner.run(
       _buildPages,
       _PagesMsg(imagePaths, options.pageSize, options.title),
       debugLabel: 'pdfPages',
       priority: JobPriority.interactive,
     );
-    final f = File(outputPath);
-    await f.parent.create(recursive: true);
-    return f.writeAsBytes(bytes, flush: true);
+    t.lap('build (queue + worker) ${bytes.length ~/ 1024} KB');
+    return _write(bytes, outputPath, t);
   }
 
   @override
@@ -58,10 +59,20 @@ class PdfBuilderImpl implements PdfBuilder {
     PrintLayoutSpec spec, {
     required String outputPath,
   }) async {
+    final t = StepTimer('PDF card sheet');
     final bytes = await _runner.run(_buildSheet, spec, debugLabel: 'pdfSheet', priority: JobPriority.interactive);
+    t.lap('build (queue + worker) ${bytes.length ~/ 1024} KB');
+    return _write(bytes, outputPath, t);
+  }
+
+  static Future<File> _write(Uint8List bytes, String outputPath, StepTimer t) async {
     final f = File(outputPath);
     await f.parent.create(recursive: true);
-    return f.writeAsBytes(bytes, flush: true);
+    await f.writeAsBytes(bytes, flush: true);
+    t
+      ..lap('write file')
+      ..report();
+    return f;
   }
 }
 
@@ -76,10 +87,14 @@ const double _mm = PdfPageFormat.mm;
 const double _fitDpi = 200;
 
 Future<Uint8List> _buildPages(_PagesMsg m) async {
+  final t = StepTimer('PDF build on worker');
+  var reading = 0;
   final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
   for (final path in m.paths) {
+    final read = Stopwatch()..start();
     final bytes = File(path).readAsBytesSync();
     final image = pw.MemoryImage(bytes);
+    reading += read.elapsedMilliseconds;
     final PdfPageFormat format;
     if (m.size == PdfPageSize.fit) {
       final w = (image.width ?? 1000) / _fitDpi * PdfPageFormat.inch;
@@ -99,7 +114,12 @@ Future<Uint8List> _buildPages(_PagesMsg m) async {
       ),
     );
   }
-  return doc.save();
+  t.lap('add ${m.paths.length} pages (reading JPEGs $reading)');
+  final out = await doc.save();
+  t
+    ..lap('save')
+    ..report();
+  return out;
 }
 
 Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {

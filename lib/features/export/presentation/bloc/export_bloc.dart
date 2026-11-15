@@ -2,6 +2,7 @@ import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
@@ -281,6 +282,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
   Future<void> _onExport(ExportRequested e, Emitter<ExportState> emit) async {
     if (state.status is ExportWorking) return;
     final options = state.options;
+    final timer = StepTimer('share tap → sheet (${e.target.name})');
     emit(state.copyWith(status: ExportWorking(e.target)));
     // Uses the file built since the sheet opened, or waits for it.
     var r = await _startPrep(emit);
@@ -293,10 +295,16 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
       _job = null;
       r = await _startPrep(emit);
     }
+    timer.lap('wait for prepared file');
     final out = await r.fold(
       (f) async => Left<Failure, Unit>(f),
-      (prepared) =>
-          _export.deliver(state.document, prepared.files, options, e.target),
+      (prepared) => _export.deliver(
+        state.document,
+        prepared.files,
+        options,
+        e.target,
+        timer: timer,
+      ),
     );
     if (isClosed) return;
     emit(

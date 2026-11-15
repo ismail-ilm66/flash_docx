@@ -10,6 +10,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flash_dox/core/utils/exif_orientation.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -1625,24 +1626,28 @@ double cardSharpnessOf(cv.Mat img, Quad quad, double aspect) {
 /// filter, so the table never feeds the filter statistics. Never enlarges.
 ///
 /// [previewDecode] (placeholders only) decodes at a reduced size when the
-/// crop allows it; see [readUprightForCrop].
-cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool previewDecode = false}) {
+/// crop allows it; see [readUprightForCrop]. [timer] gets a lap per step.
+cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool previewDecode = false, StepTimer? timer}) {
   final img = previewDecode && maxLongEdge != null
       ? readUprightForCrop(path, edits.crop, maxLongEdge)
       : readUpright(path);
+  timer?.lap('decode ${img.cols}×${img.rows}');
   // A passport photo never needs more than [photoFinishLongEdge]: crop
   // straight to it rather than at the camera's full resolution.
   final cap = edits.photoWidthMm == null ? maxLongEdge : math.min(maxLongEdge ?? photoFinishLongEdge, photoFinishLongEdge);
   final cropped = cropAndRotate(img, edits, maxLongEdge: cap);
   disposeUnless(img, cropped);
+  timer?.lap('crop to ${cropped.cols}×${cropped.rows}');
   final filtered = applyFilter(cropped, edits.filter);
   cropped.dispose();
+  timer?.lap('filter ${edits.filter.name}');
   final adjusted = brightnessContrast(filtered, edits);
   filtered.dispose();
   final backed = _withPhotoFinish(adjusted, edits);
   disposeUnless(adjusted, backed);
   final out = withOverlays(backed, edits.overlays);
   disposeUnless(backed, out);
+  timer?.lap('sliders/overlays');
   return out;
 }
 
@@ -2586,10 +2591,11 @@ cv.Mat renderCard(
   required double widthMm,
   required double heightMm,
   required int dpi,
+  StepTimer? timer,
 }) {
   final tw = (widthMm / 25.4 * dpi).round();
   final th = (heightMm / 25.4 * dpi).round();
-  final full = renderEdits(originalPath, edits, maxLongEdge: 2 * math.max(tw, th));
+  final full = renderEdits(originalPath, edits, maxLongEdge: 2 * math.max(tw, th), timer: timer);
   var card = full;
   if (card.rows > card.cols) {
     card = cv.rotate(full, cv.ROTATE_90_COUNTERCLOCKWISE);
@@ -2598,6 +2604,7 @@ cv.Mat renderCard(
   if (card.cols <= tw) return card; // native resolution is lower: keep it
   final out = cv.resize(card, (tw, th), interpolation: cv.INTER_AREA);
   card.dispose();
+  timer?.lap('resize to $tw×$th');
   return out;
 }
 
@@ -2777,13 +2784,16 @@ cv.Mat renderLook(
   required String workPath,
   required int previewLongEdge,
   String? autoBasePath,
+  StepTimer? timer,
 }) {
   final cached = File(workPath).existsSync();
   final cv.Mat work;
   if (cached) {
     work = readUpright(workPath);
+    timer?.lap('load work image ${work.cols}×${work.rows} (cached)');
   } else {
     final img = readUprightForCrop(originalPath, edits.crop, previewLongEdge);
+    timer?.lap('decode original ${img.cols}×${img.rows}');
     final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
     if (identical(cropped, img)) {
       work = img;
@@ -2791,20 +2801,25 @@ cv.Mat renderLook(
       img.dispose();
       work = cropped;
     }
+    timer?.lap('crop to ${work.cols}×${work.rows}');
     File(workPath).parent.createSync(recursive: true);
     writeJpeg(work, workPath, quality: 92);
+    timer?.lap('save work image');
   }
   try {
     if (autoBasePath == null || !usesAutoBase(edits.filter)) {
-      return applyFilter(work, edits.filter);
+      final out = applyFilter(work, edits.filter);
+      timer?.lap('filter ${edits.filter.name}');
+      return out;
     }
-    final auto = _autoBase(work, autoBasePath);
+    final auto = _autoBase(work, autoBasePath, timer);
     final out = switch (edits.filter) {
       FilterType.colorBoost => colorBoostFrom(auto),
       FilterType.grayscale => grayscaleFrom(auto),
       _ => auto,
     };
     disposeUnless(auto, out);
+    timer?.lap('filter ${edits.filter.name} from auto base');
     return out;
   } finally {
     work.dispose();
@@ -2812,13 +2827,17 @@ cv.Mat renderLook(
 }
 
 /// [autoFilter] of [work], read from [path] if an earlier look wrote it.
-cv.Mat _autoBase(cv.Mat work, String path) {
+cv.Mat _autoBase(cv.Mat work, String path, StepTimer? timer) {
   if (File(path).existsSync()) {
     final m = cv.imread(path, flags: cv.IMREAD_COLOR);
-    if (!m.isEmpty) return m;
+    if (!m.isEmpty) {
+      timer?.lap('load auto base (cached)');
+      return m;
+    }
     m.dispose();
   }
   final auto = autoFilter(work);
+  timer?.lap('auto base (denoise)');
   // Lossless and fast to write; renamed so a half-written file is never read.
   final tmp = '$path.part.png';
   final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);
@@ -2827,6 +2846,7 @@ cv.Mat _autoBase(cv.Mat work, String path) {
   } finally {
     params.dispose();
   }
+  timer?.lap('save auto base');
   return auto;
 }
 

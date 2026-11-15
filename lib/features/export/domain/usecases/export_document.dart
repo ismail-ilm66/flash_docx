@@ -8,6 +8,7 @@ import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/save_service.dart';
 import 'package:flash_dox/core/services/share_service.dart';
+import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
@@ -177,7 +178,9 @@ class ExportDocument {
           dpi: dpi,
           outputPath: p.join(staging, '$name.jpg'),
         );
+        final t = StepTimer('share prepare card PDF ${options.quality.name}');
         final frontPath = await side(front, 'front');
+        t.lap('front side (queue + worker)');
         onStep?.call(1, total);
         if (cancelled()) return const Left(CancelledFailure());
         final spec = PrintLayoutSpec(
@@ -189,10 +192,14 @@ class ExportDocument {
           title: doc.title,
           cutGuides: false,
         );
+        t.lap('back side (queue + worker)');
         final pdf = await _pdf.printSheet(
           spec,
           outputPath: p.join(staging, 'doc.pdf'),
         );
+        t
+          ..lap('PDF')
+          ..report();
         onStep?.call(total, total);
         return Right(PreparedExport([pdf]));
       } catch (e) {
@@ -207,6 +214,7 @@ class ExportDocument {
     // Each page: rendered from the original, encoded once; a PDF embeds
     // those JPEGs as they are, a JPG export shares them as they are.
     final rendered = <String>[];
+    final t = StepTimer('share prepare ${pages.length} pages ${options.format.name} ${options.quality.name}');
     try {
       onStep?.call(0, total);
       for (final (i, page) in pages.indexed) {
@@ -220,6 +228,7 @@ class ExportDocument {
               jpegQuality: jpegQ,
             ),
           );
+          t.lap('page ${i + 1} rendered (queue + worker)');
         } else {
           final cached = _files.exportPagePath(
             page.id,
@@ -230,6 +239,7 @@ class ExportDocument {
           );
           if (File(cached).existsSync()) {
             _touch(cached);
+            t.lap('page ${i + 1} from cache');
           } else {
             // Written under a temp name and renamed, so a cancelled or failed
             // render never leaves half a JPEG in the cache.
@@ -241,6 +251,7 @@ class ExportDocument {
               jpegQuality: jpegQ,
             );
             File(tmp).renameSync(cached);
+            t.lap('page ${i + 1} rendered (queue + worker)');
           }
           rendered.add(cached);
         }
@@ -265,19 +276,20 @@ class ExportDocument {
       return Left(ImageProcessingFailure(e.toString()));
     }
     if (options.isImage) {
+      t.report();
       return Right(PreparedExport(rendered.map(File.new).toList()));
     }
     if (cancelled()) return const Left(CancelledFailure());
     try {
-      return Right(
-        PreparedExport([
-          await _pdf.fromPages(
-            rendered,
-            PdfOptions(pageSize: options.pageSize, title: doc.title),
-            outputPath: p.join(staging, 'doc.pdf'),
-          ),
-        ]),
+      final pdf = await _pdf.fromPages(
+        rendered,
+        PdfOptions(pageSize: options.pageSize, title: doc.title),
+        outputPath: p.join(staging, 'doc.pdf'),
       );
+      t
+        ..lap('PDF')
+        ..report();
+      return Right(PreparedExport([pdf]));
     } catch (e) {
       return Left(PdfFailure(e.toString()));
     }
@@ -446,8 +458,9 @@ class ExportDocument {
     ScanDocument doc,
     List<File> prepared,
     ExportOptions options,
-    ExportTarget target,
-  ) async {
+    ExportTarget target, {
+    StepTimer? timer,
+  }) async {
     final List<File> files;
     try {
       final names = finalNames(doc, options, prepared.length);
@@ -461,9 +474,15 @@ class ExportDocument {
     } catch (e) {
       return Left(StorageFailure(e.toString()));
     }
+    timer?.lap('copy to final file name');
 
     final Either<Failure, Unit> result;
     if (target == ExportTarget.share) {
+      // The sheet itself opens on the platform side; Dart only sees when the
+      // user closes it, so the log stops here.
+      timer
+        ?..lap('open share sheet (request sent)')
+        ..report();
       result = await _share.shareFiles(files, subject: doc.title);
     } else if (options.isImage) {
       result = await _save.saveImages(files);

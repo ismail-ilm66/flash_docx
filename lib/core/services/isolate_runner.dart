@@ -48,7 +48,8 @@ class IsolateRunner {
     JobPriority priority = JobPriority.background,
     CancelToken? cancel,
   }) {
-    final pending = _Pending(_Job<Q, R>(fn, arg), cancel);
+    final ahead = _interactive.length + (priority == JobPriority.background ? _background.length : 0) + (_busy ? 1 : 0);
+    final pending = _Pending(_Job<Q, R>(fn, arg), cancel, debugLabel ?? 'job', ahead);
     (priority == JobPriority.interactive ? _interactive : _background).add(pending);
     unawaited(_pump());
     return pending.completer.future.then((v) => v as R);
@@ -64,9 +65,13 @@ class IsolateRunner {
           next.completer.completeError(const JobCancelled());
           continue;
         }
+        final waited = next.queued.elapsedMilliseconds;
         try {
           final w = await _ensureWorker();
-          next.completer.complete(await w.run<Object?>(next.job));
+          final ran = Stopwatch()..start();
+          final result = await w.run<Object?>(next.job);
+          _log(next, waited, ran.elapsedMilliseconds);
+          next.completer.complete(result);
         } catch (e, s) {
           next.completer.completeError(e, s);
         }
@@ -76,10 +81,19 @@ class IsolateRunner {
     }
   }
 
+  /// `[queue] look waited 2400 ms (1 ahead), ran 310 ms`: time spent behind
+  /// other jobs vs on the worker. Dev and profile builds only.
+  void _log(_Pending job, int waited, int ran) {
+    if (kReleaseMode) return;
+    debugPrint('[queue] ${job.label} waited $waited ms (${job.ahead} ahead), ran $ran ms');
+  }
+
   Future<_Worker> _ensureWorker() {
     final w = _worker;
     if (w != null && !w.dead) return Future.value(w);
+    final sw = Stopwatch()..start();
     return _starting ??= _Worker.spawn().then((w) {
+      if (!kReleaseMode) debugPrint('[queue] worker started in ${sw.elapsedMilliseconds} ms');
       _worker = w;
       _starting = null;
       return w;
@@ -91,9 +105,14 @@ class IsolateRunner {
 }
 
 class _Pending {
-  _Pending(this.job, this.cancel);
+  _Pending(this.job, this.cancel, this.label, this.ahead);
   final _Job<dynamic, dynamic> job;
   final CancelToken? cancel;
+  final String label;
+
+  /// Jobs queued or running ahead of this one when it was added.
+  final int ahead;
+  final Stopwatch queued = Stopwatch()..start();
   final Completer<Object?> completer = Completer<Object?>();
 }
 

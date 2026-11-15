@@ -129,7 +129,7 @@ void main() {
     () async {
       stubPrepare();
       when(
-        () => export.deliver(any(), any(), any(), any()),
+        () => export.deliver(any(), any(), any(), any(), timer: any(named: 'timer')),
       ).thenAnswer((_) async => const Right(unit));
       final bloc = ExportBloc(export, prefs, doc)
         ..add(const ExportSheetOpened());
@@ -156,7 +156,7 @@ void main() {
         ),
       ).called(1);
       verify(
-        () => export.deliver(any(), any(), any(), ExportTarget.share),
+        () => export.deliver(any(), any(), any(), ExportTarget.share, timer: any(named: 'timer')),
       ).called(1);
     },
   );
@@ -166,7 +166,7 @@ void main() {
     () async {
       stubPrepare();
       when(
-        () => export.deliver(any(), any(), any(), any()),
+        () => export.deliver(any(), any(), any(), any(), timer: any(named: 'timer')),
       ).thenAnswer((_) async => const Right(unit));
       final bloc = ExportBloc(export, prefs, doc)
         ..add(const ExportSheetOpened());
@@ -204,7 +204,7 @@ void main() {
       ]);
       final delivered =
           verify(
-                () => export.deliver(any(), any(), captureAny(), any()),
+                () => export.deliver(any(), any(), captureAny(), any(), timer: any(named: 'timer')),
               ).captured.single
               as ExportOptions;
       expect(delivered.fileName, 'Renamed');
@@ -215,7 +215,7 @@ void main() {
   test('cancelled share goes back to idle, other failures surface', () async {
     stubPrepare();
     when(
-      () => export.deliver(any(), any(), any(), any()),
+      () => export.deliver(any(), any(), any(), any(), timer: any(named: 'timer')),
     ).thenAnswer((_) async => const Left(CancelledFailure()));
     var bloc = ExportBloc(export, prefs, doc)
       ..add(const ExportRequested(ExportTarget.share));
