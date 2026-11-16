@@ -767,6 +767,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Not enough storage to save scans. Free up space and try again.';
 
   @override
+  String get saveStorageLow =>
+      'Your phone is almost full. Flash Dox may not be able to save new scans.';
+
+  @override
   String cameraPreparingProgress(int done, int total) {
     return 'Preparing $done of $total…';
   }

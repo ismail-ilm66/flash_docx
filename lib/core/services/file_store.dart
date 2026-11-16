@@ -167,14 +167,16 @@ class FileStore {
     return '${hex(h >>> 32)}${hex(h & 0xffffffff)}';
   }
 
-  /// Identifies one version of an original: its path plus modification time,
-  /// so a retake saved over the same path still gets fresh previews.
+  /// Identifies one version of an original by its size and modification
+  /// time, not its path: Done moves the file into the document folder
+  /// (`adoptOriginal`, a rename keeps both), and the previews made while
+  /// editing must still match it there. Names also carry the page id, and a
+  /// retake over the same file changes the stamp.
   int _stamp(String originalPath) {
     final f = File(originalPath);
-    final mtime = f.existsSync()
-        ? f.lastModifiedSync().microsecondsSinceEpoch
-        : 0;
-    return Object.hash(originalPath, mtime);
+    if (!f.existsSync()) return 0;
+    final st = f.statSync();
+    return Object.hash(st.size, st.modified.microsecondsSinceEpoch);
   }
 
   /// True when [path] already lives inside the document's folder.
@@ -218,6 +220,25 @@ class FileStore {
   String newCapturePath(String id) => p.join(_captureTemp.path, '$id.jpg');
 
   String exportPath(String fileName) => p.join(_exportTemp.path, fileName);
+
+  /// After the share sheet or save closes (round 6, P0-3): removes the
+  /// folders holding [paths] inside the export temp folder (a staging or
+  /// `out_` folder). Files elsewhere, such as cached page renders, are left
+  /// alone.
+  Future<void> discardExportFiles(Iterable<String> paths) async {
+    final dirs = {
+      for (final f in paths)
+        if (p.isWithin(_exportTemp.path, f)) p.dirname(f),
+    };
+    for (final d in dirs) {
+      if (!p.isWithin(_exportTemp.path, d)) continue; // never the root
+      try {
+        await Directory(d).delete(recursive: true);
+      } on FileSystemException {
+        // Already gone, or still open somewhere: launch clears it anyway.
+      }
+    }
+  }
 
   Future<void> ensureDocDirs(String docId) async {
     final d = docDir(docId);

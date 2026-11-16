@@ -61,4 +61,30 @@ void main() {
     await files.clearCaches();
     expect(recent.existsSync(), isFalse, reason: 'Settings → clear cache empties it');
   });
+
+  test('editor caches still match after Done moves the original (round 6)', () async {
+    final edits = PageEdits(crop: Quad.full(inset: 0.1));
+    final look = files.lookPath('p1', original, edits);
+    final work = files.workPath('p1', original, edits);
+    final moved = await files.adoptOriginal(sourcePath: original, docId: 'd1', pageId: 'p1');
+    expect(moved, isNot(original));
+    expect(files.lookPath('p1', moved, edits), look);
+    expect(files.workPath('p1', moved, edits), work);
+    // A retake (new content) gets new names.
+    File(moved).writeAsBytesSync([1, 2, 3]);
+    expect(files.lookPath('p1', moved, edits), isNot(look));
+  });
+
+  test('discardExportFiles removes staging folders, never cached renders', () async {
+    final staging = files.exportPath('ready_x');
+    Directory(staging).createSync(recursive: true);
+    final shared = File(p.join(staging, 'doc.pdf'))..writeAsBytesSync([1]);
+    final cached = File(files.exportPagePath('p1', original, const PageEdits(), sizeKey: 'standard', jpegQuality: 85))
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync([2]);
+    await files.discardExportFiles([shared.path, cached.path]);
+    expect(Directory(staging).existsSync(), isFalse);
+    expect(cached.existsSync(), isTrue);
+    expect(Directory(files.exportPath('')).existsSync(), isTrue, reason: 'the export root stays');
+  });
 }

@@ -75,7 +75,11 @@ cv.Mat applyExifOrientation(cv.Mat m, int orientation) {
 /// ([meta]; null for imports, which get the tag only). The result is an
 /// upright JPEG (q95) with no orientation tag; when nothing needs turning
 /// the file is left byte-for-byte as it is. Returns the `[orient]` line.
-String normalizeCapture(String path, CaptureMeta? meta) {
+///
+/// With [maxLongEdge] (round 6, P0-3: scans keep 3000 px, still ~300 DPI
+/// on A4) a larger photo is also shrunk, in the same single re-encode, at
+/// [shrunkJpegQuality]: a 16 MP / 4 MB camera file becomes ~1.3 MB.
+String normalizeCapture(String path, CaptureMeta? meta, {int? maxLongEdge}) {
   final o = readJpegOrientation(path);
   var size = jpegSize(path);
   if (size == null) {
@@ -92,17 +96,28 @@ String normalizeCapture(String path, CaptureMeta? meta) {
     height: size.height,
     meta: meta,
   );
+  final long = math.max(size.width, size.height);
+  final shrink = maxLongEdge != null && long > maxLongEdge;
   final report =
       '[orient] exif=$o ${meta ?? 'import'} pixels=${size.width}x${size.height} '
-      'final=${rot.turns * 90}°${rot.mirror ? ' mirrored' : ''}';
-  if (o <= 1 && rot.turns == 0 && !rot.mirror) return report;
-  final raw = cv.imread(
+      'final=${rot.turns * 90}°${rot.mirror ? ' mirrored' : ''}'
+      '${shrink ? ' shrunk to $maxLongEdge px' : ''}';
+  if (o <= 1 && rot.turns == 0 && !rot.mirror && !shrink) return report;
+  // A 48 MP+ photo is decoded at half size straight from the JPEG: the
+  // full decode alone would be ~150 MB.
+  final half = shrink && long ~/ 2 >= maxLongEdge;
+  var raw = cv.imread(
     path,
-    flags: cv.IMREAD_COLOR | cv.IMREAD_IGNORE_ORIENTATION,
+    flags: (half ? cv.IMREAD_REDUCED_COLOR_2 : cv.IMREAD_COLOR) | cv.IMREAD_IGNORE_ORIENTATION,
   );
   if (raw.isEmpty) {
     raw.dispose();
     throw StateError('Could not decode $path');
+  }
+  if (shrink) {
+    final small = fitLongEdge(raw, maxLongEdge);
+    if (!identical(small, raw)) raw.dispose();
+    raw = small;
   }
   final upright = applyExifOrientation(raw, o);
   if (!identical(upright, raw)) raw.dispose();
@@ -115,13 +130,17 @@ String normalizeCapture(String path, CaptureMeta? meta) {
   }
   try {
     final tmp = '$path.baking.jpg';
-    writeJpeg(turned, tmp, quality: 95);
+    writeJpeg(turned, tmp, quality: shrink ? shrunkJpegQuality : 95);
     File(tmp).renameSync(path);
     return report;
   } finally {
     turned.dispose();
   }
 }
+
+/// Long edge scans are kept at, and their JPEG quality (round 6, P0-3).
+const int scanMaxLongEdge = 3000;
+const int shrunkJpegQuality = 90;
 
 /// Imports: the EXIF tag only.
 void bakeOrientation(String path) => normalizeCapture(path, null);
@@ -2824,8 +2843,9 @@ IngestReport ingest({
   ({double left, double top, double right, double bottom})? searchArea,
   CaptureMeta? capture,
 }) {
-  // P0-1: make the original upright once (EXIF, sensor, how it was held).
-  final orientation = normalizeCapture(src, capture);
+  // P0-1: make the original upright once (EXIF, sensor, how it was held),
+  // and no larger than 3000 px (round 6, P0-3).
+  final orientation = normalizeCapture(src, capture, maxLongEdge: scanMaxLongEdge);
   final header = jpegSize(src);
   final (img, scale) = _decodeForPreview(src, previewLongEdge, header);
   final preview = fitLongEdge(img, previewLongEdge);

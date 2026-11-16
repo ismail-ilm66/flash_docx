@@ -306,6 +306,9 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
         timer: timer,
       ),
     );
+    // deliver removed the prepared files: a second Share prepares again
+    // (from the cached page renders, so it's quick).
+    _job = null;
     if (isClosed) return;
     emit(
       out.fold(

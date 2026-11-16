@@ -378,6 +378,7 @@
   "cameraUnreadable": "That photo couldn't be read. Please take it again.",
   "cameraStorageLow": "Your phone storage is almost full — scans may be slow.",
   "cameraStorageFull": "Not enough storage to save scans. Free up space and try again.",
+  "saveStorageLow": "Your phone is almost full. Flash Dox may not be able to save new scans.",
   "cameraPreparingProgress": "Preparing {done} of {total}…",
   "@cameraPreparingProgress": {
     "placeholders": {

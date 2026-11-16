@@ -1456,6 +1456,12 @@ abstract class AppLocalizations {
   /// **'Not enough storage to save scans. Free up space and try again.'**
   String get cameraStorageFull;
 
+  /// No description provided for @saveStorageLow.
+  ///
+  /// In en, this message translates to:
+  /// **'Your phone is almost full. Flash Dox may not be able to save new scans.'**
+  String get saveStorageLow;
+
   /// No description provided for @cameraPreparingProgress.
   ///
   /// In en, this message translates to:

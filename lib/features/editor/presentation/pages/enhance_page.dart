@@ -5,6 +5,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/app_router.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
@@ -88,6 +89,17 @@ class _EnhanceViewState extends State<_EnhanceView> {
         ..pop()
         ..pop();
     }
+  }
+
+  /// Round 6, P0-3: a nearly full phone may fail to save; say so (without
+  /// blocking) before saving.
+  Future<void> _save(PageEditorBloc bloc) async {
+    final free = await getIt<StorageService>().freeBytes();
+    if (!mounted) return;
+    if (StorageService.levelFor(free) != StorageLevel.ok) {
+      context.showSnack(context.l10n.saveStorageLow);
+    }
+    bloc.add(const EditorSaveRequested());
   }
 
   @override
@@ -192,9 +204,7 @@ class _EnhanceViewState extends State<_EnhanceView> {
               actions: [
                 TopBarTextAction(
                   label: l.enhanceDone,
-                  onPressed: page == null || saving
-                      ? null
-                      : () => bloc.add(const EditorSaveRequested()),
+                  onPressed: page == null || saving ? null : () => _save(bloc),
                 ),
               ],
             ),

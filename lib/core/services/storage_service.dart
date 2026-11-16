@@ -9,8 +9,8 @@ enum StorageLevel { ok, low, critical }
 class StorageService {
   static const _channel = MethodChannel('com.swtnoa.flashdox/storage');
 
-  /// Below this, warn that scans may be slow.
-  static const int lowBytes = 300 * 1024 * 1024;
+  /// Below this, warn: on the camera, and before saving (round 6, P0-3).
+  static const int lowBytes = 200 * 1024 * 1024;
 
   /// Below this, block capture.
   static const int criticalBytes = 80 * 1024 * 1024;

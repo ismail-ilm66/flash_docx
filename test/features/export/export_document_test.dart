@@ -227,6 +227,14 @@ void main() {
       doc,
       const ExportOptions(format: ExportFormat.jpg),
     )).getOrElse((_) => const PreparedExport([])).files;
+    var existedWhileSharing = false;
+    when(
+      () => share.shareFiles(any(), subject: any(named: 'subject')),
+    ).thenAnswer((inv) async {
+      final files = inv.positionalArguments.first as List<File>;
+      existedWhileSharing = files.every((f) => f.existsSync());
+      return const Right(unit);
+    });
     final r = await export.deliver(
       doc,
       jpg,
@@ -247,7 +255,11 @@ void main() {
       'My lease_2.jpg',
       'My lease_3.jpg',
     ]);
-    expect(shared.every((f) => f.existsSync()), isTrue);
+    expect(existedWhileSharing, isTrue);
+    // Round 6, P0-3: the copies are deleted once the sheet closes; the
+    // cached page renders they were made from stay.
+    expect(shared.any((f) => f.existsSync()), isFalse);
+    expect(jpg.every((f) => f.existsSync()), isTrue);
   });
 
   group('Max file size (feature 2)', () {

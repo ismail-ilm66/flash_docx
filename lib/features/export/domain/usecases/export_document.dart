@@ -491,6 +491,10 @@ class ExportDocument {
     } else {
       result = (await _save.saveFileWithDialog(files.first)).map((_) => unit);
     }
+    // The sheet or save has the files now (or was closed): free the space.
+    await _files.discardExportFiles([
+      for (final f in [...prepared, ...files]) f.path,
+    ]);
 
     return result.fold(Left.new, (_) async {
       final type = target == ExportTarget.saveToPhone

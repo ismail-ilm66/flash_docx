@@ -331,20 +331,34 @@ void main() {
       m.dispose();
     });
 
-    test('X-1 / A2: ingest never touches the original, even at 48 MP', () {
-      for (final (w, h) in [(4032, 3024), (8064, 6048)]) {
+    test('X-1 / A2: ingest leaves a scan-size original alone', () {
+      final m = cv.Mat.fromScalar(2250, 3000, cv.MatType.CV_8UC3, cv.Scalar(10, 20, 30));
+      final src = p.join(tmp.path, 'ok.jpg');
+      pipe.writeJpeg(m, src, quality: 80);
+      m.dispose();
+      final before = File(src).readAsBytesSync();
+      ingestInIsolate(IngestMsg(src, p.join(tmp.path, 'prev_ok.jpg'), null, null));
+      expect(File(src).readAsBytesSync(), before, reason: 'original must be byte-identical');
+    });
+
+    test('P0-3 (round 6): ingest shrinks a big original to 3000 px once, even at 48 MP', () {
+      for (final (w, h) in [(4608, 3456), (8064, 6048)]) {
         final big = cv.Mat.fromScalar(h, w, cv.MatType.CV_8UC3, cv.Scalar(10, 20, 30));
+        cv.line(big, cv.Point(0, 0), cv.Point(w, h), cv.Scalar.all(250), thickness: 9);
         final src = p.join(tmp.path, 'big_$w.jpg');
-        pipe.writeJpeg(big, src, quality: 80);
+        pipe.writeJpeg(big, src, quality: 95);
         big.dispose();
-        final before = File(src).readAsBytesSync();
+        final bigBytes = File(src).lengthSync();
         final prev = p.join(tmp.path, 'prev_$w.jpg');
-        // Twice: a double free would crash on the first or second call.
-        for (var i = 0; i < 2; i++) {
-          final r = ingestInIsolate(IngestMsg(src, prev, null, null));
-          expect((r.width, r.height), (w, h));
-        }
-        expect(File(src).readAsBytesSync(), before, reason: 'original must be byte-identical');
+        final r = ingestInIsolate(IngestMsg(src, prev, null, null));
+        expect((r.width, r.height), (3000, 2250));
+        expect(pipe.jpegSize(src), (width: 3000, height: 2250));
+        expect(File(src).lengthSync(), lessThan(bigBytes));
+        // A second ingest (a retake of the same file, a re-run) leaves it be,
+        // and a double free would crash here.
+        final once = File(src).readAsBytesSync();
+        ingestInIsolate(IngestMsg(src, prev, null, null));
+        expect(File(src).readAsBytesSync(), once);
         final v = pipe.jpegSize(prev)!;
         expect(math.max(v.width, v.height), RenderPx.previewLongEdge);
       }
