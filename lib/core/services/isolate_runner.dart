@@ -35,6 +35,10 @@ class JobCancelled implements Exception {
 /// job starts a fresh worker.
 @lazySingleton
 class IsolateRunner {
+  /// Runs once on each new worker before its first job, e.g. OpenCV thread
+  /// settings. A top-level or static function (it's sent to the isolate).
+  static void Function()? workerInit;
+
   _Worker? _worker;
   Future<_Worker>? _starting;
   final _interactive = <_Pending>[];
@@ -92,7 +96,7 @@ class IsolateRunner {
     final w = _worker;
     if (w != null && !w.dead) return Future.value(w);
     final sw = Stopwatch()..start();
-    return _starting ??= _Worker.spawn().then((w) {
+    return _starting ??= _Worker.spawn(workerInit).then((w) {
       if (!kReleaseMode) debugPrint('[queue] worker started in ${sw.elapsedMilliseconds} ms');
       _worker = w;
       _starting = null;
@@ -151,7 +155,7 @@ class _Worker {
   int _nextId = 0;
   bool dead = false;
 
-  static Future<_Worker> spawn() async {
+  static Future<_Worker> spawn(void Function()? init) async {
     final responses = ReceivePort();
     final exit = ReceivePort();
     final handshake = Completer<SendPort>();
@@ -165,7 +169,7 @@ class _Worker {
     });
     final isolate = await Isolate.spawn(
       _workerMain,
-      responses.sendPort,
+      (responses.sendPort, init),
       debugName: 'flashdox-worker',
       onExit: exit.sendPort,
       onError: exit.sendPort,
@@ -209,7 +213,13 @@ class _Worker {
   }
 }
 
-Future<void> _workerMain(SendPort replyTo) async {
+Future<void> _workerMain((SendPort, void Function()?) start) async {
+  final (replyTo, init) = start;
+  try {
+    init?.call();
+  } catch (_) {
+    // A failed tweak must not take the worker down.
+  }
   final inbox = ReceivePort();
   replyTo.send(inbox.sendPort);
   // `await for` keeps jobs strictly serial even if one is async.

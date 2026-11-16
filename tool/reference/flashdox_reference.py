@@ -263,24 +263,71 @@ def estimate_noise(bgr: np.ndarray) -> float:
 
 def _denoise(bgr: np.ndarray, min_h: float = 3.0, max_h: float = 6.0) -> np.ndarray:
     """Remove sensor noise BEFORE any contrast step (otherwise it gets amplified).
-    Strength adapts to the measured noise: a clean, well-lit photo gets almost none,
-    so fine print is not smeared into a 'watercolour' look. Non-local means runs on a
-    <= 2000 px copy for speed. Fallback: bilateral."""
+
+    FAST version (round 6). The old version ran colour non-local means (template 7,
+    search 21) and took 4-12 s on a Kirin 710. This one is ~6x faster with the same look:
+      * brightness (Y) only: non-local means with template 5, search 11
+      * colour (Cr, Cb): colour noise is blotchy and low-frequency, so a blur at 1/4 size
+        is enough and costs almost nothing
+      * clean, well-lit photos (low measured noise) skip the step entirely
+    Strength still adapts to the measured noise so fine print is not smeared."""
     h, w = bgr.shape[:2]
     sigma = estimate_noise(bgr)
+    if sigma < 1.5:                       # good light: nothing worth removing
+        return bgr
     strength = float(np.clip(sigma * 0.8, min_h, max_h))
-    s = min(1.0, 2000.0 / max(h, w))
-    small = cv.resize(bgr, (int(w * s), int(h * s)), interpolation=cv.INTER_AREA) if s < 1 else bgr
-    try:
-        clean = cv.fastNlMeansDenoisingColored(small, None, strength, strength, 7, 21)
-    except Exception:
-        clean = cv.bilateralFilter(small, 7, 40, 40)
+    ycc = cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb)
+    y, cr, cb = cv.split(ycc)
+    y = cv.fastNlMeansDenoising(y, None, strength, 5, 11)
+    sm = (max(1, w // 4), max(1, h // 4))
+
+    def chroma(c):
+        c = cv.resize(c, sm, interpolation=cv.INTER_AREA)
+        c = cv.GaussianBlur(c, (0, 0), 1.2)
+        return cv.resize(c, (w, h), interpolation=cv.INTER_LINEAR)
+
+    return cv.cvtColor(cv.merge([y, chroma(cr), chroma(cb)]), cv.COLOR_YCrCb2BGR)
+
+
+def denoise_preview(bgr: np.ndarray) -> np.ndarray:
+    """Instant, display-only clean-up for the first preview (~10x cheaper than _denoise).
+    Replaced by the real result as soon as the background job finishes."""
+    sigma = estimate_noise(bgr)
+    if sigma < 1.5:
+        return bgr
+    return cv.bilateralFilter(bgr, 5, float(np.clip(sigma * 6, 15, 40)), 3)
+
+
+def blurry_regions(warped_bgr: np.ndarray, grid: int = 3, ratio: float = 0.5):
+    """Find parts of a page that are much blurrier than its sharpest part (camera shake or
+    focus fall-off). Returns (row, col) cells of a grid x grid split, or [] when the page is
+    evenly sharp or has too little detail to judge. Run on the cropped page before filters.
+
+    Measure: on the strongest edges of each cell, |Laplacian| / |gradient|. For an edge
+    blurred by sigma this is ~1/sigma, and it does not depend on how dark the text is."""
+    g = cv.cvtColor(warped_bgr, cv.COLOR_BGR2GRAY).astype(np.float32)
+    s = 1200.0 / max(g.shape[:2])
     if s < 1:
-        # keep full-res detail: add back the fine detail of the original minus its noise-scale blur
-        up = cv.resize(clean, (w, h), interpolation=cv.INTER_CUBIC)
-        detail = cv.subtract(bgr, cv.GaussianBlur(bgr, (0, 0), 1.5), dtype=cv.CV_16S)
-        return np.clip(up.astype(np.int16) + (detail * 0.5).astype(np.int16), 0, 255).astype(np.uint8)
-    return clean
+        g = cv.resize(g, None, fx=s, fy=s, interpolation=cv.INTER_AREA)
+    g = cv.GaussianBlur(g, (0, 0), 0.8)                # ignore pixel noise
+    gx, gy = cv.Sobel(g, cv.CV_32F, 1, 0), cv.Sobel(g, cv.CV_32F, 0, 1)
+    grad = cv.magnitude(gx, gy)
+    lap = np.abs(cv.Laplacian(g, cv.CV_32F, ksize=3))
+    H, W = g.shape
+    my, mx = int(H * 0.05), int(W * 0.05)              # skip page borders / shadows
+    scores = {}
+    for r in range(grid):
+        for c in range(grid):
+            y0, y1 = max(my, r * H // grid), min(H - my, (r + 1) * H // grid)
+            x0, x1 = max(mx, c * W // grid), min(W - mx, (c + 1) * W // grid)
+            gr, lp = grad[y0:y1, x0:x1], lap[y0:y1, x0:x1]
+            strong = gr > max(60.0, float(np.percentile(gr, 97)))
+            if strong.sum() > 150:                     # enough edges to judge
+                scores[(r, c)] = float(np.median(lp[strong] / gr[strong]))
+    if len(scores) < 3:
+        return []
+    best = max(scores.values())
+    return sorted(k for k, v in scores.items() if v < ratio * best)
 
 
 def _background(gray_or_ch: np.ndarray) -> np.ndarray:

@@ -119,7 +119,8 @@ class PageRenderService {
         await File(look).copy(paths.processed);
         await _processor.render(
           paths.processed,
-          const PageEdits(),
+          // The look is already filtered: just shrink it.
+          const PageEdits(filter: FilterType.original),
           size: RenderSize.thumb,
           outputPath: paths.thumb,
           jpegQuality: 80,

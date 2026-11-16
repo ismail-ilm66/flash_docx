@@ -122,6 +122,18 @@ void main() {
       final updated = await service.ensurePageCache(page);
       expect(File(updated.processedPath!).readAsBytesSync(), [7, 7]);
       expect(File(updated.thumbPath!).existsSync(), isTrue);
+      final thumbEdits = verify(
+        () => proc.render(
+          any(),
+          captureAny(),
+          size: RenderSize.thumb,
+          outputPath: any(named: 'outputPath'),
+          jpegQuality: any(named: 'jpegQuality'),
+          priority: any(named: 'priority'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).captured.single as PageEdits;
+      expect(thumbEdits.filter, FilterType.original, reason: 'the look is filtered already');
       verifyNever(
         () => proc.renderPageCaches(
           any(),

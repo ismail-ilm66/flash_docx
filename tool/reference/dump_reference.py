@@ -7,6 +7,11 @@ For each photo in test/fixtures/edges/*.jpg:
   * reference/<name>_id.png          filter_id_color(warp)
   * reference/<name>_bw.png          filter_bw_print(warp)
   * reference/<name>_ocr.png         ocr_image(warp)
+  * reference/<name>_dnprev.png      denoise_preview(warp) (round 6)
+  * reference/<name>_blur.json       blurry_regions(warp) cells, and of a
+                                     copy with its right third blurred
+  * reference/<name>_noisy*.png      warp + seeded noise (σ 6), its Auto and
+                                     ID colour: exercises the NLM denoise
   * reference/<name>_overlay.jpg     photo with the detected quad, for review
   * reference/<name>_small.png       the downscaled photo detection works on
   * reference/<name>_map_<map>.png   each candidate map on it (round 5, P0-4)
@@ -51,6 +56,21 @@ for p in sorted(glob.glob(os.path.join(edges, '*.jpg'))):
     cv.imwrite(os.path.join(out, f'{name}_id.png'), ref.filter_id_color(warped))
     cv.imwrite(os.path.join(out, f'{name}_bw.png'), ref.filter_bw_print(warped))
     cv.imwrite(os.path.join(out, f'{name}_ocr.png'), ref.ocr_image(warped))
+    cv.imwrite(os.path.join(out, f'{name}_dnprev.png'), ref.denoise_preview(warped))
+    # Camera shake on one side (round 6, P1-1): the right third blurred.
+    shaken = warped.copy()
+    x0 = shaken.shape[1] * 2 // 3
+    shaken[:, x0:] = cv.GaussianBlur(shaken[:, x0:], (0, 0), 3.0)
+    cv.imwrite(os.path.join(out, f'{name}_shaken.png'), shaken)
+    # Dim-light sensor noise, so the fast denoise's NLM path is compared too.
+    noise = np.random.default_rng(6).normal(0, 6, warped.shape)
+    noisy = np.clip(warped.astype(np.float32) + noise, 0, 255).astype(np.uint8)
+    cv.imwrite(os.path.join(out, f'{name}_noisy.png'), noisy)
+    cv.imwrite(os.path.join(out, f'{name}_noisy_auto.png'), ref.filter_auto_color(noisy))
+    cv.imwrite(os.path.join(out, f'{name}_noisy_id.png'), ref.filter_id_color(noisy))
+    json.dump({'warp': [list(c) for c in ref.blurry_regions(warped)],
+               'shaken': [list(c) for c in ref.blurry_regions(shaken)]},
+              open(os.path.join(out, f'{name}_blur.json'), 'w'))
     s = ref.DETECT_LONG_EDGE / max(h, w)
     small = cv.resize(img, (int(w * s), int(h * s)), interpolation=cv.INTER_AREA) if s < 1 else img.copy()
     cv.imwrite(os.path.join(out, f'{name}_small.png'), small)

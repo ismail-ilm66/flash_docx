@@ -20,7 +20,9 @@ import 'package:opencv_dart/opencv.dart' as cv;
 /// so the UI thread never blocks and two renders never overlap.
 @LazySingleton(as: ImageProcessor)
 class OpenCvImageProcessor implements ImageProcessor {
-  OpenCvImageProcessor(this._runner);
+  OpenCvImageProcessor(this._runner) {
+    IsolateRunner.workerInit = initOpenCvWorker;
+  }
 
   final IsolateRunner _runner;
 
@@ -323,6 +325,17 @@ class OpenCvImageProcessor implements ImageProcessor {
 // Isolate entry points (top-level, single argument). Public so tests can run
 // them directly on the host.
 // ---------------------------------------------------------------------------
+
+/// Worker start-up (round 6): non-local means runs in parallel only when
+/// OpenCV may use several threads. If the build reports one, ask for 4 (the
+/// big cores on the usual 4 + 4 phone).
+void initOpenCvWorker() {
+  final before = cv.getNumThreads();
+  if (before <= 1) cv.setNumThreads(4);
+  if (!kReleaseMode) {
+    debugPrint('[worker] OpenCV threads: $before → ${cv.getNumThreads()}');
+  }
+}
 
 class DetectMsg {
   const DetectMsg(this.path, this.snapAspect);

@@ -31,7 +31,7 @@ void main() {
 
   tearDownAll(() => tmp.delete(recursive: true));
 
-  test('the ID colour filter at 2x print size looks like the full-size render', () {
+  test('the ID colour filter at 2x print size looks like the export-size render', () {
     // A busy card: fine lines and noise, where filtering at another scale
     // would show.
     final m = cv.Mat.fromScalar(3000, 4000, cv.MatType.CV_8UC3, cv.Scalar(150, 170, 190));
@@ -48,8 +48,12 @@ void main() {
     }
     const id = PageEdits(crop: crop, filter: FilterType.idColor, outputAspect: 85.6 / 54);
     final card = pipe.renderCard(path, id, widthMm: 85.6, heightMm: 54, dpi: 300);
-    // The old path: filter the whole camera image, then shrink.
-    final full = pipe.renderEdits(path, id);
+    // Filtered at export size (the cleaned base's 2000 px), then shrunk.
+    // Not the full camera image: since the round 6 denoise works at full
+    // resolution, filtering a 12 MP page leaves more noise in the level
+    // statistics and the result is darker; every render now shares the
+    // export-size scale instead.
+    final full = pipe.renderEdits(path, id, maxLongEdge: 2000);
     final old = cv.resize(full, (card.cols, card.rows), interpolation: cv.INTER_AREA);
     // Same picture: the fine texture differs (the sharpening now works at
     // print scale, a little crisper), so compare at a light blur.

@@ -65,6 +65,7 @@ void main() {
         'id': (pipe.idColorFilter, cv.IMREAD_COLOR),
         'bw': (pipe.bwPrintFilter, cv.IMREAD_COLOR),
         'ocr': (pipe.ocrImage, cv.IMREAD_GRAYSCALE),
+        'dnprev': (pipe.denoisePreview, cv.IMREAD_COLOR),
       };
       for (final MapEntry(key: suffix, value: (fn, flags)) in cases.entries) {
         test('$suffix filter matches the reference', () {
@@ -84,6 +85,32 @@ void main() {
           expected.dispose();
         });
       }
+
+      test('on a noisy copy, the fast denoise path matches too (round 6)', () {
+        final noisy = cv.imread(p.join(refDir.path, '${name}_noisy.png'));
+        expect(pipe.estimateNoise(noisy), greaterThan(1.5));
+        for (final (suffix, fn) in [('auto', pipe.autoFilter), ('id', pipe.idColorFilter)]) {
+          final expected = ref('noisy_$suffix');
+          final got = fn(noisy);
+          final d = absDiff(got, expected);
+          // ignore: avoid_print
+          print('$name noisy $suffix: mean |Δ| ${d.mean.toStringAsFixed(2)}, p99 ${d.p99}');
+          expect(d.mean, lessThan(0.3), reason: suffix);
+          expect(d.p99, lessThanOrEqualTo(3), reason: suffix);
+          got.dispose();
+          expected.dispose();
+        }
+        noisy.dispose();
+      });
+
+      test('blurry regions match the reference (round 6, P1-1)', () {
+        final expected = jsonDecode(File(p.join(refDir.path, '${name}_blur.json')).readAsStringSync()) as Map<String, dynamic>;
+        List<List<int>> cells(List<(int, int)> c) => [for (final (r, k) in c) [r, k]];
+        expect(cells(pipe.blurryRegions(warp)), expected['warp']);
+        final shaken = cv.imread(p.join(refDir.path, '${name}_shaken.png'));
+        expect(cells(pipe.blurryRegions(shaken)), expected['shaken']);
+        shaken.dispose();
+      });
 
       test('every candidate map matches the reference (P0-4)', () {
         final small = cv.imread(p.join(refDir.path, '${name}_small.png'));

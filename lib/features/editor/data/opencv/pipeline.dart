@@ -1003,17 +1003,25 @@ cv.Mat cropAndRotate(cv.Mat src, PageEdits edits, {int? maxLongEdge}) {
 /// matches the reference instead of drifting half a level per step.
 const double _trunc = -0.4999;
 
-/// Gray-world white balance, blended at [strength].
+/// Gray-world white balance, blended at [strength]. The gains are worked
+/// out in float32 like the reference's numpy code (see [_meanF32]).
 cv.Mat grayWorldWb(cv.Mat bgr, double strength) {
-  final m = cv.mean(bgr);
-  final means = [m.val1, m.val2, m.val3];
-  final avg = (means[0] + means[1] + means[2]) / 3;
+  final means = _meanF32(bgr);
+  final f = Float32List(4);
+  f[3] = means[0] + means[1];
+  f[3] = (f[3] + means[2]) / 3; // means.mean(), in float32
   final ch = cv.split(bgr);
   final scaled = <cv.Mat>[
     for (var i = 0; i < 3; i++)
       ch[i].convertTo(
         cv.MatType.CV_8UC1,
-        alpha: 1 + (avg / math.max(means[i], 1.0) - 1) * strength,
+        alpha: () {
+          f[i] = f[3] / math.max(means[i], 1.0);
+          f[i] = f[i] - 1.0;
+          f[i] = f[i] * strength;
+          f[i] = 1.0 + f[i];
+          return f[i];
+        }(),
         beta: _trunc,
       ),
   ];
@@ -1022,6 +1030,28 @@ cv.Mat grayWorldWb(cv.Mat bgr, double strength) {
     s.dispose();
   }
   ch.dispose();
+  return out;
+}
+
+/// numpy's `img.astype(float32).reshape(-1, 3).mean(axis=0)`: a running
+/// float32 sum in pixel order, then a float32 divide. On a large page that
+/// drifts ~0.1 level from the exact (double) mean OpenCV gives, and after
+/// truncation and CLAHE the drift showed as 4-level differences.
+List<double> _meanF32(cv.Mat bgr) {
+  final cont = bgr.isContinuous ? bgr : bgr.clone();
+  final d = cont.data;
+  final acc = Float32List(3);
+  for (var i = 0; i + 2 < d.length; i += 3) {
+    acc[0] += d[i];
+    acc[1] += d[i + 1];
+    acc[2] += d[i + 2];
+  }
+  if (!identical(cont, bgr)) cont.dispose();
+  final n = d.length ~/ 3;
+  final out = Float32List(3);
+  for (var c = 0; c < 3; c++) {
+    out[c] = acc[c] / n;
+  }
   return out;
 }
 
@@ -1131,48 +1161,153 @@ double _median(Float32List v) {
   return (lower + upper) / 2;
 }
 
-/// Non-local-means denoise whose strength follows the measured noise
-/// (round 4 reference): `clamp(sigma × 0.8, minH, maxH)`, so a clean,
-/// well-lit photo gets almost none and fine print isn't smeared. Runs on a
-/// ≤ 2000 px copy; for larger inputs the fine detail of the original (minus
-/// its noise-scale blur) is added back.
+/// Removes sensor noise before any contrast step (round 6 reference
+/// `_denoise`, the fast version): non-local means on brightness (Y) only,
+/// template 5 / search 11; colour (Cr, Cb) is blotchy and low-frequency, so
+/// a blur at 1/4 size is enough. Strength follows the measured noise,
+/// `clamp(σ × 0.8, minH, maxH)`, so fine print isn't smeared, and a clean,
+/// well-lit photo (σ < 1.5) is returned as is (a copy: callers dispose it).
+/// About 6× faster than the old colour NLM (7 / 21).
 cv.Mat denoise(cv.Mat bgr, {double minH = 3.0, double maxH = 6.0}) {
-  final strength = (estimateNoise(bgr) * 0.8).clamp(minH, maxH);
-  final h = bgr.rows;
+  final sigma = estimateNoise(bgr);
+  if (sigma < 1.5) return bgr.clone();
+  final strength = (sigma * 0.8).clamp(minH, maxH);
   final w = bgr.cols;
-  final s = math.min(1.0, 2000.0 / math.max(h, w));
-  final small = s < 1
-      ? cv.resize(bgr, (
-          (w * s).toInt(),
-          (h * s).toInt(),
-        ), interpolation: cv.INTER_AREA)
-      : bgr;
-  cv.Mat clean;
-  try {
-    clean = cv.fastNlMeansDenoisingColored(
-      small,
-      h: strength,
-      hColor: strength,
-      templateWindowSize: 7,
-      searchWindowSize: 21,
-    );
-  } catch (_) {
-    clean = cv.bilateralFilter(small, 7, 40, 40);
+  final h = bgr.rows;
+  final ycc = cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb);
+  final ch = cv.split(ycc);
+  ycc.dispose();
+  final y = cv.fastNlMeansDenoising(
+    ch[0],
+    h: strength,
+    templateWindowSize: 5,
+    searchWindowSize: 11,
+  );
+  final sm = (math.max(1, w ~/ 4), math.max(1, h ~/ 4));
+  cv.Mat chroma(cv.Mat c) {
+    final small = cv.resize(c, sm, interpolation: cv.INTER_AREA);
+    final blur = cv.gaussianBlur(small, (0, 0), 1.2);
+    final out = cv.resize(blur, (w, h), interpolation: cv.INTER_LINEAR);
+    small.dispose();
+    blur.dispose();
+    return out;
   }
-  if (s >= 1) return clean;
-  small.dispose();
-  final up = cv.resize(clean, (w, h), interpolation: cv.INTER_CUBIC);
-  clean.dispose();
-  final blur = cv.gaussianBlur(bgr, (0, 0), 1.5);
-  final detail = cv.subtract(bgr, blur, dtype: cv.MatType.CV_16S);
-  final half = detail.convertTo(cv.MatType.CV_16SC3, alpha: 0.5);
-  final up16 = up.convertTo(cv.MatType.CV_16SC3);
-  final sum = cv.add(up16, half);
-  final out = sum.convertTo(cv.MatType.CV_8UC3);
-  for (final x in [up, blur, detail, half, up16, sum]) {
-    x.dispose();
+
+  final cr = chroma(ch[1]);
+  final cb = chroma(ch[2]);
+  ch.dispose();
+  final merged = cv.merge(cv.VecMat.fromList([y, cr, cb]));
+  final out = cv.cvtColor(merged, cv.COLOR_YCrCb2BGR);
+  for (final m in [y, cr, cb, merged]) {
+    m.dispose();
   }
   return out;
+}
+
+/// Instant, display-only clean-up for the first Enhance preview (reference
+/// `denoise_preview`, ~10× cheaper than [denoise]): a bilateral filter
+/// whose strength follows the measured noise. Replaced by the real result
+/// once the page's cleaned base is ready. Always a new Mat.
+cv.Mat denoisePreview(cv.Mat bgr) {
+  final sigma = estimateNoise(bgr);
+  if (sigma < 1.5) return bgr.clone();
+  return cv.bilateralFilter(bgr, 5, (sigma * 6).clamp(15.0, 40.0), 3);
+}
+
+/// Parts of a page much blurrier than its sharpest part: camera shake or
+/// focus fall-off (reference `blurry_regions`, round 6 P1-1). Returns the
+/// (row, col) cells of a [grid] × [grid] split whose score is below
+/// [ratio] × the best, or [] when the page is evenly sharp or has too
+/// little detail to judge. Run on the cropped page, before filters.
+///
+/// Score: on each cell's strongest edges, median |Laplacian| / |gradient|,
+/// about 1/σ for an edge blurred by σ whatever the ink's darkness.
+List<(int, int)> blurryRegions(cv.Mat warped, {int grid = 3, double ratio = 0.5}) {
+  final gray = cv.cvtColor(warped, cv.COLOR_BGR2GRAY);
+  var g = gray.convertTo(cv.MatType.CV_32FC1);
+  gray.dispose();
+  final s = 1200.0 / math.max(g.rows, g.cols);
+  if (s < 1) {
+    // numpy's `None, fx, fy`: OpenCV rounds the size from the scale.
+    final r = cv.resize(g, (0, 0), fx: s, fy: s, interpolation: cv.INTER_AREA);
+    g.dispose();
+    g = r;
+  }
+  final smooth = cv.gaussianBlur(g, (0, 0), 0.8);
+  g.dispose();
+  final gx = cv.sobel(smooth, cv.MatType.CV_32F, 1, 0);
+  final gy = cv.sobel(smooth, cv.MatType.CV_32F, 0, 1);
+  final grad = cv.magnitude(gx, gy);
+  final lapS = cv.laplacian(smooth, cv.MatType.CV_32F, ksize: 3);
+  final zero = cv.Mat.zeros(lapS.rows, lapS.cols, lapS.type);
+  final lap = cv.absDiff(lapS, zero);
+  zero.dispose();
+  final hh = smooth.rows;
+  final ww = smooth.cols;
+  final gradV = _floats(grad);
+  final lapV = _floats(lap);
+  for (final m in [smooth, gx, gy, grad, lapS, lap]) {
+    m.dispose();
+  }
+  final my = (hh * 0.05).toInt();
+  final mx = (ww * 0.05).toInt();
+  final scores = <(int, int), double>{};
+  for (var r = 0; r < grid; r++) {
+    for (var c = 0; c < grid; c++) {
+      final y0 = math.max(my, r * hh ~/ grid);
+      final y1 = math.min(hh - my, (r + 1) * hh ~/ grid);
+      final x0 = math.max(mx, c * ww ~/ grid);
+      final x1 = math.min(ww - mx, (c + 1) * ww ~/ grid);
+      if (y1 <= y0 || x1 <= x0) continue;
+      final cell = Float32List((y1 - y0) * (x1 - x0));
+      var n = 0;
+      for (var y = y0; y < y1; y++) {
+        final row = y * ww;
+        for (var x = x0; x < x1; x++) {
+          cell[n++] = gradV[row + x];
+        }
+      }
+      final cut = math.max(60.0, _exactPercentile(cell, 97));
+      final ratios = <double>[];
+      for (var y = y0; y < y1; y++) {
+        final row = y * ww;
+        for (var x = x0; x < x1; x++) {
+          final gr = gradV[row + x];
+          if (gr > cut) ratios.add(lapV[row + x] / gr);
+        }
+      }
+      if (ratios.length > 150) {
+        scores[(r, c)] = _median(Float32List.fromList(ratios));
+      }
+    }
+  }
+  if (scores.length < 3) return const [];
+  final best = scores.values.reduce(math.max);
+  return [
+    for (final e in scores.entries)
+      if (e.value < ratio * best) e.key,
+  ]..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
+}
+
+/// All values of a one-channel float Mat, row-major.
+Float32List _floats(cv.Mat f32) {
+  final cont = f32.isContinuous ? f32 : f32.clone();
+  final bytes = cont.data;
+  final out = Float32List.fromList(
+    bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols),
+  );
+  if (!identical(cont, f32)) cont.dispose();
+  return out;
+}
+
+/// numpy's default (linear) percentile, exactly; reorders [v].
+double _exactPercentile(Float32List v, double p) {
+  if (v.isEmpty) return 0;
+  v.sort();
+  final pos = p / 100 * (v.length - 1);
+  final lo = pos.floor();
+  final hi = math.min(lo + 1, v.length - 1);
+  return v[lo] + (v[hi] - v[lo]) * (pos - lo);
 }
 
 /// Paper brightness (illumination) without the text, as float32, same size.

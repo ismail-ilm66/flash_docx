@@ -8,8 +8,13 @@ void main() {
     final m = cv.Mat.fromScalar(32, 32, cv.MatType.CV_8UC3, cv.Scalar(100, 120, 140));
     final out = cv.fastNlMeansDenoisingColored(m, h: 5, hColor: 5);
     expect(out.cols, 32);
-    out.dispose();
-    m.dispose();
+    // Round 6: the fast denoise runs gray NLM on brightness only.
+    final y = cv.Mat.fromScalar(32, 32, cv.MatType.CV_8UC1, cv.Scalar.all(120));
+    final yOut = cv.fastNlMeansDenoising(y, h: 4, templateWindowSize: 5, searchWindowSize: 11);
+    expect(yOut.cols, 32);
+    for (final x in [out, m, y, yOut]) {
+      x.dispose();
+    }
   });
 
   test('imgproc line detection and Laplacian are linked', () {
