@@ -12,16 +12,20 @@ import 'package:path_provider/path_provider.dart';
 /// <app documents>/flashdox/docs/<docId>/original/<pageId>.jpg
 /// <app documents>/flashdox/docs/<docId>/processed/<pageId>.jpg   # cache
 /// <app documents>/flashdox/docs/<docId>/thumb/<pageId>.jpg       # cache
+/// <app documents>/flashdox/docs/<docId>/export/<pageId>_<size>_<key>.jpg  # export page renders (cache)
 /// <temp>/flashdox_export/                                        # cleared on launch
-/// <temp>/flashdox_export_cache/pages/                            # export page renders, trimmed on launch
-/// <temp>/flashdox_capture/                                       # raw camera shots awaiting a document
+/// <temp>/flashdox_capture/                                       # camera shots awaiting a document,
+///                                                                # editor previews, cleaned bases
 /// ```
 @lazySingleton
 class FileStore {
   late final Directory _root;
   late final Directory _exportTemp;
-  late final Directory _exportCache;
   late final Directory _captureTemp;
+
+  /// Round 6 moved export page renders into the document folders; this temp
+  /// folder (older builds) is removed on launch.
+  late final Directory _legacyExportCache;
 
   Directory get root => _root;
   Directory get exportTemp => _exportTemp;
@@ -34,9 +38,8 @@ class FileStore {
     _root = Directory(p.join(docs.path, 'flashdox'));
     _exportTemp = Directory(p.join(tmp.path, 'flashdox_export'));
     _captureTemp = Directory(p.join(tmp.path, 'flashdox_capture'));
-    _exportCache = Directory(p.join(tmp.path, 'flashdox_export_cache', 'pages'));
+    _legacyExportCache = Directory(p.join(tmp.path, 'flashdox_export_cache'));
     await Future.wait([
-      _exportCache.create(recursive: true),
       Directory(p.join(_root.path, 'docs')).create(recursive: true),
       _exportTemp.create(recursive: true),
       _captureTemp.create(recursive: true),
@@ -89,8 +92,9 @@ class FileStore {
     'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
   );
 
-  /// The Auto filter of the [workPath] page, lossless (PNG): Auto, Colour Boost
-  /// and Grayscale previews all start from it.
+  /// The Auto filter of the page's cleaned preview (round 6; before that, of
+  /// the [workPath] page), lossless (PNG): Auto, Colour Boost and Grayscale
+  /// previews all start from it.
   String autoBasePath(
     String pageId,
     String originalPath,
@@ -98,6 +102,41 @@ class FileStore {
   ) => p.join(
     _captureTemp.path,
     'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.png',
+  );
+
+  /// Round 6, P0-2: the page cropped, turned and cleaned once at
+  /// [longEdge] (export size), lossless. [card]: the ID colour strength.
+  String cleanBasePath(
+    String pageId,
+    String originalPath,
+    PageEdits edits, {
+    required int longEdge,
+    required bool card,
+  }) => p.join(
+    _captureTemp.path,
+    'clean_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, longEdge, card)}.png',
+  );
+
+  /// The cleaned base at preview size, written with it: Enhance's filters
+  /// start from this.
+  String cleanPreviewPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits, {
+    required bool card,
+  }) => p.join(
+    _captureTemp.path,
+    'cleanprev_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, card)}.png',
+  );
+
+  /// Enhance's first image for one filter, before the cleaned base exists.
+  String instantLookPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'instant_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, edits.filter)}.jpg',
   );
 
   /// Enhance preview for one filter (sliders are applied live, not baked).
@@ -140,9 +179,11 @@ class FileStore {
 
   /// One page rendered for export at one size and JPEG quality (P0-4).
   /// Shared by every export of the same look, so a page-size or format change
-  /// doesn't re-render. Kept across launches (trimmed by [trimExportCache]),
-  /// so the name must be the same on every run: no `Object.hash` here.
+  /// doesn't re-render. Kept with the document (round 6: made right after
+  /// Done, so the first Share only builds the PDF, also after a relaunch);
+  /// the name must be the same on every run, so no `Object.hash` here.
   String exportPagePath(
+    String docId,
     String pageId,
     String originalPath,
     PageEdits edits, {
@@ -150,9 +191,22 @@ class FileStore {
     required int jpegQuality,
   }) {
     final f = File(originalPath);
-    final mtime = f.existsSync() ? f.lastModifiedSync().microsecondsSinceEpoch : 0;
-    final key = stableKey('$originalPath|$mtime|${jsonEncode(edits.toJson())}|$sizeKey|$jpegQuality');
-    return p.join(_exportCache.path, '${pageId}_$key.jpg');
+    final st = f.existsSync() ? f.statSync() : null;
+    final version = '${st?.size}|${st?.modified.microsecondsSinceEpoch}';
+    final key = stableKey('$version|${jsonEncode(edits.toJson())}|$sizeKey|$jpegQuality');
+    return p.join(docDir(docId).path, 'export', '${pageId}_${sizeKey}_$key.jpg');
+  }
+
+  /// Removes a page's other export renders of [sizeKey] (an older look).
+  Future<void> pruneExportPages(String docId, String pageId, String sizeKey, {required String keep}) async {
+    final dir = Directory(p.join(docDir(docId).path, 'export'));
+    if (!dir.existsSync()) return;
+    await for (final f in dir.list()) {
+      if (f is! File || f.path == keep) continue;
+      if (p.basename(f.path).startsWith('${pageId}_${sizeKey}_')) {
+        await f.delete().catchError((_) => f);
+      }
+    }
   }
 
   /// FNV-1a (64-bit) of [s] as 16 hex digits: a file-name key that, unlike
@@ -277,6 +331,14 @@ class FileStore {
     final original = File(originalPath(docId, pageId));
     if (original.existsSync()) await original.delete();
     await pruneCaches(docId, pageId);
+    final exports = Directory(p.join(docDir(docId).path, 'export'));
+    if (exports.existsSync()) {
+      await for (final f in exports.list()) {
+        if (f is File && p.basename(f.path).startsWith('${pageId}_')) {
+          await f.delete().catchError((_) => f);
+        }
+      }
+    }
     await pruneOcrImages(docId, pageId);
   }
 
@@ -289,13 +351,11 @@ class FileStore {
   /// Export temp + processed/thumb caches. They rebuild on demand.
   Future<void> clearCaches() async {
     await clearExportTemp();
-    if (_exportCache.existsSync()) await _exportCache.delete(recursive: true);
-    await _exportCache.create(recursive: true);
     final docs = Directory(p.join(_root.path, 'docs'));
     if (!docs.existsSync()) return;
     await for (final doc in docs.list()) {
       if (doc is! Directory) continue;
-      for (final sub in ['processed', 'thumb']) {
+      for (final sub in ['processed', 'thumb', 'export']) {
         final d = Directory(p.join(doc.path, sub));
         if (d.existsSync()) {
           await d.delete(recursive: true);
@@ -310,19 +370,8 @@ class FileStore {
       if (dir.existsSync()) await dir.delete(recursive: true);
       await dir.create(recursive: true);
     }
-  }
-
-  /// Keeps the export page cache under [maxBytes], dropping the renders
-  /// used longest ago (a reuse touches the file).
-  Future<void> trimExportCache({int maxBytes = 150 * 1024 * 1024}) async {
-    if (!_exportCache.existsSync()) return;
-    final files = [
-      for (final e in _exportCache.listSync()) if (e is File) (file: e, stat: e.statSync()),
-    ]..sort((a, b) => b.stat.modified.compareTo(a.stat.modified));
-    var total = 0;
-    for (final f in files) {
-      total += f.stat.size;
-      if (total > maxBytes) await f.file.delete();
+    if (_legacyExportCache.existsSync()) {
+      await _legacyExportCache.delete(recursive: true);
     }
   }
 

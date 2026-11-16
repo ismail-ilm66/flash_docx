@@ -1406,11 +1406,18 @@ cv.Mat levelsL(cv.Mat bgr, double loPct, double hiPct, {double span = 252}) {
 /// "marble" patches and contour lines on plain paper.
 cv.Mat autoFilter(cv.Mat bgr) {
   final dn = denoise(bgr);
+  final out = autoFrom(dn);
+  dn.dispose();
+  return out;
+}
+
+/// [autoFilter] after its denoise, from an already cleaned page (round 6,
+/// P0-2: each page is cleaned once and every filter starts from that).
+cv.Mat autoFrom(cv.Mat dn) {
   final m = cv.mean(dn);
   final means = [m.val1, m.val2, m.val3];
   final avg = (means[0] + means[1] + means[2]) / 3;
   final ch8 = cv.split(dn);
-  dn.dispose();
   final f = <cv.Mat>[];
   for (var i = 0; i < 3; i++) {
     // Gray-world white balance (strength 0.6), in float.
@@ -1612,9 +1619,19 @@ double _percentileOf(Float32List values, double p) {
 /// is not white paper. Clean, sharp, true colours.
 cv.Mat idColorFilter(cv.Mat bgr) {
   // Cards have fine guilloche print and small text: denoise capped low.
-  final dn = denoise(bgr, minH: 2.0, maxH: 3.0);
-  final wb = grayWorldWb(dn, 0.5);
+  final dn = denoise(bgr, minH: cardDenoiseMin, maxH: cardDenoiseMax);
+  final out = idColorFrom(dn);
   dn.dispose();
+  return out;
+}
+
+/// The ID colour denoise range (the reference's `filter_id_color`).
+const double cardDenoiseMin = 2.0;
+const double cardDenoiseMax = 3.0;
+
+/// [idColorFilter] after its denoise, from an already cleaned page.
+cv.Mat idColorFrom(cv.Mat dn) {
+  final wb = grayWorldWb(dn, 0.5);
   final cl = claheL(wb, 1.6);
   wb.dispose();
   final sat = saturate(cl, 1.15);
@@ -1700,6 +1717,41 @@ cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
   FilterType.grayscale => grayscaleFilter(bgr),
   FilterType.bwPrint => bwPrintFilter(bgr),
 };
+
+// ---------------------------------------------------------------------------
+// Cleaned base (round 6, P0-2): each page is cleaned (denoised) once, at
+// export size, and every filter, preview and export starts from that.
+// ---------------------------------------------------------------------------
+
+/// The page's noise removed: the document strength (3–6), or the ID colour
+/// one (2–3) for cards, whose fine print strong cleaning smears. [quick]
+/// (low-RAM phones, P0-4): a quiet photo (σ < 2.5) gets the bilateral
+/// clean-up instead of non-local means.
+cv.Mat cleanPage(cv.Mat warped, {bool card = false, bool quick = false}) {
+  if (quick && estimateNoise(warped) < 2.5) return denoisePreview(warped);
+  return card
+      ? denoise(warped, minH: cardDenoiseMin, maxH: cardDenoiseMax)
+      : denoise(warped);
+}
+
+/// [filter] on a cleaned page: the filter's own steps without its
+/// denoise. `original` isn't a cleaned look (it's the raw page): callers
+/// render it from the original instead; here it is just a copy.
+cv.Mat applyFilterFromClean(cv.Mat clean, FilterType filter) => switch (filter) {
+  FilterType.original => clean.clone(),
+  FilterType.auto => autoFrom(clean),
+  FilterType.idColor => idColorFrom(clean),
+  FilterType.colorBoost => _fromAuto(clean, colorBoostFrom),
+  FilterType.grayscale => _fromAuto(clean, grayscaleFrom),
+  FilterType.bwPrint => bwPrintFilter(clean),
+};
+
+cv.Mat _fromAuto(cv.Mat clean, cv.Mat Function(cv.Mat) then) {
+  final auto = autoFrom(clean);
+  final out = then(auto);
+  auto.dispose();
+  return out;
+}
 
 /// Applies the brightness / contrast sliders as `a·x + b`, clamped to 0..255.
 /// Same mapping as the live preview matrix.
@@ -1795,6 +1847,12 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool preview
   final filtered = applyFilter(cropped, edits.filter);
   cropped.dispose();
   timer?.lap('filter ${edits.filter.name}');
+  return finishEdits(filtered, edits, timer: timer);
+}
+
+/// What comes after the filter: the sliders, a passport photo's finish and
+/// signatures. Takes ownership of [filtered].
+cv.Mat finishEdits(cv.Mat filtered, PageEdits edits, {StepTimer? timer}) {
   final adjusted = brightnessContrast(filtered, edits);
   filtered.dispose();
   final backed = _withPhotoFinish(adjusted, edits);
@@ -1803,6 +1861,67 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool preview
   disposeUnless(backed, out);
   timer?.lap('sliders/overlays');
   return out;
+}
+
+/// Round 6, P0-2: the page cropped, turned and cleaned once at [longEdge]
+/// (export size). Every filter, the Enhance preview and the export start
+/// from it, so the expensive clean-up never runs twice for a page.
+cv.Mat renderCleanBase(
+  String originalPath,
+  PageEdits edits, {
+  required int longEdge,
+  bool card = false,
+  bool quick = false,
+  StepTimer? timer,
+}) {
+  final img = readUprightForCrop(originalPath, edits.crop, longEdge);
+  timer?.lap('decode ${img.cols}×${img.rows}');
+  final cropped = cropAndRotate(img, edits, maxLongEdge: longEdge);
+  disposeUnless(img, cropped);
+  timer?.lap('crop to ${cropped.cols}×${cropped.rows}');
+  final clean = cleanPage(cropped, card: card, quick: quick);
+  cropped.dispose();
+  timer?.lap('clean${quick ? ' (low-RAM)' : ''}');
+  return clean;
+}
+
+/// A page from its cleaned base ([renderCleanBase]'s file): the filter and
+/// what follows it, at most [maxLongEdge]. Not for `original` (the raw
+/// page; render that from the original).
+cv.Mat renderFromClean(
+  String basePath,
+  PageEdits edits, {
+  int? maxLongEdge,
+  StepTimer? timer,
+}) {
+  final base = cv.imread(basePath, flags: cv.IMREAD_COLOR);
+  if (base.isEmpty) {
+    base.dispose();
+    throw StateError('Could not read $basePath');
+  }
+  final sized = maxLongEdge == null ? base : fitLongEdge(base, maxLongEdge);
+  disposeUnless(base, sized);
+  timer?.lap('load cleaned base ${sized.cols}×${sized.rows}');
+  final filtered = applyFilterFromClean(sized, edits.filter);
+  sized.dispose();
+  timer?.lap('filter ${edits.filter.name}');
+  return finishEdits(filtered, edits, timer: timer);
+}
+
+/// An ID card / passport side from its cleaned base, at real size for
+/// [dpi] (see [renderCard]).
+cv.Mat cardFromClean(
+  String basePath,
+  PageEdits edits, {
+  required double widthMm,
+  required double heightMm,
+  required int dpi,
+  StepTimer? timer,
+}) {
+  final tw = (widthMm / 25.4 * dpi).round();
+  final th = (heightMm / 25.4 * dpi).round();
+  final full = renderFromClean(basePath, edits, maxLongEdge: 2 * math.max(tw, th), timer: timer);
+  return _toCardSize(full, tw, th, timer);
 }
 
 /// Background colours (BGR): white, and a deep passport-studio blue
@@ -2750,6 +2869,12 @@ cv.Mat renderCard(
   final tw = (widthMm / 25.4 * dpi).round();
   final th = (heightMm / 25.4 * dpi).round();
   final full = renderEdits(originalPath, edits, maxLongEdge: 2 * math.max(tw, th), timer: timer);
+  return _toCardSize(full, tw, th, timer);
+}
+
+/// Landscape, then INTER_AREA down to [tw] × [th] (never enlarged). Takes
+/// ownership of [full].
+cv.Mat _toCardSize(cv.Mat full, int tw, int th, StepTimer? timer) {
   var card = full;
   if (card.rows > card.cols) {
     card = cv.rotate(full, cv.ROTATE_90_COUNTERCLOCKWISE);
@@ -2941,26 +3066,7 @@ cv.Mat renderLook(
   String? autoBasePath,
   StepTimer? timer,
 }) {
-  final cached = File(workPath).existsSync();
-  final cv.Mat work;
-  if (cached) {
-    work = readUpright(workPath);
-    timer?.lap('load work image ${work.cols}×${work.rows} (cached)');
-  } else {
-    final img = readUprightForCrop(originalPath, edits.crop, previewLongEdge);
-    timer?.lap('decode original ${img.cols}×${img.rows}');
-    final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
-    if (identical(cropped, img)) {
-      work = img;
-    } else {
-      img.dispose();
-      work = cropped;
-    }
-    timer?.lap('crop to ${work.cols}×${work.rows}');
-    File(workPath).parent.createSync(recursive: true);
-    writeJpeg(work, workPath, quality: 92);
-    timer?.lap('save work image');
-  }
+  final work = _workImage(originalPath, edits, workPath, previewLongEdge, timer);
   try {
     if (autoBasePath == null || !usesAutoBase(edits.filter)) {
       final out = applyFilter(work, edits.filter);
@@ -2981,8 +3087,96 @@ cv.Mat renderLook(
   }
 }
 
-/// [autoFilter] of [work], read from [path] if an earlier look wrote it.
-cv.Mat _autoBase(cv.Mat work, String path, StepTimer? timer) {
+/// The page cropped and turned at preview size, cached at [workPath].
+cv.Mat _workImage(
+  String originalPath,
+  PageEdits edits,
+  String workPath,
+  int previewLongEdge,
+  StepTimer? timer,
+) {
+  if (File(workPath).existsSync()) {
+    final work = readUpright(workPath);
+    timer?.lap('load work image ${work.cols}×${work.rows} (cached)');
+    return work;
+  }
+  final img = readUprightForCrop(originalPath, edits.crop, previewLongEdge);
+  timer?.lap('decode original ${img.cols}×${img.rows}');
+  final cropped = cropAndRotate(img, edits, maxLongEdge: previewLongEdge);
+  final cv.Mat work;
+  if (identical(cropped, img)) {
+    work = img;
+  } else {
+    img.dispose();
+    work = cropped;
+  }
+  timer?.lap('crop to ${work.cols}×${work.rows}');
+  File(workPath).parent.createSync(recursive: true);
+  writeJpeg(work, workPath, quality: 92);
+  timer?.lap('save work image');
+  return work;
+}
+
+/// Round 6, P0-2: Enhance's first image, before the page's cleaned base is
+/// ready. The work image with the reference's instant bilateral clean-up
+/// ([denoisePreview]) and the filter. Never the raw photo (except for the
+/// `original` filter, which is the raw page by definition).
+cv.Mat renderInstantLook(
+  String originalPath,
+  PageEdits edits, {
+  required String workPath,
+  required int previewLongEdge,
+  StepTimer? timer,
+}) {
+  final work = _workImage(originalPath, edits, workPath, previewLongEdge, timer);
+  if (edits.filter == FilterType.original) return work;
+  final quick = denoisePreview(work);
+  work.dispose();
+  timer?.lap('quick clean-up');
+  final out = applyFilterFromClean(quick, edits.filter);
+  quick.dispose();
+  timer?.lap('filter ${edits.filter.name}');
+  return out;
+}
+
+/// Round 6, P0-2: Enhance's image once the cleaned base exists, from its
+/// preview-size copy ([cleanPreviewPath]). The Auto result is cached at
+/// [autoPath], so Colour Boost and Grayscale only add their last step.
+cv.Mat renderLookFromClean(
+  String cleanPreviewPath,
+  PageEdits edits, {
+  String? autoPath,
+  StepTimer? timer,
+}) {
+  final clean = cv.imread(cleanPreviewPath, flags: cv.IMREAD_COLOR);
+  if (clean.isEmpty) {
+    clean.dispose();
+    throw StateError('Could not read $cleanPreviewPath');
+  }
+  timer?.lap('load cleaned preview ${clean.cols}×${clean.rows}');
+  try {
+    if (autoPath == null || !usesAutoBase(edits.filter)) {
+      final out = applyFilterFromClean(clean, edits.filter);
+      timer?.lap('filter ${edits.filter.name}');
+      return out;
+    }
+    final auto = _autoBase(clean, autoPath, timer, cleaned: true);
+    final out = switch (edits.filter) {
+      FilterType.colorBoost => colorBoostFrom(auto),
+      FilterType.grayscale => grayscaleFrom(auto),
+      _ => auto,
+    };
+    disposeUnless(auto, out);
+    timer?.lap('filter ${edits.filter.name} from auto');
+    return out;
+  } finally {
+    clean.dispose();
+  }
+}
+
+/// [autoFilter] of [work] ([autoFrom] when [cleaned]), read from [path] if
+/// an earlier look wrote it.
+cv.Mat _autoBase(cv.Mat work, String path, StepTimer? timer, {bool cleaned = false}) {
   if (File(path).existsSync()) {
     final m = cv.imread(path, flags: cv.IMREAD_COLOR);
     if (!m.isEmpty) {
@@ -2991,8 +3185,8 @@ cv.Mat _autoBase(cv.Mat work, String path, StepTimer? timer) {
     }
     m.dispose();
   }
-  final auto = autoFilter(work);
-  timer?.lap('auto base (denoise)');
+  final auto = cleaned ? autoFrom(work) : autoFilter(work);
+  timer?.lap(cleaned ? 'auto' : 'auto base (denoise)');
   // Lossless and fast to write; renamed so a half-written file is never read.
   final tmp = '$path.part.png';
   final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);

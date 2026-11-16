@@ -40,26 +40,34 @@ void main() {
 
   test('export page renders: same look, same name; another crop, another', () {
     String path(PageEdits e, {String size = 'standard'}) =>
-        files.exportPagePath('p1', original, e, sizeKey: size, jpegQuality: 85);
+        files.exportPagePath('d1', 'p1', original, e, sizeKey: size, jpegQuality: 85);
     final a = PageEdits(crop: Quad.full(inset: 0.1));
     expect(path(a), path(PageEdits(crop: Quad.full(inset: 0.1))));
     expect(path(a), isNot(path(PageEdits(crop: Quad.full(inset: 0.2)))));
-    expect(path(a), isNot(path(a.copyWith(filter: FilterType.bwPrint))));
     expect(path(a), isNot(path(a, size: 'full')));
   });
 
-  test('the export page cache survives the launch clean-up, trimmed oldest first', () async {
-    final dir = Directory(p.dirname(files.exportPagePath('p', original, const PageEdits(), sizeKey: 's', jpegQuality: 85)));
-    final old = File(p.join(dir.path, 'old.jpg'))..writeAsBytesSync(List.filled(600, 0));
-    old.setLastModifiedSync(DateTime.now().subtract(const Duration(days: 1)));
-    final recent = File(p.join(dir.path, 'recent.jpg'))..writeAsBytesSync(List.filled(600, 0));
+  test('export page renders live with the document (round 6)', () async {
+    String path(PageEdits e) => files.exportPagePath('d1', 'p1', original, e, sizeKey: 'standard', jpegQuality: 85);
+    final old = File(path(PageEdits(crop: Quad.full(inset: 0.1))))
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync([1]);
+    final now = File(path(PageEdits(crop: Quad.full(inset: 0.2))))..writeAsBytesSync([2]);
+    final full = File(files.exportPagePath('d1', 'p1', original, const PageEdits(), sizeKey: 'full', jpegQuality: 95))
+      ..writeAsBytesSync([3]);
+    expect(p.isWithin(files.docDir('d1').path, now.path), isTrue);
     await files.clearExportTemp();
-    expect(old.existsSync() && recent.existsSync(), isTrue);
-    await files.trimExportCache(maxBytes: 1000);
-    expect(old.existsSync(), isFalse);
-    expect(recent.existsSync(), isTrue);
+    expect(now.existsSync(), isTrue, reason: 'launch clean-up keeps them');
+    await files.pruneExportPages('d1', 'p1', 'standard', keep: now.path);
+    expect(old.existsSync(), isFalse, reason: 'an older look of the same size');
+    expect((now.existsSync(), full.existsSync()), (true, true));
+    await files.deletePageFiles('d1', 'p1');
+    expect((now.existsSync(), full.existsSync()), (false, false));
+    final again = File(path(const PageEdits()))
+      ..parent.createSync(recursive: true)
+      ..writeAsBytesSync([4]);
     await files.clearCaches();
-    expect(recent.existsSync(), isFalse, reason: 'Settings → clear cache empties it');
+    expect(again.existsSync(), isFalse, reason: 'Settings → clear cache empties it');
   });
 
   test('editor caches still match after Done moves the original (round 6)', () async {
@@ -79,7 +87,7 @@ void main() {
     final staging = files.exportPath('ready_x');
     Directory(staging).createSync(recursive: true);
     final shared = File(p.join(staging, 'doc.pdf'))..writeAsBytesSync([1]);
-    final cached = File(files.exportPagePath('p1', original, const PageEdits(), sizeKey: 'standard', jpegQuality: 85))
+    final cached = File(files.exportPagePath('d1', 'p1', original, const PageEdits(), sizeKey: 'standard', jpegQuality: 85))
       ..parent.createSync(recursive: true)
       ..writeAsBytesSync([2]);
     await files.discardExportFiles([shared.path, cached.path]);

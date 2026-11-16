@@ -2,11 +2,14 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flash_dox/app/theme/app_theme.dart';
+import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -22,6 +25,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _Proc extends Mock implements ImageProcessor {}
 
@@ -49,12 +53,14 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 }
 
 /// P0-3: while Enhance loads, nothing on screen is the uncropped photo or the
-/// uncropped base preview.
+/// uncropped base preview; since round 6 (P0-2) not the raw crop either, but
+/// an instant cleaned and filtered image.
 void main() {
   late Directory tmp;
   late FileStore files;
   late _Proc proc;
   late ScanPage page;
+  late CleanBaseService bases;
 
   setUpAll(() {
     registerFallbackValue(const PageEdits());
@@ -68,6 +74,8 @@ void main() {
     files = FileStore();
     await files.init();
     proc = _Proc();
+    SharedPreferences.setMockInitialValues({});
+    bases = CleanBaseService(proc, files, DeviceProfile(), PrefsService(await SharedPreferences.getInstance()));
     final original = files.newCapturePath('orig');
     final jpeg = File('test/fixtures/edges/box_colors_photo.jpg').readAsBytesSync();
     File(original).writeAsBytesSync(jpeg);
@@ -82,9 +90,22 @@ void main() {
     }
 
     when(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath'))).thenAnswer((inv) async => write(inv));
-    // The filtered render never finishes: the screen stays on its placeholder.
     when(
-      () => proc.renderLook(any(), any(), workPath: any(named: 'workPath'), autoBasePath: any(named: 'autoBasePath'), priority: any(named: 'priority'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
+      () => proc.renderInstantLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
+    ).thenAnswer((inv) async => write(inv));
+    // The cleaned base never finishes: the screen stays on the instant image.
+    when(
+      () => proc.renderCleanBase(
+        any(),
+        any(),
+        longEdge: any(named: 'longEdge'),
+        outputPath: any(named: 'outputPath'),
+        previewPath: any(named: 'previewPath'),
+        card: any(named: 'card'),
+        quick: any(named: 'quick'),
+        priority: any(named: 'priority'),
+        cancel: any(named: 'cancel'),
+      ),
     ).thenAnswer((_) => Completer<String>().future);
     when(
       () => proc.renderFilterStrip(any(), any(), outputs: any(named: 'outputs')),
@@ -93,9 +114,9 @@ void main() {
 
   tearDown(() => tmp.delete(recursive: true));
 
-  testWidgets('Enhance shows the crop-only placeholder, not the photo', (tester) async {
+  testWidgets('Enhance shows the instant cleaned image, never the raw photo', (tester) async {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
       ..add(EditorStarted(args));
     await tester.pumpWidget(
       MaterialApp(
@@ -114,7 +135,8 @@ void main() {
         if (img.image case FileImage(:final file)) file.path
         else if (img.image case ResizeImage(imageProvider: FileImage(:final file))) file.path,
     ];
-    expect(shown, contains(files.quickPath(page.id, page.originalPath, page.edits)));
+    expect(shown, contains(files.instantLookPath(page.id, page.originalPath, page.edits)));
+    expect(shown, isNot(contains(files.quickPath(page.id, page.originalPath, page.edits))));
     expect(shown, isNot(contains(page.originalPath)));
     expect(shown, isNot(contains(files.basePreviewPath(page.id, page.originalPath))));
     await tester.pumpWidget(const SizedBox());

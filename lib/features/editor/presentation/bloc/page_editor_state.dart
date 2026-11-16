@@ -65,24 +65,19 @@ class PageEditorState extends Equatable {
       ? pages.any((p) => !_isDefault(p.edits))
       : (current != null && !_isDefault(current!.edits));
 
-  /// What page [p] shows on Enhance, in its current shape whenever possible:
-  /// its exact render, else a render of the same crop in another filter,
-  /// else the crop-only placeholder for this crop. Only when none exists yet
-  /// an older render or placeholder (never the uncropped photo).
+  /// What page [p] shows on Enhance (round 6, P0-2: never the raw photo,
+  /// never another crop): its finished look, else its instant image for
+  /// this filter, else a look of the same crop in another filter. Null
+  /// (a spinner) until one exists.
   String? previewFor(ScanPage p) {
-    final exact = enhancePreviews[_previewKey(p)];
+    final exact = enhancePreviews[_previewKey(p)] ?? enhancePreviews[_instantKey(p)];
     if (exact != null) return exact;
     final shape = '${p.id}:${shapeOf(p)}:';
     String? sameShape;
-    String? older;
     for (final e in enhancePreviews.entries) {
-      if (e.key.startsWith(shape)) {
-        sameShape = e.value;
-      } else if (e.key.startsWith('${p.id}:')) {
-        older = e.value;
-      }
+      if (e.key.startsWith(shape)) sameShape = e.value;
     }
-    return sameShape ?? quickFor(p) ?? older ?? quickPreviews[p.id];
+    return sameShape;
   }
 
   /// [p]'s crop-only placeholder, only if it was made for its current crop.
@@ -117,6 +112,9 @@ class PageEditorState extends Equatable {
   /// never needs a new render.
   static String _previewKey(ScanPage p) =>
       '${p.id}:${shapeOf(p)}:${p.edits.filter.name}';
+
+  /// The instant image shown while [p]'s cleaned base is being made.
+  static String _instantKey(ScanPage p) => '${_previewKey(p)}~instant';
 
   PageEditorState copyWith({
     List<ScanPage>? pages,

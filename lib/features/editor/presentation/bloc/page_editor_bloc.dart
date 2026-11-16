@@ -11,6 +11,7 @@ import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -42,6 +43,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._prepare,
     this._previews,
     this._namer,
+    this._bases,
     @factoryParam EditorArgs args,
   ) : super(
         PageEditorState(
@@ -54,6 +56,11 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
     on<EditorCornerDragEnded>((_, _) {});
+    on<EditorEnhanceClosed>((_, _) {
+      // Back on Adjust edges: the crop may change, so stop preparing looks.
+      _onEnhance = false;
+      _prefetchCancel?.cancel();
+    });
     on<EditorRotated>(_onRotated);
     on<EditorAutoEdgesRequested>(_onAutoEdges);
     on<EditorFilterChanged>(_onFilter);
@@ -92,6 +99,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final PreparePages _prepare;
   final PreviewCache _previews;
   final SmartNamer _namer;
+  final CleanBaseService _bases;
 
   /// Set once the scan was saved or the user confirmed discarding it, so the
   /// editor screens pop without asking again.
@@ -399,6 +407,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
 
   void _onPageDeleted(EditorPageDeleted e, Emitter<PageEditorState> emit) {
     if (state.pages.isEmpty) return;
+    // Its cleaned base isn't needed any more if it hasn't started.
+    _bases.cancel(state.pages[state.index].id);
     final pages = [...state.pages]..removeAt(state.index);
     emit(
       state.copyWith(
@@ -474,13 +484,33 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   /// Completes when the current page's look render ends (or fails).
   Completer<void>? _lookDone;
 
+  /// Enhance is on screen (set by its first preview request, cleared when
+  /// it closes). On Adjust edges nothing heavy runs (round 6, P0-2): the
+  /// crop may still change, and a started render can't be stopped.
+  bool _onEnhance = false;
+
+  /// ID / passport pages are cleaned at the ID colour strength.
+  bool get _card => state.args.mode != ScanMode.document && state.args.mode != ScanMode.photo;
+
   Future<void> _onPreview(
     EditorPreviewRequested e,
     Emitter<PageEditorState> emit,
   ) async {
     _prefetchCancel?.cancel();
+    if (e.forEnhance) _onEnhance = true;
     final cur = state.current;
     if (cur == null) return;
+    if (!_onEnhance) {
+      // Adjust edges: just this crop's placeholder for the strip.
+      if (state.quickFor(cur) != null) return;
+      try {
+        final q = await _previews.quick(cur);
+        if (!isClosed) emit(_withQuick(cur, q));
+      } on Object catch (err) {
+        debugPrint('[editor] quick preview: $err');
+      }
+      return;
+    }
     final key = PageEditorState._previewKey(cur);
     if (!state.enhancePreviews.containsKey(key)) {
       final done = _lookDone = Completer<void>();
@@ -493,15 +523,18 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     await _prefetchNeighbours(emit);
   }
 
-  /// The crop-only placeholder (if this shape has none yet), then the
-  /// filtered look. False when superseded or failed.
+  /// The filtered look of [cur] (round 6, P0-2):
+  /// 1. already on disk (a filter shown before): at once;
+  /// 2. the page's cleaned base is ready: the filter on its preview copy;
+  /// 3. otherwise an instant image (quick bilateral clean-up + filter) right
+  ///    away, then the cleaned base (queued first), then 2.
+  /// False when superseded or failed.
   Future<bool> _showCurrent(
     ScanPage cur,
     String key,
     Emitter<PageEditorState> emit,
   ) async {
     final sw = StepTimer('enhance filter change → ${cur.edits.filter.name}');
-    // A filter shown earlier this session is still on disk: no render.
     final onDisk = _files.lookPath(cur.id, cur.originalPath, cur.edits);
     if (File(onDisk).existsSync()) {
       _addLook(emit, cur, key, onDisk);
@@ -511,29 +544,41 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       return true;
     }
     emit(state.copyWith(rendering: true));
-    // 1. A crop-only placeholder first, if this crop has none.
-    if (state.quickFor(cur) == null) {
-      try {
-        final q = await _previews.quick(cur);
-        if (isClosed) return false;
-        emit(_withQuick(cur, q));
-        sw.lap('crop-only placeholder (queue + worker)');
-        debugPrint(
-          '[perf] enhance first image in ${sw.elapsedMs} ms',
-        );
-      } catch (_) {}
-    }
-    // 2. The filtered preview; a newer request cancels this one if it hasn't
-    // started yet.
     _lookCancel?.cancel();
     final token = _lookCancel = CancelToken();
     try {
-      final out = await _renderLook(cur, cancel: token);
+      final String out;
+      if (!CleanBaseService.covers(cur.edits)) {
+        // The raw page (Original) or a passport photo: no cleaned base.
+        out = await _renderLook(cur, cancel: token);
+        sw.lap('look (queue + worker)');
+      } else {
+        final preview = _bases.previewPath(cur, card: _card);
+        if (!File(preview).existsSync()) {
+          final instant = _files.instantLookPath(cur.id, cur.originalPath, cur.edits);
+          if (!File(instant).existsSync()) {
+            await _processor.renderInstantLook(
+              cur.originalPath,
+              cur.edits,
+              workPath: _files.workPath(cur.id, cur.originalPath, cur.edits),
+              outputPath: instant,
+              cancel: token,
+            );
+          }
+          if (isClosed) return false;
+          emit(state.copyWith(enhancePreviews: {...state.enhancePreviews, PageEditorState._instantKey(cur): instant}));
+          sw.lap('instant image (queue + worker)');
+          debugPrint('[perf] enhance first image in ${sw.elapsedMs} ms');
+          await _bases.ensure(cur, card: _card, priority: JobPriority.interactive);
+          if (isClosed) return false;
+          sw.lap('cleaned base (queue + worker)');
+        }
+        out = await _renderLookFromClean(cur, cancel: token);
+        sw.lap('look from cleaned base (queue + worker)');
+      }
       if (isClosed) return false;
       _addLook(emit, cur, key, out);
-      sw
-        ..lap('filtered image (queue + worker)')
-        ..report();
+      sw.report();
       debugPrint(
         '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMs} ms',
       );
@@ -555,31 +600,64 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   }
 
   /// The next and previous pages' looks, so a swipe lands on the filtered
-  /// page (an "All N pages" change included). Background lane, after a short
-  /// pause so quick filter taps don't wait behind a neighbour's render.
+  /// page (an "All N pages" change included), then every other page's
+  /// cleaned base, so Done and Share find them ready. Background lane,
+  /// after a short pause so quick filter taps don't wait behind them.
   Future<void> _prefetchNeighbours(Emitter<PageEditorState> emit) async {
     final token = _prefetchCancel = CancelToken();
     await Future<void>.delayed(const Duration(milliseconds: 500));
-    for (final i in [state.index + 1, state.index - 1]) {
+    final i0 = state.index;
+    final order = [
+      for (final i in [i0 + 1, i0 - 1]) if (i >= 0 && i < state.pages.length) i,
+      for (var i = 0; i < state.pages.length; i++) if ((i - i0).abs() > 1) i,
+    ];
+    for (final i in order) {
       if (token.isCancelled || emit.isDone || isClosed) return;
-      if (i < 0 || i >= state.pages.length) continue;
       final p = state.pages[i];
-      final key = PageEditorState._previewKey(p);
-      if (state.enhancePreviews.containsKey(key)) continue;
+      final neighbour = (i - i0).abs() == 1;
       try {
+        if (!CleanBaseService.covers(p.edits)) {
+          if (!neighbour) continue;
+          final key = PageEditorState._previewKey(p);
+          if (state.enhancePreviews.containsKey(key)) continue;
+          final onDisk = _files.lookPath(p.id, p.originalPath, p.edits);
+          final out = File(onDisk).existsSync()
+              ? onDisk
+              : await _renderLook(p, priority: JobPriority.background, cancel: token);
+          if (isClosed) return;
+          _addLook(emit, p, key, out, settled: false);
+          continue;
+        }
+        await _bases.ensure(p, card: _card);
+        if (!neighbour || token.isCancelled || isClosed) continue;
+        final key = PageEditorState._previewKey(p);
+        if (state.enhancePreviews.containsKey(key)) continue;
         final onDisk = _files.lookPath(p.id, p.originalPath, p.edits);
         final out = File(onDisk).existsSync()
             ? onDisk
-            : await _renderLook(p, priority: JobPriority.background, cancel: token);
+            : await _renderLookFromClean(p, priority: JobPriority.background, cancel: token);
         if (isClosed) return;
         _addLook(emit, p, key, out, settled: false);
       } on JobCancelled {
-        return;
+        if (token.isCancelled) return;
       } catch (err) {
         debugPrint('[editor] prefetch: $err');
       }
     }
   }
+
+  Future<String> _renderLookFromClean(
+    ScanPage p, {
+    JobPriority priority = JobPriority.interactive,
+    CancelToken? cancel,
+  }) => _processor.renderLookFromClean(
+    _bases.previewPath(p, card: _card),
+    p.edits,
+    outputPath: _files.lookPath(p.id, p.originalPath, p.edits),
+    autoPath: _files.autoBasePath(p.id, p.originalPath, p.edits),
+    priority: priority,
+    cancel: cancel,
+  );
 
   Future<String> _renderLook(
     ScanPage p, {

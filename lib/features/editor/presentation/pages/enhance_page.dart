@@ -61,8 +61,17 @@ class _EnhanceViewState extends State<_EnhanceView> {
   static const _bar = Color(0xFF1A1C20);
   static const _outline = Color(0xFF3A3E46);
 
+  late final PageEditorBloc _bloc;
+
+  @override
+  void initState() {
+    super.initState();
+    _bloc = context.read<PageEditorBloc>(); // for dispose
+  }
+
   @override
   void dispose() {
+    if (!_bloc.isClosed) _bloc.add(const EditorEnhanceClosed());
     _zoom.dispose();
     _pages.dispose();
     super.dispose();

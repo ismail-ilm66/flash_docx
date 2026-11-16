@@ -1,11 +1,14 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
@@ -20,6 +23,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class _Proc extends Mock implements ImageProcessor {}
 
@@ -52,6 +56,10 @@ void main() {
   late FileStore files;
   late _Proc proc;
   late ScanPage page;
+  late CleanBaseService bases;
+
+  /// Cleaned-base jobs started.
+  late int cleanJobs;
 
   setUpAll(() {
     registerFallbackValue(const PageEdits());
@@ -66,6 +74,47 @@ void main() {
     files = FileStore();
     await files.init();
     proc = _Proc();
+    SharedPreferences.setMockInitialValues({});
+    bases = CleanBaseService(proc, files, DeviceProfile(), PrefsService(await SharedPreferences.getInstance()));
+    cleanJobs = 0;
+    String write(Invocation inv, [Symbol key = #outputPath]) {
+      final out = inv.namedArguments[key] as String;
+      File(out)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([1]);
+      return out;
+    }
+
+    when(
+      () => proc.renderInstantLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
+    ).thenAnswer((inv) async => write(inv));
+    when(
+      () => proc.renderLookFromClean(
+        any(),
+        any(),
+        outputPath: any(named: 'outputPath'),
+        autoPath: any(named: 'autoPath'),
+        priority: any(named: 'priority'),
+        cancel: any(named: 'cancel'),
+      ),
+    ).thenAnswer((inv) async => write(inv));
+    when(
+      () => proc.renderCleanBase(
+        any(),
+        any(),
+        longEdge: any(named: 'longEdge'),
+        outputPath: any(named: 'outputPath'),
+        previewPath: any(named: 'previewPath'),
+        card: any(named: 'card'),
+        quick: any(named: 'quick'),
+        priority: any(named: 'priority'),
+        cancel: any(named: 'cancel'),
+      ),
+    ).thenAnswer((inv) async {
+      cleanJobs++;
+      write(inv, #previewPath);
+      return write(inv);
+    });
     final original = files.newCapturePath('orig');
     File(original).writeAsBytesSync([1]);
     page = ScanPage(
@@ -121,12 +170,35 @@ void main() {
       _Prepare(),
       PreviewCache(proc, files),
       _Namer(),
+      bases,
       args,
     )..add(EditorStarted(args));
   }
 
   Future<void> settle() =>
       Future<void>.delayed(const Duration(milliseconds: 200));
+
+  /// Next on Adjust edges: Enhance opens.
+  Future<void> enhance(PageEditorBloc bloc) async {
+    bloc.add(const EditorPreviewRequested(forEnhance: true));
+    await settle();
+  }
+
+  void verifyLooks(int n) {
+    Future<String> look() => proc.renderLookFromClean(
+      any(),
+      any(),
+      outputPath: any(named: 'outputPath'),
+      autoPath: any(named: 'autoPath'),
+      priority: any(named: 'priority'),
+      cancel: any(named: 'cancel'),
+    );
+    if (n == 0) {
+      verifyNever(look);
+    } else {
+      verify(look).called(n);
+    }
+  }
 
   test(
     'reuses the base preview written by ingest instead of rendering it',
@@ -175,6 +247,7 @@ void main() {
     () async {
       final bloc = build();
       await settle();
+      await enhance(bloc);
       clearInteractions(proc);
       for (var v = 1; v <= 20; v++) {
         bloc
@@ -185,30 +258,21 @@ void main() {
       expect(bloc.state.edits.brightness, 60);
       expect(bloc.state.edits.contrast, -40);
       verifyNever(
-        () => proc.renderLook(
+        () => proc.renderLookFromClean(
           any(),
           any(),
-          workPath: any(named: 'workPath'),
-          autoBasePath: any(named: 'autoBasePath'),
-          priority: any(named: 'priority'),
           outputPath: any(named: 'outputPath'),
+          autoPath: any(named: 'autoPath'),
+          priority: any(named: 'priority'),
           cancel: any(named: 'cancel'),
         ),
       );
 
       bloc.add(const EditorFilterChanged(FilterType.bwPrint));
       await settle();
-      verify(
-        () => proc.renderLook(
-          any(),
-          any(),
-          workPath: any(named: 'workPath'),
-          autoBasePath: any(named: 'autoBasePath'),
-          priority: any(named: 'priority'),
-          outputPath: any(named: 'outputPath'),
-          cancel: any(named: 'cancel'),
-        ),
-      ).called(1);
+      // From the cleaned base made when Enhance opened: no new clean-up.
+      verifyLooks(1);
+      expect(cleanJobs, 1);
       await bloc.close();
     },
   );
@@ -255,6 +319,7 @@ void main() {
         prepare,
         PreviewCache(proc, files),
         _Namer(),
+        bases,
         EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
       );
       const guide = Quad(
@@ -345,17 +410,21 @@ void main() {
     () async {
       final bloc = build();
       await settle();
+      await enhance(bloc);
       final oldLook = bloc.state.shownPreview;
       expect(oldLook, files.lookPath(page.id, page.originalPath, page.edits));
-      // The new crop's filtered render never finishes: only its placeholder.
+      // Back to Adjust edges; the new crop's cleaned base never finishes.
+      bloc.add(const EditorEnhanceClosed());
       when(
-        () => proc.renderLook(
+        () => proc.renderCleanBase(
           any(),
           any(),
-          workPath: any(named: 'workPath'),
-          autoBasePath: any(named: 'autoBasePath'),
-          priority: any(named: 'priority'),
+          longEdge: any(named: 'longEdge'),
           outputPath: any(named: 'outputPath'),
+          previewPath: any(named: 'previewPath'),
+          card: any(named: 'card'),
+          quick: any(named: 'quick'),
+          priority: any(named: 'priority'),
           cancel: any(named: 'cancel'),
         ),
       ).thenAnswer((_) => Completer<String>().future);
@@ -363,27 +432,86 @@ void main() {
       bloc
         ..add(EditorCropChanged(Quad.full(inset: 0.2)))
         ..add(const EditorCornerDragEnded());
-      await Future<void>.delayed(const Duration(milliseconds: 700));
-      // Moving the corners renders nothing (a look can't be stopped once
-      // started); Next asks for the preview.
+      await settle();
+      // Moving the corners renders nothing (a render can't be stopped once
+      // started).
       verifyNever(() => proc.renderQuick(any(), any(), outputPath: any(named: 'outputPath')));
-      bloc.add(const EditorPreviewRequested());
-      await Future<void>.delayed(const Duration(milliseconds: 700));
+      await enhance(bloc);
       final cur = bloc.state.current!;
       expect(
         bloc.state.shownPreview,
-        files.quickPath(cur.id, cur.originalPath, cur.edits),
-        reason: "the new crop's placeholder, not the old crop's look",
+        files.instantLookPath(cur.id, cur.originalPath, cur.edits),
+        reason: "the new crop's instant image, not the old crop's look",
       );
       await bloc.close();
     },
   );
 
+  test('round 6, P0-2: Adjust edges makes no look and no cleaned base', () async {
+    final bloc = build();
+    await settle();
+    bloc.add(const EditorRotated(clockwise: true));
+    await settle();
+    expect(cleanJobs, 0);
+    verifyNever(
+      () => proc.renderInstantLook(any(), any(), workPath: any(named: 'workPath'), outputPath: any(named: 'outputPath'), cancel: any(named: 'cancel')),
+    );
+    verifyLooks(0);
+    expect(bloc.state.quickPreviews[page.id], isNotNull, reason: 'the strip still gets its placeholder');
+    await bloc.close();
+  });
+
   test(
-    'P0-4: Enhance shows the crop-only placeholder, never the uncropped photo',
+    'round 6, P0-2: Enhance shows an instant cleaned image, then the look from the cleaned base',
+    () async {
+      final release = Completer<void>();
+      when(
+        () => proc.renderCleanBase(
+          any(),
+          any(),
+          longEdge: any(named: 'longEdge'),
+          outputPath: any(named: 'outputPath'),
+          previewPath: any(named: 'previewPath'),
+          card: any(named: 'card'),
+          quick: any(named: 'quick'),
+          priority: captureAny(named: 'priority'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).thenAnswer((inv) async {
+        cleanJobs++;
+        await release.future;
+        for (final k in [#outputPath, #previewPath]) {
+          File(inv.namedArguments[k] as String).writeAsBytesSync([1]);
+        }
+        return inv.namedArguments[#outputPath] as String;
+      });
+      final bloc = build();
+      await settle();
+      await enhance(bloc);
+      expect(bloc.state.shownPreview, files.instantLookPath(page.id, page.originalPath, page.edits));
+      expect(bloc.state.shownPreview, isNot(bloc.state.comparePreview), reason: 'never the raw crop');
+      expect(bloc.state.rendering, isTrue);
+      release.complete();
+      await settle();
+      expect(bloc.state.shownPreview, files.lookPath(page.id, page.originalPath, page.edits));
+      expect(bloc.state.rendering, isFalse);
+      // A filter change, and back: one cleaned base for all of it.
+      bloc.add(const EditorFilterChanged(FilterType.grayscale));
+      await settle();
+      bloc.add(const EditorFilterChanged(FilterType.auto));
+      await settle();
+      expect(cleanJobs, 1);
+      expect(bloc.state.shownPreview, files.lookPath(page.id, page.originalPath, bloc.state.edits));
+      await bloc.close();
+    },
+  );
+
+  test(
+    'P0-4: Enhance never shows the uncropped photo; compare shows the crop unfiltered',
     () async {
       final bloc = build();
       await settle();
+      await enhance(bloc);
       final shown = bloc.state.shownPreview;
       expect(shown, isNotNull);
       expect(
@@ -425,6 +553,7 @@ void main() {
         _Prepare(),
         PreviewCache(proc, files),
         _Namer(),
+        bases,
         args,
       )..add(EditorStarted(args));
     }
@@ -526,7 +655,7 @@ void main() {
   test('P0-3: the Adjust strip gets a crop-only preview for every page', () async {
     final second = page.copyWith(id: 'p2', order: 1);
     final args = EditorArgs(pages: [page, second], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
       ..add(EditorStarted(args));
     await settle();
     for (final pg in [page, second]) {

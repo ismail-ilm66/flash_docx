@@ -94,11 +94,12 @@ void main() {
     pdfBytes = [9];
     when(() => render.joinWarm(any())).thenAnswer((_) async => false);
     when(
-      () => render.renderForExport(
+      () => render.renderExportPage(
         any(),
         size: any(named: 'size'),
         outputPath: any(named: 'outputPath'),
         jpegQuality: any(named: 'jpegQuality'),
+        card: any(named: 'card'),
       ),
     ).thenAnswer((inv) async {
       final out = inv.namedArguments[#outputPath] as String;
@@ -147,11 +148,12 @@ void main() {
   tearDown(() => tmp.delete(recursive: true));
 
   int renders() => verify(
-    () => render.renderForExport(
+    () => render.renderExportPage(
       any(),
       size: any(named: 'size'),
       outputPath: any(named: 'outputPath'),
       jpegQuality: any(named: 'jpegQuality'),
+      card: any(named: 'card'),
     ),
   ).callCount;
 
@@ -174,11 +176,12 @@ void main() {
       );
       expect(letter.isRight(), isTrue);
       verifyNever(
-        () => render.renderForExport(
+        () => render.renderExportPage(
           any(),
           size: any(named: 'size'),
           outputPath: any(named: 'outputPath'),
           jpegQuality: any(named: 'jpegQuality'),
+          card: any(named: 'card'),
         ),
       );
 
@@ -188,11 +191,12 @@ void main() {
       )).getOrElse((_) => const PreparedExport([])).files;
       expect(jpg, hasLength(3));
       verifyNever(
-        () => render.renderForExport(
+        () => render.renderExportPage(
           any(),
           size: any(named: 'size'),
           outputPath: any(named: 'outputPath'),
           jpegQuality: any(named: 'jpegQuality'),
+          card: any(named: 'card'),
         ),
       );
 
@@ -303,7 +307,7 @@ void main() {
       expect(prepared.shrunk, const ShrinkStep(1700, 70));
       expect(steps.last, '4/4', reason: '3 pages + the search');
       verify(
-        () => render.renderForExport(any(), size: RenderSize.standard, outputPath: any(named: 'outputPath'), jpegQuality: 95),
+        () => render.renderExportPage(any(), size: RenderSize.standard, outputPath: any(named: 'outputPath'), jpegQuality: 95, card: any(named: 'card')),
       ).called(3);
 
       // A second export with another limit reuses the bases.
@@ -311,7 +315,7 @@ void main() {
       final small = (await export.prepare(doc, const ExportOptions(maxBytes: 200000))).getOrElse((f) => throw StateError('$f'));
       expect(small.shrunk!.hardToRead, isTrue);
       verifyNever(
-        () => render.renderForExport(any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality')),
+        () => render.renderExportPage(any(), size: any(named: 'size'), outputPath: any(named: 'outputPath'), jpegQuality: any(named: 'jpegQuality'), card: any(named: 'card')),
       );
     });
 

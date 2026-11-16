@@ -38,6 +38,8 @@ import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart'
     as _i713;
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart'
     as _i411;
+import 'package:flash_dox/features/editor/data/services/clean_base_service.dart'
+    as _i32;
 import 'package:flash_dox/features/editor/data/services/opencv_image_processor.dart'
     as _i421;
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart'
@@ -203,6 +205,14 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i904.RewardCubit>(
       () => _i904.RewardCubit(gh<_i607.RewardGate>()),
     );
+    gh.lazySingleton<_i32.CleanBaseService>(
+      () => _i32.CleanBaseService(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i743.DeviceProfile>(),
+        gh<_i567.PrefsService>(),
+      ),
+    );
     gh.factory<_i713.HomeCubit>(
       () => _i713.HomeCubit(
         gh<_i948.WatchDocuments>(),
@@ -242,6 +252,14 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i917.TextRecognizer>(),
       ),
     );
+    gh.lazySingleton<_i120.PageRenderService>(
+      () => _i120.PageRenderService(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i132.DocumentRepository>(),
+        gh<_i32.CleanBaseService>(),
+      ),
+    );
     gh.lazySingleton<_i108.SmartNamer>(
       () => _i108.SmartNamer(
         gh<_i132.DocumentRepository>(),
@@ -270,22 +288,34 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i990.NightModeService>(),
       ),
     );
+    gh.factory<_i402.ExportDocument>(
+      () => _i402.ExportDocument(
+        gh<_i120.PageRenderService>(),
+        gh<_i435.PdfBuilder>(),
+        gh<_i626.FileStore>(),
+        gh<_i856.ShareService>(),
+        gh<_i792.SaveService>(),
+        gh<_i132.DocumentRepository>(),
+        gh<_i84.SheetImageRenderer>(),
+        gh<_i618.ImageProcessor>(),
+      ),
+    );
     gh.lazySingleton<_i491.BackgroundSegmenter>(
       () => _i511.MlKitBackgroundSegmenter(
         gh<_i618.ImageProcessor>(),
         gh<_i626.FileStore>(),
       ),
     );
-    gh.lazySingleton<_i120.PageRenderService>(
-      () => _i120.PageRenderService(
-        gh<_i618.ImageProcessor>(),
-        gh<_i626.FileStore>(),
-        gh<_i132.DocumentRepository>(),
-      ),
-    );
     gh.lazySingleton<_i769.PreviewCache>(
       () =>
           _i769.PreviewCache(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
+    );
+    gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(
+      (document, _) => _i314.ExportBloc(
+        gh<_i402.ExportDocument>(),
+        gh<_i567.PrefsService>(),
+        document,
+      ),
     );
     gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
       (initialMode, _) => _i382.ScanSessionBloc(
@@ -293,15 +323,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i567.PrefsService>(),
         gh<_i769.PreviewCache>(),
         initialMode,
-      ),
-    );
-    gh.factoryParam<_i323.OcrCubit, String, String?>(
-      (documentId, pageId) => _i323.OcrCubit(
-        gh<_i310.GetDocument>(),
-        gh<_i813.RecognizePageText>(),
-        gh<_i310.LogActivity>(),
-        documentId,
-        pageId,
       ),
     );
     gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
@@ -316,19 +337,17 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i922.PreparePages>(),
         gh<_i769.PreviewCache>(),
         gh<_i108.SmartNamer>(),
+        gh<_i32.CleanBaseService>(),
         args,
       ),
     );
-    gh.factory<_i402.ExportDocument>(
-      () => _i402.ExportDocument(
-        gh<_i120.PageRenderService>(),
-        gh<_i435.PdfBuilder>(),
-        gh<_i626.FileStore>(),
-        gh<_i856.ShareService>(),
-        gh<_i792.SaveService>(),
-        gh<_i132.DocumentRepository>(),
-        gh<_i84.SheetImageRenderer>(),
-        gh<_i618.ImageProcessor>(),
+    gh.factoryParam<_i323.OcrCubit, String, String?>(
+      (documentId, pageId) => _i323.OcrCubit(
+        gh<_i310.GetDocument>(),
+        gh<_i813.RecognizePageText>(),
+        gh<_i310.LogActivity>(),
+        documentId,
+        pageId,
       ),
     );
     gh.factoryParam<_i411.ViewerCubit, String, dynamic>(
@@ -344,13 +363,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.NameSuggestionActions>(),
         gh<_i310.SetDocumentFolder>(),
         documentId,
-      ),
-    );
-    gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(
-      (document, _) => _i314.ExportBloc(
-        gh<_i402.ExportDocument>(),
-        gh<_i567.PrefsService>(),
-        document,
       ),
     );
     return this;

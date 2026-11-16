@@ -170,9 +170,8 @@ class ExportDocument {
           onStep?.call(total, total);
           return Right(PreparedExport([File(out)]));
         }
-        Future<String> side(ScanPage pg, String name) => _processor.renderCard(
-          pg.originalPath,
-          pg.edits,
+        Future<String> side(ScanPage pg, String name) => _render.renderCardSide(
+          pg,
           widthMm: card.w,
           heightMm: card.h,
           dpi: dpi,
@@ -214,6 +213,7 @@ class ExportDocument {
     // Each page: rendered from the original, encoded once; a PDF embeds
     // those JPEGs as they are, a JPG export shares them as they are.
     final rendered = <String>[];
+    final card = PageRenderService.isCard(doc.mode);
     final t = StepTimer('share prepare ${pages.length} pages ${options.format.name} ${options.quality.name}');
     try {
       onStep?.call(0, total);
@@ -221,16 +221,18 @@ class ExportDocument {
         if (cancelled()) return const Left(CancelledFailure());
         if (options.format == ExportFormat.png) {
           rendered.add(
-            await _render.renderForExport(
+            await _render.renderExportPage(
               page,
               size: size,
               outputPath: p.join(staging, 'page_${i + 1}.png'),
               jpegQuality: jpegQ,
+              card: card,
             ),
           );
           t.lap('page ${i + 1} rendered (queue + worker)');
         } else {
           final cached = _files.exportPagePath(
+            doc.id,
             page.id,
             page.originalPath,
             page.edits,
@@ -246,13 +248,15 @@ class ExportDocument {
             // Written under a temp name and renamed, so a cancelled or failed
             // render never leaves half a JPEG in the cache.
             final tmp = '${p.withoutExtension(cached)}.part.jpg';
-            await _render.renderForExport(
+            await _render.renderExportPage(
               page,
               size: size,
               outputPath: tmp,
               jpegQuality: jpegQ,
+              card: card,
             );
             File(tmp).renameSync(cached);
+            await _files.pruneExportPages(doc.id, page.id, size.name, keep: cached);
             t.lap('page ${i + 1} rendered (queue + worker)');
           }
           rendered.add(cached);
@@ -316,6 +320,7 @@ class ExportDocument {
       for (final (i, page) in pages.indexed) {
         if (cancel?.isCancelled ?? false) return const Left(CancelledFailure());
         final base = _files.exportPagePath(
+          doc.id,
           page.id,
           page.originalPath,
           page.edits,
@@ -326,13 +331,15 @@ class ExportDocument {
           _touch(base);
         } else {
           final tmp = '${p.withoutExtension(base)}.part.jpg';
-          await _render.renderForExport(
+          await _render.renderExportPage(
             page,
             size: RenderSize.standard,
             outputPath: tmp,
             jpegQuality: _baseQuality,
+            card: PageRenderService.isCard(doc.mode),
           );
           File(tmp).renameSync(base);
+          await _files.pruneExportPages(doc.id, page.id, 'shrinkBase', keep: base);
         }
         // An exact pixel size is fixed first; the search then only lowers
         // the JPEG quality (its edges never go below that size).

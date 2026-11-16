@@ -11,10 +11,20 @@ enum JobPriority { interactive, background }
 
 /// Cancels a queued job before it starts (a superseded preview request).
 /// A job that has already started runs to the end; its result is dropped.
+/// A queued job leaves the queue at once, failing with [JobCancelled].
 class CancelToken {
   bool _cancelled = false;
+  final _onCancel = <void Function()>[];
   bool get isCancelled => _cancelled;
-  void cancel() => _cancelled = true;
+
+  void cancel() {
+    if (_cancelled) return;
+    _cancelled = true;
+    for (final f in List.of(_onCancel)) {
+      f();
+    }
+    _onCancel.clear();
+  }
 }
 
 /// Thrown for a job whose [CancelToken] was cancelled before it started.
@@ -54,7 +64,16 @@ class IsolateRunner {
   }) {
     final ahead = _interactive.length + (priority == JobPriority.background ? _background.length : 0) + (_busy ? 1 : 0);
     final pending = _Pending(_Job<Q, R>(fn, arg), cancel, debugLabel ?? 'job', ahead);
-    (priority == JobPriority.interactive ? _interactive : _background).add(pending);
+    final queue = priority == JobPriority.interactive ? _interactive : _background;
+    if (cancel != null) {
+      if (cancel.isCancelled) return Future.error(const JobCancelled());
+      // Leave the queue at once: whoever cancelled may queue it again at
+      // another priority and must not wait for this one to come up.
+      cancel._onCancel.add(() {
+        if (queue.remove(pending)) pending.completer.completeError(const JobCancelled());
+      });
+    }
+    queue.add(pending);
     unawaited(_pump());
     return pending.completer.future.then((v) => v as R);
   }

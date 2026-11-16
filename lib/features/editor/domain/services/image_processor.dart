@@ -48,6 +48,66 @@ abstract interface class ImageProcessor {
     CancelToken? cancel,
   });
 
+  /// Round 6, P0-2: the page cropped, turned and cleaned once at
+  /// [longEdge], written losslessly to [outputPath], plus a preview-size
+  /// copy at [previewPath]. [card]: the ID colour clean-up strength;
+  /// [quick]: the low-RAM bilateral clean-up on quiet photos.
+  Future<String> renderCleanBase(
+    String originalPath,
+    PageEdits edits, {
+    required int longEdge,
+    required String outputPath,
+    required String previewPath,
+    bool card = false,
+    bool quick = false,
+    JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
+  });
+
+  /// Enhance's first image while the cleaned base is being made: the
+  /// preview-size page with a quick bilateral clean-up and the filter.
+  /// Interactive lane.
+  Future<String> renderInstantLook(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String outputPath,
+    CancelToken? cancel,
+  });
+
+  /// Enhance's image from the cleaned base's preview copy; [autoPath]
+  /// caches the Auto result Colour Boost and Grayscale build on.
+  Future<String> renderLookFromClean(
+    String cleanPreviewPath,
+    PageEdits edits, {
+    required String outputPath,
+    String? autoPath,
+    JobPriority priority = JobPriority.interactive,
+    CancelToken? cancel,
+  });
+
+  /// An export page from its cleaned base: filter, sliders, signatures, at
+  /// most [maxLongEdge] (null: the base's own size).
+  Future<String> renderFromClean(
+    String basePath,
+    PageEdits edits, {
+    required String outputPath,
+    int? maxLongEdge,
+    int jpegQuality,
+    JobPriority priority,
+    CancelToken? cancel,
+  });
+
+  /// An ID card / passport side from its cleaned base (see [renderCard]).
+  Future<String> renderCardFromClean(
+    String basePath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  });
+
   /// Max file size (feature 2): finds the best [ShrinkStep] at which the
   /// [bases] (2000 px page renders) plus [overheadBytes] fit [targetBytes],
   /// and on a fit writes each page at that step to [outputs]. Background lane.

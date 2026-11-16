@@ -78,6 +78,88 @@ class OpenCvImageProcessor implements ImageProcessor {
   }
 
   @override
+  Future<String> renderCleanBase(
+    String originalPath,
+    PageEdits edits, {
+    required int longEdge,
+    required String outputPath,
+    required String previewPath,
+    bool card = false,
+    bool quick = false,
+    JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
+  }) => _runner.run(
+    cleanBaseInIsolate,
+    CleanBaseMsg(originalPath, edits, longEdge, outputPath, previewPath, card: card, quick: quick),
+    debugLabel: 'cleanBase',
+    priority: priority,
+    cancel: cancel,
+  );
+
+  @override
+  Future<String> renderInstantLook(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String outputPath,
+    CancelToken? cancel,
+  }) => _runner.run(
+    instantLookInIsolate,
+    LookMsg(originalPath, edits, workPath, outputPath),
+    debugLabel: 'instantLook',
+    priority: JobPriority.interactive,
+    cancel: cancel,
+  );
+
+  @override
+  Future<String> renderLookFromClean(
+    String cleanPreviewPath,
+    PageEdits edits, {
+    required String outputPath,
+    String? autoPath,
+    JobPriority priority = JobPriority.interactive,
+    CancelToken? cancel,
+  }) => _runner.run(
+    lookFromCleanInIsolate,
+    LookMsg(cleanPreviewPath, edits, '', outputPath, autoPath),
+    debugLabel: 'cleanLook',
+    priority: priority,
+    cancel: cancel,
+  );
+
+  @override
+  Future<String> renderFromClean(
+    String basePath,
+    PageEdits edits, {
+    required String outputPath,
+    int? maxLongEdge,
+    int jpegQuality = Limits.standardJpegQuality,
+    JobPriority priority = JobPriority.interactive,
+    CancelToken? cancel,
+  }) => _runner.run(
+    fromCleanInIsolate,
+    RenderMsg(basePath, edits, maxLongEdge, outputPath, jpegQuality),
+    debugLabel: 'fromClean',
+    priority: priority,
+    cancel: cancel,
+  );
+
+  @override
+  Future<String> renderCardFromClean(
+    String basePath,
+    PageEdits edits, {
+    required double widthMm,
+    required double heightMm,
+    required int dpi,
+    required String outputPath,
+  }) => _runner.run(
+    cardFromCleanInIsolate,
+    CardMsg(basePath, edits, widthMm, heightMm, dpi, outputPath),
+    debugLabel: 'cardFromClean',
+    priority: JobPriority.interactive,
+  );
+
+  @override
   Future<String> renderLook(
     String originalPath,
     PageEdits edits, {
@@ -471,6 +553,116 @@ String lookInIsolate(LookMsg m) {
     return m.out;
   } finally {
     out.dispose();
+  }
+}
+
+class CleanBaseMsg {
+  const CleanBaseMsg(this.path, this.edits, this.longEdge, this.out, this.previewOut, {this.card = false, this.quick = false});
+  final String path;
+  final PageEdits edits;
+  final int longEdge;
+  final String out;
+  final String previewOut;
+  final bool card;
+  final bool quick;
+}
+
+/// Writes PNG (compression 1: fast, lossless) under a temp name, then
+/// renames, so a half-written base is never read.
+void _writePngAtomic(cv.Mat img, String path) {
+  File(path).parent.createSync(recursive: true);
+  final tmp = '$path.part.png';
+  final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);
+  try {
+    if (!cv.imwrite(tmp, img, params: params)) throw StateError('Could not write $path');
+  } finally {
+    params.dispose();
+  }
+  File(tmp).renameSync(path);
+}
+
+String cleanBaseInIsolate(CleanBaseMsg m) {
+  final t = StepTimer('clean base ${m.longEdge} px${m.card ? ' card' : ''}');
+  final clean = pipe.renderCleanBase(m.path, m.edits, longEdge: m.longEdge, card: m.card, quick: m.quick, timer: t);
+  try {
+    _writePngAtomic(clean, m.out);
+    t.lap('save base');
+    if (!File(m.previewOut).existsSync()) {
+      final prev = pipe.fitLongEdge(clean, RenderPx.previewLongEdge);
+      _writePngAtomic(prev, m.previewOut);
+      pipe.disposeUnless(prev, clean);
+      t.lap('save preview copy');
+    }
+    t.report();
+    return m.out;
+  } finally {
+    clean.dispose();
+  }
+}
+
+String instantLookInIsolate(LookMsg m) {
+  final t = StepTimer('enhance instant ${m.edits.filter.name}');
+  final out = pipe.renderInstantLook(
+    m.path,
+    m.edits,
+    workPath: m.workPath,
+    previewLongEdge: RenderPx.previewLongEdge,
+    timer: t,
+  );
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.out, quality: 85);
+    t
+      ..lap('encode JPEG')
+      ..report();
+    return m.out;
+  } finally {
+    out.dispose();
+  }
+}
+
+String lookFromCleanInIsolate(LookMsg m) {
+  final t = StepTimer('enhance look ${m.edits.filter.name} (cleaned)');
+  final out = pipe.renderLookFromClean(m.path, m.edits, autoPath: m.autoBasePath, timer: t);
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.out, quality: 85);
+    t
+      ..lap('encode JPEG')
+      ..report();
+    return m.out;
+  } finally {
+    out.dispose();
+  }
+}
+
+String fromCleanInIsolate(RenderMsg m) {
+  final t = StepTimer('page from cleaned base ${m.longEdge ?? 'base'} px q${m.quality}');
+  final out = pipe.renderFromClean(m.path, m.edits, maxLongEdge: m.longEdge, timer: t);
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(out, m.out, quality: m.quality);
+    t
+      ..lap('encode ${m.out.endsWith('.png') ? 'PNG' : 'JPEG'} ${File(m.out).lengthSync() ~/ 1024} KB')
+      ..report();
+    return m.out;
+  } finally {
+    out.dispose();
+  }
+}
+
+String cardFromCleanInIsolate(CardMsg m) {
+  final t = StepTimer('card side from cleaned base ${m.dpi} dpi');
+  final card = pipe.cardFromClean(m.path, m.edits, widthMm: m.widthMm, heightMm: m.heightMm, dpi: m.dpi, timer: t);
+  try {
+    File(m.out).parent.createSync(recursive: true);
+    pipe.writeJpeg(card, m.out, quality: 95);
+    t
+      ..lap('encode JPEG')
+      ..report();
+    return m.out;
+  } finally {
+    card.dispose();
   }
 }
 

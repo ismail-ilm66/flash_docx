@@ -24,6 +24,11 @@ class EditorCornerDragEnded extends PageEditorEvent {
   const EditorCornerDragEnded();
 }
 
+/// Enhance was closed (back to Adjust edges).
+class EditorEnhanceClosed extends PageEditorEvent {
+  const EditorEnhanceClosed();
+}
+
 class EditorRotated extends PageEditorEvent {
   const EditorRotated({required this.clockwise});
   final bool clockwise;
