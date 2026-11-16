@@ -17,7 +17,12 @@ class EditorArgs {
     this.initialIndex = 0,
     this.startAtEnhance = false,
     this.tool,
+    this.blurryPages = const {},
   });
+
+  /// Shots that came out partly blurry (round 6, P1-1): Adjust edges offers
+  /// a retake for these page ids.
+  final Set<String> blurryPages;
 
   /// A new scan made for a Home tool: Done opens the tool (P1-4).
   final ToolTarget? tool;
@@ -44,5 +49,6 @@ class EditorArgs {
         initialIndex: initialIndex ?? this.initialIndex,
         startAtEnhance: startAtEnhance ?? this.startAtEnhance,
         tool: tool,
+        blurryPages: blurryPages,
       );
 }

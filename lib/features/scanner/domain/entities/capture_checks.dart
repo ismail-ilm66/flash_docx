@@ -20,6 +20,10 @@ abstract final class CaptureChecks {
   /// Below this mean gray level (0..255), suggest the flash.
   static const double darkThreshold = 60;
 
+  /// Round 6, P1-1: below this, the camera shows "Low light: turn on
+  /// flash" until a brighter shot (the fix list's 70 of 255).
+  static const double lowLightThreshold = 70;
+
   static bool isBlurry(double? sharpness) => sharpness != null && sharpness < blurThreshold;
   static bool isDark(double? brightness) => brightness != null && brightness < darkThreshold;
 }

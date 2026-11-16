@@ -1489,8 +1489,26 @@ abstract class AppLocalizations {
   /// No description provided for @cameraHintDocument.
   ///
   /// In en, this message translates to:
-  /// **'Hold steady · edges are found automatically'**
+  /// **'Hold the phone flat over the page'**
   String get cameraHintDocument;
+
+  /// No description provided for @cameraHoldStill.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold still…'**
+  String get cameraHoldStill;
+
+  /// No description provided for @cameraLowLight.
+  ///
+  /// In en, this message translates to:
+  /// **'Low light: turn on flash'**
+  String get cameraLowLight;
+
+  /// No description provided for @adjustBlurry.
+  ///
+  /// In en, this message translates to:
+  /// **'Part of this page looks blurry. Retake?'**
+  String get adjustBlurry;
 
   /// No description provided for @cameraHintCard.
   ///

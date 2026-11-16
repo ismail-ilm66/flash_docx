@@ -16,9 +16,14 @@ class Capture extends Equatable {
     this.sharpness,
     this.brightness,
     this.thumb,
+    this.blurry = false,
   });
 
   final String id;
+
+  /// Part of the page is much blurrier than the rest (round 6, P1-1):
+  /// Adjust edges offers a retake.
+  final bool blurry;
 
   /// Raw photo from the camera (moved into place by the background job).
   final String path;
@@ -47,6 +52,7 @@ class Capture extends Equatable {
     double? sharpness,
     double? brightness,
     String? thumb,
+    bool? blurry,
   }) =>
       Capture(
         id,
@@ -59,10 +65,11 @@ class Capture extends Equatable {
         sharpness: sharpness ?? this.sharpness,
         brightness: brightness ?? this.brightness,
         thumb: thumb ?? this.thumb,
+        blurry: blurry ?? this.blurry,
       );
 
   @override
-  List<Object?> get props => [id, path, side, guide, capture, status, page, sharpness, brightness, thumb];
+  List<Object?> get props => [id, path, side, guide, capture, status, page, sharpness, brightness, thumb, blurry];
 }
 
 /// A post-capture prompt for one capture (round 3, A3).
@@ -97,6 +104,23 @@ class ScanSessionState extends Equatable {
 
   /// Prepared draft pages, set when [status] is [SessionStatus.ready].
   final List<ScanPage>? result;
+
+  /// Pages whose shot is partly blurry (round 6, P1-1), by page id.
+  Set<String> get blurryPages => {
+    for (final c in captures)
+      if (c.blurry && c.page != null) c.page!.id,
+  };
+
+  /// The last shot was dark (round 6, P1-1): a "Low light" chip until a
+  /// brighter shot or the flash.
+  bool get lowLight {
+    if (flashOn) return false;
+    for (final c in captures.reversed) {
+      final b = c.brightness;
+      if (b != null) return b < CaptureChecks.lowLightThreshold;
+    }
+    return false;
+  }
 
   /// Prompt to show for the most recent problem capture, if any.
   final CaptureNotice? notice;

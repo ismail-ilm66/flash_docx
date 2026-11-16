@@ -24,6 +24,11 @@ class EditorCornerDragEnded extends PageEditorEvent {
   const EditorCornerDragEnded();
 }
 
+/// "Keep" on the partly-blurry notice for the current page (P1-1).
+class EditorBlurryKept extends PageEditorEvent {
+  const EditorBlurryKept();
+}
+
 /// Enhance was closed (back to Adjust edges).
 class EditorEnhanceClosed extends PageEditorEvent {
   const EditorEnhanceClosed();

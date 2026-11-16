@@ -255,9 +255,14 @@ class AutoEditsResult {
     this.height,
     this.candidates = const [],
     this.orientation,
+    this.blurry = false,
   });
 
   final PageEdits edits;
+
+  /// Round 6, P1-1: part of the page is much blurrier than the rest (the
+  /// phone moved during the shot). Document camera shots only.
+  final bool blurry;
 
   /// The `[orient]` line (P0-1), for the dev-build label on Adjust edges.
   final String? orientation;

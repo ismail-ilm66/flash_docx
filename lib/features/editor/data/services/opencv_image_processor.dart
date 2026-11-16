@@ -71,6 +71,7 @@ class OpenCvImageProcessor implements ImageProcessor {
       sharpness: r.sharpness,
       cardSharpness: r.cardSharpness,
       brightness: r.brightness,
+      blurry: r.blurryCells.isNotEmpty,
       width: r.width,
       height: r.height,
       candidates: r.ranked,
@@ -469,8 +470,10 @@ class IngestResult {
     required this.log,
     required this.orientation,
     this.cardSharpness,
+    this.blurryCells = const [],
   });
   final String orientation;
+  final List<(int, int)> blurryCells;
   final Quad? quad;
   final List<Quad> ranked;
   final double sharpness;
@@ -519,6 +522,7 @@ IngestResult ingestInIsolate(IngestMsg m) {
   final mb = File(m.src).lengthSync() / (1024 * 1024);
   return IngestResult(
     orientation: r.orientation,
+    blurryCells: r.blurryCells,
     quad: r.detection.quad,
     ranked: r.detection.ranked,
     sharpness: r.sharpness,
@@ -529,6 +533,7 @@ IngestResult ingestInIsolate(IngestMsg m) {
     log:
         '${r.width}×${r.height} (${(r.width * r.height / 1e6).toStringAsFixed(1)} MP, '
         '${mb.toStringAsFixed(1)} MB) decode 1/${r.decodeScale}; ${r.detection}; '
+        '${r.blurryCells.isEmpty ? '' : 'blurry cells ${r.blurryCells}; '}'
         'sharpness ${r.sharpness.toStringAsFixed(0)}${r.cardSharpness == null ? '' : ' card ${r.cardSharpness!.toStringAsFixed(0)}'} brightness ${r.brightness.toStringAsFixed(0)}; '
         'total ${sw.elapsedMilliseconds} ms',
   );

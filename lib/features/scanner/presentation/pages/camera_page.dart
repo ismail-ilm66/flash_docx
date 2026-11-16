@@ -5,7 +5,6 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:camera/camera.dart';
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
-import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
@@ -15,6 +14,7 @@ import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
+import 'package:flash_dox/features/scanner/data/steady_gate.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
@@ -27,6 +27,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 
 /// What a retake hands back to Adjust edges (P0-3).
 class RetakeShot {
@@ -277,6 +278,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   ScanMode? _cameraMode;
 
+  /// The shutter is waiting for the phone to hold still (P1-1).
+  bool _holdingStill = false;
+
   /// ID / passport zoom. Round 4 (P0-2) used 1.5× against blur; users had
   /// to hold the phone too far away, so 14 Nov 2026 it came down 20 %.
   static const _cardZoom = 1.2;
@@ -370,18 +374,36 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     }
     setState(() => _capturing = true);
     final total = Stopwatch()..start();
+    var locked = false;
     try {
-      final card = _cardFocusPoint();
-      if (card != null) {
-        // P0-2: refocus on the card, then wait for it to settle (the plugin
-        // has no "focus done" callback). The shutter stays disabled.
-        await _trySet(() => c.setFocusPoint(card));
-        await _trySet(() => c.setExposurePoint(card));
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        if (!mounted) return;
-      } else {
-        await _waitForTapFocus();
+      // Round 6, P1-1: focus and exposure on the page (the card frame, a
+      // point the user just tapped, else the frame centre), settled, while
+      // the phone comes to rest; then focus is locked for the shot, so it
+      // can't hunt while the shutter is open. The plugin has no "focus
+      // done" callback: 400 ms. The shutter stays disabled meanwhile.
+      final tapped = _focusedAt != null &&
+          DateTime.now().difference(_focusedAt!) < const Duration(seconds: 5);
+      final point = _cardFocusPoint() ?? (tapped ? null : const Offset(0.5, 0.5));
+      if (point != null) {
+        await _trySet(() => c.setFocusPoint(point));
+        await _trySet(() => c.setExposurePoint(point));
       }
+      final settle = point != null
+          ? Future<void>.delayed(const Duration(milliseconds: 400))
+          : _waitForTapFocus();
+      setState(() => _holdingStill = true);
+      final steady = await Future.wait([
+        SteadyGate.wait(
+          gyroscopeEventStream(samplingPeriod: SensorInterval.gameInterval)
+              .map((e) => (x: e.x, y: e.y, z: e.z, at: e.timestamp)),
+        ),
+        settle.then((_) => true),
+      ]);
+      if (!mounted) return;
+      setState(() => _holdingStill = false);
+      if (!steady.first) debugPrint('[capture] still moving after 1 s: shot anyway');
+      await _trySet(() => c.setFocusMode(FocusMode.locked));
+      locked = true;
       _captureFeedback();
       final take = Stopwatch()..start();
       // How the phone is held right now (round 5, P0-1): from the
@@ -422,7 +444,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       debugPrint('[capture] failed: $e');
       if (mounted) context.showSnack(context.l10n.errorImage, error: true);
     } finally {
-      if (mounted) setState(() => _capturing = false);
+      if (locked) await _trySet(() => c.setFocusMode(FocusMode.auto));
+      if (mounted) {
+        setState(() {
+          _capturing = false;
+          _holdingStill = false;
+        });
+      }
     }
   }
 
@@ -432,7 +460,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     final n = s.notice;
     if (n != null) {
       return switch (n.kind) {
-        NoticeKind.blurryCard => _NoticeBanner(
+        NoticeKind.blurryCard => NoticeBanner(
           text: l.cameraCardBlurry,
           icon: AppIcons.warning,
           actions: [
@@ -443,7 +471,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
             (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
           ],
         ),
-        NoticeKind.blurry => _NoticeBanner(
+        NoticeKind.blurry => NoticeBanner(
           text: l.cameraBlurryTitle,
           icon: AppIcons.warning,
           actions: [
@@ -454,7 +482,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
             (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
           ],
         ),
-        NoticeKind.unreadable => _NoticeBanner(
+        NoticeKind.unreadable => NoticeBanner(
           text: l.cameraUnreadable,
           icon: AppIcons.warning,
           actions: [
@@ -464,7 +492,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
             ),
           ],
         ),
-        NoticeKind.dark => _NoticeBanner(
+        NoticeKind.dark => NoticeBanner(
           text: l.cameraDark,
           icon: AppIcons.flashOn,
           actions: [
@@ -474,11 +502,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       };
     }
     return switch (_storage) {
-      StorageLevel.critical => _NoticeBanner(
+      StorageLevel.critical => NoticeBanner(
         text: l.cameraStorageFull,
         icon: AppIcons.storage,
       ),
-      StorageLevel.low => _NoticeBanner(
+      StorageLevel.low => NoticeBanner(
         text: l.cameraStorageLow,
         icon: AppIcons.storage,
       ),
@@ -519,6 +547,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       documentId: widget.args.addToDocumentId,
       addingPages: widget.args.addToDocumentId != null,
       tool: widget.args.tool,
+      blurryPages: s.blurryPages,
     );
     context.pushReplacement(Routes.adjust, extra: args);
   }
@@ -627,6 +656,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   String _guideText(AppLocalizations l, ScanSessionState s) {
+    // Round 6, P1-1: while the shutter waits for the phone to rest, and
+    // after a dark shot until the flash is on or a shot is bright enough.
+    if (_holdingStill) return l.cameraHoldStill;
+    if (s.lowLight) return l.cameraLowLight;
     final hint = widget.args.hint ??
         switch (s.guide) {
           GuideLabel.documentPage => CameraHint.document,
@@ -672,59 +705,6 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 }
 
 /// Storage, blur and low-light notices above the camera controls.
-class _NoticeBanner extends StatelessWidget {
-  const _NoticeBanner({
-    required this.text,
-    required this.icon,
-    this.actions = const [],
-  });
-
-  final String text;
-  final AppIcons icon;
-  final List<(String, VoidCallback)> actions;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Material(
-      color: const Color(0xE6202226),
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          Space.x3,
-          Space.x2,
-          Space.x1,
-          Space.x2,
-        ),
-        child: Row(
-          children: [
-            AppIcon(icon, size: 20, color: c.accent),
-            const SizedBox(width: Space.x2),
-            Expanded(
-              child: Text(
-                text,
-                style: context.text.bodySmall?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            for (final (label, onTap) in actions)
-              TextButton(
-                onPressed: onTap,
-                style: TextButton.styleFrom(
-                  foregroundColor: c.accent,
-                  minimumSize: const Size(Sizes.tap, Sizes.tap),
-                ),
-                child: Text(label),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 String cameraHintText(AppLocalizations l, CameraHint hint) => switch (hint) {
       CameraHint.document => l.cameraHintDocument,
       CameraHint.idCard => l.cameraHintCard,

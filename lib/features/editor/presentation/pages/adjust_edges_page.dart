@@ -156,6 +156,21 @@ class _AdjustView extends StatelessWidget {
                                   ),
                           ),
                         ),
+                        // Round 6, P1-1: the phone moved during the shot.
+                        if (s.currentBlurry)
+                          Positioned(
+                            left: Space.x3,
+                            right: Space.x3,
+                            top: Space.x3,
+                            child: NoticeBanner(
+                              text: l.adjustBlurry,
+                              icon: AppIcons.warning,
+                              actions: [
+                                (l.cameraRetake, () => _retake(context)),
+                                (l.cameraKeep, () => bloc.add(const EditorBlurryKept())),
+                              ],
+                            ),
+                          ),
                         // P0-1: dev builds show how the photo was turned, for
                         // testers without adb. Never in the store build.
                         if (FlavorConfig.isDev && page != null && CaptureOrientationLog.lineFor(page.id) != null)

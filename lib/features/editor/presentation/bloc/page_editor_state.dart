@@ -23,7 +23,9 @@ class PageEditorState extends Equatable {
     this.quickShapes = const {},
     bool? applyAll,
     this.filterThumbs = const {},
-  }) : applyAll = applyAll ?? args.isNewDocument;
+    Set<String>? blurryPages,
+  }) : applyAll = applyAll ?? args.isNewDocument,
+       blurryPages = blurryPages ?? args.blurryPages;
 
   final EditorArgs args;
   final List<ScanPage> pages;
@@ -51,6 +53,13 @@ class PageEditorState extends Equatable {
 
   /// Real 160 px renders of each filter, per page id.
   final Map<String, Map<FilterType, String>> filterThumbs;
+
+  /// Pages whose shot came out partly blurry and the user hasn't chosen
+  /// Keep or Retake yet (round 6, P1-1).
+  final Set<String> blurryPages;
+
+  /// Adjust edges offers a retake for the current page.
+  bool get currentBlurry => current != null && blurryPages.contains(current!.id);
 
   /// The look Reset goes back to: Auto for documents, ID colour for ID /
   /// passport (fix list v4), brightness and contrast 0.
@@ -131,6 +140,7 @@ class PageEditorState extends Equatable {
     Map<String, int>? quickShapes,
     bool? applyAll,
     Map<String, Map<FilterType, String>>? filterThumbs,
+    Set<String>? blurryPages,
   }) {
     return PageEditorState(
       args: args,
@@ -147,6 +157,7 @@ class PageEditorState extends Equatable {
       quickShapes: quickShapes ?? this.quickShapes,
       applyAll: applyAll ?? this.applyAll,
       filterThumbs: filterThumbs ?? this.filterThumbs,
+      blurryPages: blurryPages ?? this.blurryPages,
     );
   }
 
@@ -165,5 +176,6 @@ class PageEditorState extends Equatable {
     quickShapes,
     applyAll,
     filterThumbs,
+    blurryPages,
   ];
 }

@@ -137,6 +137,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         page: e.page,
         sharpness: e.result?.sharpness,
         brightness: e.result?.brightness,
+        blurry: e.result?.blurry ?? false,
       );
       // The stack shows the cropped page, not the photo (P0-3).
       final page = e.page!;

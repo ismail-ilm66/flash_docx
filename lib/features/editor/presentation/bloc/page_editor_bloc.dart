@@ -56,6 +56,10 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
     on<EditorCornerDragEnded>((_, _) {});
+    on<EditorBlurryKept>((_, emit) {
+      final id = state.current?.id;
+      if (id != null) emit(state.copyWith(blurryPages: {...state.blurryPages}..remove(id)));
+    });
     on<EditorEnhanceClosed>((_, _) {
       // Back on Adjust edges: the crop may change, so stop preparing looks.
       _onEnhance = false;
@@ -463,6 +467,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           pages: pages,
           basePreviews: base,
           status: EditorStatus.idle,
+          // A new shot: the blur notice was about the old one.
+          blurryPages: {...state.blurryPages}..remove(cur.id),
         ),
       );
       add(EditorStarted(state.args));

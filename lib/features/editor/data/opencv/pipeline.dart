@@ -2928,9 +2928,14 @@ class IngestReport {
     required this.decodeScale,
     required this.orientation,
     this.cardSharpness,
+    this.blurryCells = const [],
   });
 
   final DetectionReport detection;
+
+  /// Document camera shots (round 6, P1-1): the 3 × 3 cells of the page
+  /// much blurrier than its sharpest part ([blurryRegions]).
+  final List<(int, int)> blurryCells;
 
   /// The `[orient]` line from [normalizeCapture] (P0-1).
   final String orientation;
@@ -2998,6 +3003,16 @@ IngestReport ingest({
                 ));
       if (quad != null) cardSharpness = cardSharpnessOf(img, quad, aspectHint);
     }
+    // Round 6, P1-1: a document shot whose page is sharp on one side and
+    // smeared on the other (the phone moved). Camera shots only; cards'
+    // smooth photo areas would look "blurry".
+    var blurryCells = const <(int, int)>[];
+    final found = detection.quad;
+    if (aspectHint == null && capture != null && found != null) {
+      final page = warpToQuad(preview, found);
+      blurryCells = blurryRegions(page);
+      page.dispose();
+    }
     // EXIF may swap the header's width and height; the decoded image is
     // upright, so take the orientation from it.
     final long = header == null
@@ -3016,6 +3031,7 @@ IngestReport ingest({
       decodeScale: scale,
       orientation: orientation,
       cardSharpness: cardSharpness,
+      blurryCells: blurryCells,
     );
   } finally {
     disposeUnless(preview, img);

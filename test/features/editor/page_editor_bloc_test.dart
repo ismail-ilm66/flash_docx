@@ -652,6 +652,18 @@ void main() {
     });
   });
 
+  test('round 6, P1-1: a partly blurry shot offers a retake until Keep', () async {
+    final args = EditorArgs(pages: [page], mode: ScanMode.document, blurryPages: {page.id});
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
+      ..add(EditorStarted(args));
+    await settle();
+    expect(bloc.state.currentBlurry, isTrue);
+    bloc.add(const EditorBlurryKept());
+    await settle();
+    expect(bloc.state.currentBlurry, isFalse);
+    await bloc.close();
+  });
+
   test('P0-3: the Adjust strip gets a crop-only preview for every page', () async {
     final second = page.copyWith(id: 'p2', order: 1);
     final args = EditorArgs(pages: [page, second], mode: ScanMode.document);
