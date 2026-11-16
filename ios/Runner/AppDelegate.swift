@@ -48,6 +48,15 @@ import UIKit
             result(nil)
           }
         }
+      // Total RAM for the image pipeline's low-RAM mode (round 6, P0-4).
+      FlutterMethodChannel(name: "com.swtnoa.flashdox/device", binaryMessenger: messenger)
+        .setMethodCallHandler { call, result in
+          guard call.method == "memory" else { return result(FlutterMethodNotImplemented) }
+          result([
+            "totalBytes": NSNumber(value: ProcessInfo.processInfo.physicalMemory),
+            "lowRam": false,
+          ])
+        }
       FlutterEventChannel(name: eventChannelName, binaryMessenger: messenger)
         .setStreamHandler(ShareStreamHandler(onListen: { [weak self] sink in
           self?.eventSink = sink

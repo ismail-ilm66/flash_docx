@@ -6,6 +6,7 @@ import 'package:flash_dox/app/theme/app_theme.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/constants/app_info.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flutter/material.dart';
@@ -62,6 +63,18 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     if (mounted) unawaited(_intro.forward());
   }
 
+  /// Round 6, P0-4: on a low-RAM phone, decoded images are capped too, so
+  /// only the pages on screen stay in memory at full size.
+  Future<void> _loadDeviceProfile() async {
+    final device = getIt<DeviceProfile>();
+    await device.load();
+    if (device.isLowRam) {
+      PaintingBinding.instance.imageCache
+        ..maximumSizeBytes = 40 << 20
+        ..maximumSize = 50;
+    }
+  }
+
   Future<void> _start() async {
     final minimum = Future<void>.delayed(_hold);
     // Housekeeping: export temp files from the previous run; the export
@@ -70,6 +83,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     final work = Future.wait([
       files.clearExportTemp(),
       files.trimExportCache(),
+      _loadDeviceProfile(),
     ]).catchError((_) => const <void>[]);
     await Future.wait([minimum, work]);
     if (!mounted) return;

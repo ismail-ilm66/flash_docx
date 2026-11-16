@@ -1,5 +1,6 @@
 package com.swtnoa.flashdox
 
+import android.app.ActivityManager
 import android.app.UiModeManager
 import android.content.Intent
 import android.net.Uri
@@ -42,6 +43,22 @@ class MainActivity : FlutterActivity() {
                 when (call.method) {
                     "freeBytes" -> try {
                         result.success(StatFs(filesDir.path).availableBytes)
+                    } catch (e: Exception) {
+                        result.success(null)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        // Total RAM and the low-RAM flag, for the image pipeline's low-RAM
+        // mode (round 6, P0-4).
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.swtnoa.flashdox/device")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "memory" -> try {
+                        val am = getSystemService(ActivityManager::class.java)
+                        val info = ActivityManager.MemoryInfo()
+                        am.getMemoryInfo(info)
+                        result.success(mapOf("totalBytes" to info.totalMem, "lowRam" to am.isLowRamDevice))
                     } catch (e: Exception) {
                         result.success(null)
                     }

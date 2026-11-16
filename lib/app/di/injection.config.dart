@@ -11,6 +11,7 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 
 import 'package:flash_dox/app/di/register_module.dart' as _i254;
+import 'package:flash_dox/core/services/device_profile.dart' as _i743;
 import 'package:flash_dox/core/services/file_store.dart' as _i626;
 import 'package:flash_dox/core/services/isolate_runner.dart' as _i448;
 import 'package:flash_dox/core/services/night_mode_service.dart' as _i990;
@@ -111,6 +112,7 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i998.SharePlus>(() => registerModule.sharePlus);
     gh.lazySingleton<_i183.ImagePicker>(() => registerModule.imagePicker);
+    gh.lazySingleton<_i743.DeviceProfile>(() => _i743.DeviceProfile());
     await gh.lazySingletonAsync<_i626.FileStore>(() {
       final i = _i626.FileStore();
       return i.init().then((_) => i);
