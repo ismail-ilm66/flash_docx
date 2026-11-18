@@ -18,6 +18,7 @@ import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/domain/snap_guide.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
@@ -44,6 +45,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._previews,
     this._namer,
     this._bases,
+    this._drafts,
     @factoryParam EditorArgs args,
   ) : super(
         PageEditorState(
@@ -91,6 +93,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorFilterThumbsRequested>(_onFilterThumbs);
     on<EditorSnapsRequested>(_onSnapsRequested);
     on<EditorStripThumbsRequested>(_onStripThumbs, transformer: droppable());
+    // Imports never passed the camera: their draft starts here.
+    if (_keepsDraft) unawaited(_drafts.save(args.mode, args.pages));
   }
 
   final ImageProcessor _processor;
@@ -104,10 +108,50 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final PreviewCache _previews;
   final SmartNamer _namer;
   final CleanBaseService _bases;
+  final DraftService _drafts;
 
   /// Set once the scan was saved or the user confirmed discarding it, so the
   /// editor screens pop without asking again.
   bool popAllowed = false;
+
+  /// Round 7, P0-3: a new scan is kept as a draft while it's edited, so a
+  /// killed app can continue it. Tool scans and added pages are not.
+  bool get _keepsDraft => state.args.isNewDocument && state.args.tool == null;
+  Timer? _draftTimer;
+
+  /// The user confirmed "Discard": the draft and its photos go.
+  void discardScan() {
+    popAllowed = true;
+    _draftTimer?.cancel();
+    if (_keepsDraft) unawaited(_drafts.discard());
+  }
+
+  @override
+  void onChange(Change<PageEditorState> change) {
+    super.onChange(change);
+    if (!_keepsDraft || popAllowed || identical(change.currentState.pages, change.nextState.pages)) return;
+    // Corner drags change the pages many times a second: one write when
+    // they rest.
+    _draftTimer?.cancel();
+    _draftTimer = Timer(const Duration(milliseconds: 400), _saveDraft);
+  }
+
+  void _saveDraft() {
+    _draftTimer = null;
+    if (popAllowed) return;
+    unawaited(_drafts.save(state.args.mode, state.pages));
+  }
+
+  @override
+  Future<void> close() {
+    _prefetchCancel?.cancel();
+    // A pending edit is written before the editor goes.
+    if (_draftTimer?.isActive ?? false) {
+      _draftTimer!.cancel();
+      _saveDraft();
+    }
+    return super.close();
+  }
 
   bool get holdsUnsavedScan =>
       state.args.isNewDocument || state.args.addingPages;
@@ -702,11 +746,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     quickShapes: {...state.quickShapes, p.id: PageEditorState.shapeOf(p)},
   );
 
-  @override
-  Future<void> close() {
-    _prefetchCancel?.cancel();
-    return super.close();
-  }
 
   // ---------- save ----------
 
@@ -721,7 +760,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       for (final (i, pg) in state.pages.indexed) pg.copyWith(order: i),
     ];
     // Editing a saved document: a retaken page's new original is still in the
-    // temp folder (wiped on next launch). Move it into the document first.
+    // draft folder (unused files there go on next launch). Move it into the
+    // document first.
     if (!args.isNewDocument && !args.addingPages) {
       try {
         pages = [
@@ -762,6 +802,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           await _logActivity(docId, ActivityType.edited);
         }
         popAllowed = true;
+        _draftTimer?.cancel();
+        if (_keepsDraft) unawaited(_drafts.finished());
         emit(
           state.copyWith(status: EditorStatus.saved, savedDocumentId: docId),
         );

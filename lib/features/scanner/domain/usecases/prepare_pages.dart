@@ -55,7 +55,7 @@ class PreparePages {
         // turning upright (P0-1): moved for camera shots, copied for
         // imports. A retake keeps the page id but gets a fresh file, so the
         // photo it replaces is never overwritten.
-        final original = _files.newCapturePath(given == null ? id : '${id}_${DateTime.now().microsecondsSinceEpoch}');
+        final original = _files.newOriginalPath(given == null ? id : '${id}_${DateTime.now().microsecondsSinceEpoch}');
         if (copySource) {
           await File(src).copy(original);
         } else {

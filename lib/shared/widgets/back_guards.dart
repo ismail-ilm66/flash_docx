@@ -30,15 +30,16 @@ class LeaveAppGuard extends StatelessWidget {
   }
 }
 
-/// "Discard this scan? N pages will be lost." Resolves true to discard.
+/// "Discard 8 scans?" · Discard (red) · Keep editing (round 7, P0-3).
+/// Resolves true to discard; tapping outside keeps the scan.
 Future<bool> confirmDiscardScan(BuildContext context, int pageCount) {
   final l = context.l10n;
   return AppDialog.confirm(
     context,
-    title: l.discardScanTitle,
-    body: l.discardScanBody(pageCount),
+    title: l.discardScanTitle(pageCount),
+    body: '',
     confirmLabel: l.discardScan,
-    cancelLabel: l.keepScanning,
+    cancelLabel: l.keepEditing,
     destructive: true,
   );
 }

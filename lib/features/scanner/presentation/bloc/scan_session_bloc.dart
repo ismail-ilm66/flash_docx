@@ -8,6 +8,7 @@ import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
@@ -30,8 +31,11 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     this._prepare,
     this._prefs,
     this._previews,
+    this._drafts,
     @factoryParam ScanMode? initialMode,
-  ) : super(
+    @factoryParam bool? keepDraft,
+  )   : _keepDraft = keepDraft ?? false,
+        super(
           ScanSessionState(
             mode: initialMode ?? ScanMode.document,
             flashOn: _prefs.flashOn,
@@ -56,8 +60,27 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     on<SessionFinished>(_onFinished);
     on<SessionReset>((_, emit) {
       _discardAll(state.captures);
+      if (_keepDraft) unawaited(_drafts.discard());
       emit(ScanSessionState(mode: state.mode, flashOn: state.flashOn));
     });
+  }
+
+  /// Round 7, P0-3: a new scan (not a retake, an added page or a tool scan)
+  /// is saved as a draft as each page is ready.
+  final bool _keepDraft;
+  final DraftService _drafts;
+
+  @override
+  void onChange(Change<ScanSessionState> change) {
+    super.onChange(change);
+    if (!_keepDraft || change.nextState.status == SessionStatus.ready) return;
+    final before = change.currentState.captures;
+    final after = change.nextState.captures;
+    if (identical(before, after)) return;
+    List<ScanPage> pages(List<Capture> cs) => [for (final c in cs) ?c.page];
+    final next = pages(after);
+    if (listEquals(pages(before), next)) return;
+    unawaited(_drafts.save(change.nextState.mode, next));
   }
 
   final PreparePages _prepare;

@@ -1333,14 +1333,8 @@ abstract class AppLocalizations {
   /// No description provided for @discardScanTitle.
   ///
   /// In en, this message translates to:
-  /// **'Discard this scan?'**
-  String get discardScanTitle;
-
-  /// No description provided for @discardScanBody.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 page will be lost.} other{{count} pages will be lost.}}'**
-  String discardScanBody(int count);
+  /// **'{count, plural, =1{Discard 1 scan?} other{Discard {count} scans?}}'**
+  String discardScanTitle(int count);
 
   /// No description provided for @discardScan.
   ///
@@ -1348,11 +1342,23 @@ abstract class AppLocalizations {
   /// **'Discard'**
   String get discardScan;
 
-  /// No description provided for @keepScanning.
+  /// No description provided for @keepEditing.
   ///
   /// In en, this message translates to:
-  /// **'Keep scanning'**
-  String get keepScanning;
+  /// **'Keep editing'**
+  String get keepEditing;
+
+  /// No description provided for @homeDraftTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue your last scan'**
+  String get homeDraftTitle;
+
+  /// No description provided for @homeDraftContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get homeDraftContinue;
 
   /// No description provided for @adjustEdgesNotFound.
   ///
@@ -1507,7 +1513,7 @@ abstract class AppLocalizations {
   /// No description provided for @adjustBlurry.
   ///
   /// In en, this message translates to:
-  /// **'Part of this page looks blurry. Retake?'**
+  /// **'This page looks blurry'**
   String get adjustBlurry;
 
   /// No description provided for @cameraHintCard.

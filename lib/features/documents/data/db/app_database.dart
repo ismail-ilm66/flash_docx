@@ -52,8 +52,25 @@ class Activities extends Table {
   Set<Column> get primaryKey => {id};
 }
 
+/// v4 (round 7, P0-3): the scan being made, saved page by page, so a
+/// closed or killed app can offer to continue it. One draft at a time.
+@DataClassName('DraftPageRow')
+class DraftPages extends Table {
+  TextColumn get id => text()();
+  IntColumn get mode => intEnum<ScanMode>()();
+  TextColumn get originalPath => text()();
+  TextColumn get editsJson => text()();
+  IntColumn get pageOrder => integer()();
+  IntColumn get side => intEnum<CardSide>().nullable()();
+  BoolColumn get edgesDetected => boolean().withDefault(const Constant(true))();
+  DateTimeColumn get savedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @lazySingleton
-@DriftDatabase(tables: [Documents, Pages, Activities])
+@DriftDatabase(tables: [Documents, Pages, Activities, DraftPages])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'flashdox'));
 
@@ -61,7 +78,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -83,6 +100,7 @@ class AppDatabase extends _$AppDatabase {
               'WHERE mode IN (${ScanMode.idCard.index}, ${ScanMode.passport.index})',
             );
           }
+          if (from < 4) await m.createTable(draftPages);
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');

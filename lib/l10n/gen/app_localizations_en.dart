@@ -690,15 +690,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get backStay => 'Stay';
 
   @override
-  String get discardScanTitle => 'Discard this scan?';
-
-  @override
-  String discardScanBody(int count) {
+  String discardScanTitle(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count pages will be lost.',
-      one: '1 page will be lost.',
+      other: 'Discard $count scans?',
+      one: 'Discard 1 scan?',
     );
     return '$_temp0';
   }
@@ -707,7 +704,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get discardScan => 'Discard';
 
   @override
-  String get keepScanning => 'Keep scanning';
+  String get keepEditing => 'Keep editing';
+
+  @override
+  String get homeDraftTitle => 'Continue your last scan';
+
+  @override
+  String get homeDraftContinue => 'Continue';
 
   @override
   String get adjustEdgesNotFound =>
@@ -794,7 +797,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraLowLight => 'Low light: turn on flash';
 
   @override
-  String get adjustBlurry => 'Part of this page looks blurry. Retake?';
+  String get adjustBlurry => 'This page looks blurry';
 
   @override
   String get cameraHintCard =>

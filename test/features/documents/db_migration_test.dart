@@ -75,7 +75,7 @@ void main() {
       expect(rows.every((r) => r.suggestion == null), isTrue);
       expect(rows.firstWhere((r) => r.id == 'doc').title, 'Title doc');
       expect(await db.select(db.pages).get(), hasLength(1));
-      expect(raw.select('PRAGMA user_version').first.values.first, 3);
+      expect(raw.select('PRAGMA user_version').first.values.first, db.schemaVersion);
 
       // Same schema as a database created fresh at v3 (what drift's
       // SchemaVerifier checks).
@@ -95,5 +95,39 @@ void main() {
       expect(AppDatabase.suggestionFromJson('{oops'), isNull);
       expect(AppDatabase.suggestionFromJson(null), isNull);
     });
+  });
+
+  test('v3 → v4 adds the draft table (round 7, P0-3), keeps the documents', () async {
+    final raw = sqlite3.openInMemory();
+    v2.forEach(raw.execute);
+    raw
+      ..execute('ALTER TABLE "documents" ADD COLUMN "folder" INTEGER NOT NULL DEFAULT 0')
+      ..execute('ALTER TABLE "documents" ADD COLUMN "suggestion" TEXT NULL');
+    final now = DateTime(2026, 11, 17).toIso8601String();
+    raw
+      ..execute(
+        'INSERT INTO documents (id, title, mode, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+        ['doc', 'Doc', 0, now, now],
+      )
+      ..execute('PRAGMA user_version = 3;');
+
+    final db = AppDatabase.test(NativeDatabase.opened(raw, closeUnderlyingOnClose: false));
+    expect(await db.select(db.documents).get(), hasLength(1));
+    expect(await db.select(db.draftPages).get(), isEmpty);
+    expect(raw.select('PRAGMA user_version').first.values.first, 4);
+
+    final fresh = sqlite3.openInMemory();
+    final freshDb = AppDatabase.test(NativeDatabase.opened(fresh, closeUnderlyingOnClose: false));
+    await freshDb.customSelect('SELECT 1').get();
+    List<String> cols(Database d) => [
+          for (final r in d.select('PRAGMA table_info("draft_pages")'))
+            '${r['name']} ${r['type']} notnull=${r['notnull']} default=${r['dflt_value']} pk=${r['pk']}',
+        ];
+    expect(cols(raw), cols(fresh));
+    expect(cols(raw), isNotEmpty);
+    await db.close();
+    await freshDb.close();
+    raw.close();
+    fresh.close();
   });
 }

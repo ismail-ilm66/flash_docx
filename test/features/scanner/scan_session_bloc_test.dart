@@ -14,6 +14,8 @@ import 'package:fpdart/fpdart.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/fake_drafts.dart';
+
 class _MockPrepare extends Mock implements PreparePages {}
 
 class _MockPreviews extends Mock implements PreviewCache {}
@@ -72,7 +74,7 @@ void main() {
   Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 20));
 
   test('the shutter only records; Done waits for the queue, then hands over pages in order', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b', hold: true);
     bloc
@@ -101,7 +103,7 @@ void main() {
   });
 
   test('a blurry photo raises a notice; Retake puts the next shot in its place', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a');
     final b = shot('b');
     final c = shot('c');
@@ -129,7 +131,7 @@ void main() {
   });
 
   test('ID card keeps front / back when the back is retaken', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.idCard);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.idCard, null);
     final f = shot('front');
     final back = shot('back');
     sharpnessFor[back] = 1;
@@ -149,7 +151,7 @@ void main() {
   });
 
   test('removing a capture while it waits in the queue skips it and deletes the file', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b');
     bloc
@@ -188,7 +190,7 @@ void main() {
         onPrepared: any(named: 'onPrepared'),
       ),
     ).thenAnswer((_) async => const Left(ImageProcessingFailure('x')));
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     bloc.add(SessionCaptured(shot('a')));
     await pump();
     expect(bloc.state.notice?.kind, NoticeKind.unreadable);
@@ -215,7 +217,7 @@ void main() {
       cb?.call(0, const AutoEditsResult(edits: PageEdits(), detected: true, sharpness: 500, brightness: CaptureChecks.darkThreshold - 1));
       return Right([ScanPage(id: path, documentId: '', originalPath: path, edits: const PageEdits(), order: 0)]);
     });
-    final bloc = ScanSessionBloc(prepare, prefs, previews, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), null, null);
     expect(bloc.state.mode, ScanMode.document, reason: 'camera always opens in Document');
     bloc.add(SessionCaptured(shot('dark1')));
     await pump();
@@ -233,7 +235,7 @@ void main() {
   });
 
   test('P0-3: the page stack shows the cropped page, never the photo', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, ScanMode.document);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a', hold: true);
     bloc.add(SessionCaptured(a));
     await pump();
@@ -243,6 +245,44 @@ void main() {
     final c = bloc.state.captures.single;
     expect(c.thumb, '$a.quick.jpg');
     expect(c.thumb, isNot(a));
+    await bloc.close();
+  });
+
+  test('round 7, P0-3: a new scan saves each page to the draft as it is ready; Discard deletes it', () async {
+    final drafts = FakeDrafts();
+    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, ScanMode.document, true);
+    final a = shot('a');
+    final b = shot('b', hold: true);
+    bloc
+      ..add(SessionCaptured(a))
+      ..add(SessionCaptured(b));
+    await pump();
+    expect([for (final d in drafts.saved) d.map((p) => p.id).toList()], [
+      [a],
+    ], reason: 'b is still being processed');
+    gates[b]!.complete();
+    await pump();
+    expect(drafts.saved.last.map((p) => p.id), [a, b]);
+
+    bloc.add(const SessionCaptureRemoved(0));
+    await pump();
+    expect(drafts.saved.last.map((p) => p.id), [b]);
+
+    bloc.add(const SessionReset());
+    await pump();
+    expect(drafts.discardCalls, 1);
+    await bloc.close();
+  });
+
+  test('round 7, P0-3: a retake or added-pages camera keeps no draft', () async {
+    final drafts = FakeDrafts();
+    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, ScanMode.document, false);
+    bloc.add(SessionCaptured(shot('a')));
+    await pump();
+    bloc.add(const SessionReset());
+    await pump();
+    expect(drafts.saved, isEmpty);
+    expect(drafts.discardCalls, 0);
     await bloc.close();
   });
 }

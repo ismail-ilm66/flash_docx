@@ -10,12 +10,14 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
+import 'package:flash_dox/features/documents/presentation/widgets/draft_card.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
+import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
@@ -236,6 +238,7 @@ class _HomeViewState extends State<_HomeView> {
                             padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, 0),
                             sliver: SliverList.list(
                               children: [
+                                DraftCard(drafts: getIt<DraftService>()),
                                 Text(
                                   l.homeHeadline,
                                   style: context.text.headlineMedium?.copyWith(fontSize: 26, fontWeight: FontWeight.w800),

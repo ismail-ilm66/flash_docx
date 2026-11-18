@@ -27,6 +27,8 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../helpers/fake_drafts.dart';
+
 class _Proc extends Mock implements ImageProcessor {}
 
 class _Create extends Mock implements CreateDocument {}
@@ -116,7 +118,7 @@ void main() {
 
   testWidgets('Enhance shows the instant cleaned image, never the raw photo', (tester) async {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await tester.pumpWidget(
       MaterialApp(

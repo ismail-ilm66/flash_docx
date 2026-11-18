@@ -83,6 +83,7 @@ import 'package:flash_dox/features/rewards/presentation/reward_cubit.dart'
     as _i904;
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart'
     as _i401;
+import 'package:flash_dox/features/scanner/data/draft_service.dart' as _i756;
 import 'package:flash_dox/features/scanner/data/import_service.dart' as _i959;
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart'
     as _i922;
@@ -130,6 +131,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i401.DeviceOrientationTracker>(
       () => _i401.DeviceOrientationTracker(),
+    );
+    gh.lazySingleton<_i756.DraftService>(
+      () => _i756.DraftService(gh<_i554.AppDatabase>(), gh<_i626.FileStore>()),
     );
     gh.lazySingleton<_i132.DocumentRepository>(
       () => _i257.DocumentRepositoryImpl(
@@ -317,14 +321,6 @@ extension GetItInjectableX on _i174.GetIt {
         document,
       ),
     );
-    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, dynamic>(
-      (initialMode, _) => _i382.ScanSessionBloc(
-        gh<_i922.PreparePages>(),
-        gh<_i567.PrefsService>(),
-        gh<_i769.PreviewCache>(),
-        initialMode,
-      ),
-    );
     gh.factoryParam<_i935.PageEditorBloc, _i546.EditorArgs, dynamic>(
       (args, _) => _i935.PageEditorBloc(
         gh<_i618.ImageProcessor>(),
@@ -338,6 +334,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i769.PreviewCache>(),
         gh<_i108.SmartNamer>(),
         gh<_i32.CleanBaseService>(),
+        gh<_i756.DraftService>(),
         args,
       ),
     );
@@ -348,6 +345,16 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.LogActivity>(),
         documentId,
         pageId,
+      ),
+    );
+    gh.factoryParam<_i382.ScanSessionBloc, _i355.ScanMode?, bool?>(
+      (initialMode, keepDraft) => _i382.ScanSessionBloc(
+        gh<_i922.PreparePages>(),
+        gh<_i567.PrefsService>(),
+        gh<_i769.PreviewCache>(),
+        gh<_i756.DraftService>(),
+        initialMode,
+        keepDraft,
       ),
     );
     gh.factoryParam<_i411.ViewerCubit, String, dynamic>(

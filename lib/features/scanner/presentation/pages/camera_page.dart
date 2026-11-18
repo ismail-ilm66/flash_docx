@@ -86,8 +86,10 @@ class CameraPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = args ?? const CameraArgs();
     final mode = a.mode ?? ScanMode.document;
+    // Round 7, P0-3: only a new scan is kept as a draft.
+    final draft = !a.retake && !a.returnPages && a.addToDocumentId == null && a.tool == null;
     return BlocProvider(
-      create: (_) => getIt<ScanSessionBloc>(param1: mode),
+      create: (_) => getIt<ScanSessionBloc>(param1: mode, param2: draft),
       child: _CameraView(args: a),
     );
   }

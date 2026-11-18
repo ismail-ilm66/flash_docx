@@ -3,8 +3,9 @@ import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart
 
 /// What the editor screens operate on.
 ///
-/// * New scan: [documentId] is null, [pages] are drafts in the capture temp
-///   folder. "Done" creates the document.
+/// * New scan: [documentId] is null, [pages] are drafts in the draft folder
+///   (kept on disk until Done or Discard, round 7). "Done" creates the
+///   document.
 /// * Add pages: [documentId] set and [addingPages] true. "Done" appends.
 /// * Edit existing: [documentId] set, [pages] are the saved pages. "Done"
 ///   updates them.

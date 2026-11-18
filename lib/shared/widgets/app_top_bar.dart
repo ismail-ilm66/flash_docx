@@ -4,7 +4,6 @@ import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
 import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 /// Top bar: back/close + title + subtitle + actions. The title is centred
 /// by default, as on every pushed screen of the design.
@@ -42,11 +41,9 @@ class AppTopBar extends StatelessWidget implements PreferredSizeWidget {
         tooltip: leading == TopBarLeading.back
             ? context.l10n.commonBack
             : context.l10n.commonClose,
-        onPressed:
-            onLeading ??
-            () {
-              if (context.canPop()) context.pop();
-            },
+        // maybePop, not pop: a screen's PopScope (an unsaved scan's
+        // "Discard?") must see the ‹ too (round 7, P0-3).
+        onPressed: onLeading ?? () => Navigator.of(context).maybePop(),
         icon: AppIcon(
           leading == TopBarLeading.back ? AppIcons.back : AppIcons.close,
           color: c.text,

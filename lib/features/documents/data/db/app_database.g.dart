@@ -1364,12 +1364,542 @@ class ActivitiesCompanion extends UpdateCompanion<ActivityRow> {
   }
 }
 
+class $DraftPagesTable extends DraftPages
+    with TableInfo<$DraftPagesTable, DraftPageRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DraftPagesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<String> id = GeneratedColumn<String>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<ScanMode, int> mode =
+      GeneratedColumn<int>(
+        'mode',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<ScanMode>($DraftPagesTable.$convertermode);
+  static const VerificationMeta _originalPathMeta = const VerificationMeta(
+    'originalPath',
+  );
+  @override
+  late final GeneratedColumn<String> originalPath = GeneratedColumn<String>(
+    'original_path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _editsJsonMeta = const VerificationMeta(
+    'editsJson',
+  );
+  @override
+  late final GeneratedColumn<String> editsJson = GeneratedColumn<String>(
+    'edits_json',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pageOrderMeta = const VerificationMeta(
+    'pageOrder',
+  );
+  @override
+  late final GeneratedColumn<int> pageOrder = GeneratedColumn<int>(
+    'page_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<CardSide?, int> side =
+      GeneratedColumn<int>(
+        'side',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<CardSide?>($DraftPagesTable.$convertersiden);
+  static const VerificationMeta _edgesDetectedMeta = const VerificationMeta(
+    'edgesDetected',
+  );
+  @override
+  late final GeneratedColumn<bool> edgesDetected = GeneratedColumn<bool>(
+    'edges_detected',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("edges_detected" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _savedAtMeta = const VerificationMeta(
+    'savedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> savedAt = GeneratedColumn<DateTime>(
+    'saved_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    mode,
+    originalPath,
+    editsJson,
+    pageOrder,
+    side,
+    edgesDetected,
+    savedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'draft_pages';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DraftPageRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    } else if (isInserting) {
+      context.missing(_idMeta);
+    }
+    if (data.containsKey('original_path')) {
+      context.handle(
+        _originalPathMeta,
+        originalPath.isAcceptableOrUnknown(
+          data['original_path']!,
+          _originalPathMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_originalPathMeta);
+    }
+    if (data.containsKey('edits_json')) {
+      context.handle(
+        _editsJsonMeta,
+        editsJson.isAcceptableOrUnknown(data['edits_json']!, _editsJsonMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_editsJsonMeta);
+    }
+    if (data.containsKey('page_order')) {
+      context.handle(
+        _pageOrderMeta,
+        pageOrder.isAcceptableOrUnknown(data['page_order']!, _pageOrderMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pageOrderMeta);
+    }
+    if (data.containsKey('edges_detected')) {
+      context.handle(
+        _edgesDetectedMeta,
+        edgesDetected.isAcceptableOrUnknown(
+          data['edges_detected']!,
+          _edgesDetectedMeta,
+        ),
+      );
+    }
+    if (data.containsKey('saved_at')) {
+      context.handle(
+        _savedAtMeta,
+        savedAt.isAcceptableOrUnknown(data['saved_at']!, _savedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_savedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  DraftPageRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DraftPageRow(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}id'],
+      )!,
+      mode: $DraftPagesTable.$convertermode.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}mode'],
+        )!,
+      ),
+      originalPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}original_path'],
+      )!,
+      editsJson: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}edits_json'],
+      )!,
+      pageOrder: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page_order'],
+      )!,
+      side: $DraftPagesTable.$convertersiden.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}side'],
+        ),
+      ),
+      edgesDetected: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}edges_detected'],
+      )!,
+      savedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}saved_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DraftPagesTable createAlias(String alias) {
+    return $DraftPagesTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<ScanMode, int, int> $convertermode =
+      const EnumIndexConverter<ScanMode>(ScanMode.values);
+  static JsonTypeConverter2<CardSide, int, int> $converterside =
+      const EnumIndexConverter<CardSide>(CardSide.values);
+  static JsonTypeConverter2<CardSide?, int?, int?> $convertersiden =
+      JsonTypeConverter2.asNullable($converterside);
+}
+
+class DraftPageRow extends DataClass implements Insertable<DraftPageRow> {
+  final String id;
+  final ScanMode mode;
+  final String originalPath;
+  final String editsJson;
+  final int pageOrder;
+  final CardSide? side;
+  final bool edgesDetected;
+  final DateTime savedAt;
+  const DraftPageRow({
+    required this.id,
+    required this.mode,
+    required this.originalPath,
+    required this.editsJson,
+    required this.pageOrder,
+    this.side,
+    required this.edgesDetected,
+    required this.savedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<String>(id);
+    {
+      map['mode'] = Variable<int>($DraftPagesTable.$convertermode.toSql(mode));
+    }
+    map['original_path'] = Variable<String>(originalPath);
+    map['edits_json'] = Variable<String>(editsJson);
+    map['page_order'] = Variable<int>(pageOrder);
+    if (!nullToAbsent || side != null) {
+      map['side'] = Variable<int>($DraftPagesTable.$convertersiden.toSql(side));
+    }
+    map['edges_detected'] = Variable<bool>(edgesDetected);
+    map['saved_at'] = Variable<DateTime>(savedAt);
+    return map;
+  }
+
+  DraftPagesCompanion toCompanion(bool nullToAbsent) {
+    return DraftPagesCompanion(
+      id: Value(id),
+      mode: Value(mode),
+      originalPath: Value(originalPath),
+      editsJson: Value(editsJson),
+      pageOrder: Value(pageOrder),
+      side: side == null && nullToAbsent ? const Value.absent() : Value(side),
+      edgesDetected: Value(edgesDetected),
+      savedAt: Value(savedAt),
+    );
+  }
+
+  factory DraftPageRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DraftPageRow(
+      id: serializer.fromJson<String>(json['id']),
+      mode: $DraftPagesTable.$convertermode.fromJson(
+        serializer.fromJson<int>(json['mode']),
+      ),
+      originalPath: serializer.fromJson<String>(json['originalPath']),
+      editsJson: serializer.fromJson<String>(json['editsJson']),
+      pageOrder: serializer.fromJson<int>(json['pageOrder']),
+      side: $DraftPagesTable.$convertersiden.fromJson(
+        serializer.fromJson<int?>(json['side']),
+      ),
+      edgesDetected: serializer.fromJson<bool>(json['edgesDetected']),
+      savedAt: serializer.fromJson<DateTime>(json['savedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<String>(id),
+      'mode': serializer.toJson<int>(
+        $DraftPagesTable.$convertermode.toJson(mode),
+      ),
+      'originalPath': serializer.toJson<String>(originalPath),
+      'editsJson': serializer.toJson<String>(editsJson),
+      'pageOrder': serializer.toJson<int>(pageOrder),
+      'side': serializer.toJson<int?>(
+        $DraftPagesTable.$convertersiden.toJson(side),
+      ),
+      'edgesDetected': serializer.toJson<bool>(edgesDetected),
+      'savedAt': serializer.toJson<DateTime>(savedAt),
+    };
+  }
+
+  DraftPageRow copyWith({
+    String? id,
+    ScanMode? mode,
+    String? originalPath,
+    String? editsJson,
+    int? pageOrder,
+    Value<CardSide?> side = const Value.absent(),
+    bool? edgesDetected,
+    DateTime? savedAt,
+  }) => DraftPageRow(
+    id: id ?? this.id,
+    mode: mode ?? this.mode,
+    originalPath: originalPath ?? this.originalPath,
+    editsJson: editsJson ?? this.editsJson,
+    pageOrder: pageOrder ?? this.pageOrder,
+    side: side.present ? side.value : this.side,
+    edgesDetected: edgesDetected ?? this.edgesDetected,
+    savedAt: savedAt ?? this.savedAt,
+  );
+  DraftPageRow copyWithCompanion(DraftPagesCompanion data) {
+    return DraftPageRow(
+      id: data.id.present ? data.id.value : this.id,
+      mode: data.mode.present ? data.mode.value : this.mode,
+      originalPath: data.originalPath.present
+          ? data.originalPath.value
+          : this.originalPath,
+      editsJson: data.editsJson.present ? data.editsJson.value : this.editsJson,
+      pageOrder: data.pageOrder.present ? data.pageOrder.value : this.pageOrder,
+      side: data.side.present ? data.side.value : this.side,
+      edgesDetected: data.edgesDetected.present
+          ? data.edgesDetected.value
+          : this.edgesDetected,
+      savedAt: data.savedAt.present ? data.savedAt.value : this.savedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DraftPageRow(')
+          ..write('id: $id, ')
+          ..write('mode: $mode, ')
+          ..write('originalPath: $originalPath, ')
+          ..write('editsJson: $editsJson, ')
+          ..write('pageOrder: $pageOrder, ')
+          ..write('side: $side, ')
+          ..write('edgesDetected: $edgesDetected, ')
+          ..write('savedAt: $savedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    mode,
+    originalPath,
+    editsJson,
+    pageOrder,
+    side,
+    edgesDetected,
+    savedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DraftPageRow &&
+          other.id == this.id &&
+          other.mode == this.mode &&
+          other.originalPath == this.originalPath &&
+          other.editsJson == this.editsJson &&
+          other.pageOrder == this.pageOrder &&
+          other.side == this.side &&
+          other.edgesDetected == this.edgesDetected &&
+          other.savedAt == this.savedAt);
+}
+
+class DraftPagesCompanion extends UpdateCompanion<DraftPageRow> {
+  final Value<String> id;
+  final Value<ScanMode> mode;
+  final Value<String> originalPath;
+  final Value<String> editsJson;
+  final Value<int> pageOrder;
+  final Value<CardSide?> side;
+  final Value<bool> edgesDetected;
+  final Value<DateTime> savedAt;
+  final Value<int> rowid;
+  const DraftPagesCompanion({
+    this.id = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.originalPath = const Value.absent(),
+    this.editsJson = const Value.absent(),
+    this.pageOrder = const Value.absent(),
+    this.side = const Value.absent(),
+    this.edgesDetected = const Value.absent(),
+    this.savedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DraftPagesCompanion.insert({
+    required String id,
+    required ScanMode mode,
+    required String originalPath,
+    required String editsJson,
+    required int pageOrder,
+    this.side = const Value.absent(),
+    this.edgesDetected = const Value.absent(),
+    required DateTime savedAt,
+    this.rowid = const Value.absent(),
+  }) : id = Value(id),
+       mode = Value(mode),
+       originalPath = Value(originalPath),
+       editsJson = Value(editsJson),
+       pageOrder = Value(pageOrder),
+       savedAt = Value(savedAt);
+  static Insertable<DraftPageRow> custom({
+    Expression<String>? id,
+    Expression<int>? mode,
+    Expression<String>? originalPath,
+    Expression<String>? editsJson,
+    Expression<int>? pageOrder,
+    Expression<int>? side,
+    Expression<bool>? edgesDetected,
+    Expression<DateTime>? savedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (mode != null) 'mode': mode,
+      if (originalPath != null) 'original_path': originalPath,
+      if (editsJson != null) 'edits_json': editsJson,
+      if (pageOrder != null) 'page_order': pageOrder,
+      if (side != null) 'side': side,
+      if (edgesDetected != null) 'edges_detected': edgesDetected,
+      if (savedAt != null) 'saved_at': savedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DraftPagesCompanion copyWith({
+    Value<String>? id,
+    Value<ScanMode>? mode,
+    Value<String>? originalPath,
+    Value<String>? editsJson,
+    Value<int>? pageOrder,
+    Value<CardSide?>? side,
+    Value<bool>? edgesDetected,
+    Value<DateTime>? savedAt,
+    Value<int>? rowid,
+  }) {
+    return DraftPagesCompanion(
+      id: id ?? this.id,
+      mode: mode ?? this.mode,
+      originalPath: originalPath ?? this.originalPath,
+      editsJson: editsJson ?? this.editsJson,
+      pageOrder: pageOrder ?? this.pageOrder,
+      side: side ?? this.side,
+      edgesDetected: edgesDetected ?? this.edgesDetected,
+      savedAt: savedAt ?? this.savedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<String>(id.value);
+    }
+    if (mode.present) {
+      map['mode'] = Variable<int>(
+        $DraftPagesTable.$convertermode.toSql(mode.value),
+      );
+    }
+    if (originalPath.present) {
+      map['original_path'] = Variable<String>(originalPath.value);
+    }
+    if (editsJson.present) {
+      map['edits_json'] = Variable<String>(editsJson.value);
+    }
+    if (pageOrder.present) {
+      map['page_order'] = Variable<int>(pageOrder.value);
+    }
+    if (side.present) {
+      map['side'] = Variable<int>(
+        $DraftPagesTable.$convertersiden.toSql(side.value),
+      );
+    }
+    if (edgesDetected.present) {
+      map['edges_detected'] = Variable<bool>(edgesDetected.value);
+    }
+    if (savedAt.present) {
+      map['saved_at'] = Variable<DateTime>(savedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DraftPagesCompanion(')
+          ..write('id: $id, ')
+          ..write('mode: $mode, ')
+          ..write('originalPath: $originalPath, ')
+          ..write('editsJson: $editsJson, ')
+          ..write('pageOrder: $pageOrder, ')
+          ..write('side: $side, ')
+          ..write('edgesDetected: $edgesDetected, ')
+          ..write('savedAt: $savedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $DocumentsTable documents = $DocumentsTable(this);
   late final $PagesTable pages = $PagesTable(this);
   late final $ActivitiesTable activities = $ActivitiesTable(this);
+  late final $DraftPagesTable draftPages = $DraftPagesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1378,6 +1908,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     documents,
     pages,
     activities,
+    draftPages,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -2525,6 +3056,269 @@ typedef $$ActivitiesTableProcessedTableManager =
       ActivityRow,
       PrefetchHooks Function({bool documentId})
     >;
+typedef $$DraftPagesTableCreateCompanionBuilder =
+    DraftPagesCompanion Function({
+      required String id,
+      required ScanMode mode,
+      required String originalPath,
+      required String editsJson,
+      required int pageOrder,
+      Value<CardSide?> side,
+      Value<bool> edgesDetected,
+      required DateTime savedAt,
+      Value<int> rowid,
+    });
+typedef $$DraftPagesTableUpdateCompanionBuilder =
+    DraftPagesCompanion Function({
+      Value<String> id,
+      Value<ScanMode> mode,
+      Value<String> originalPath,
+      Value<String> editsJson,
+      Value<int> pageOrder,
+      Value<CardSide?> side,
+      Value<bool> edgesDetected,
+      Value<DateTime> savedAt,
+      Value<int> rowid,
+    });
+
+class $$DraftPagesTableFilterComposer
+    extends Composer<_$AppDatabase, $DraftPagesTable> {
+  $$DraftPagesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<ScanMode, ScanMode, int> get mode =>
+      $composableBuilder(
+        column: $table.mode,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get editsJson => $composableBuilder(
+    column: $table.editsJson,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get pageOrder => $composableBuilder(
+    column: $table.pageOrder,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<CardSide?, CardSide, int> get side =>
+      $composableBuilder(
+        column: $table.side,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<bool> get edgesDetected => $composableBuilder(
+    column: $table.edgesDetected,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DraftPagesTableOrderingComposer
+    extends Composer<_$AppDatabase, $DraftPagesTable> {
+  $$DraftPagesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get editsJson => $composableBuilder(
+    column: $table.editsJson,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get pageOrder => $composableBuilder(
+    column: $table.pageOrder,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get side => $composableBuilder(
+    column: $table.side,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get edgesDetected => $composableBuilder(
+    column: $table.edgesDetected,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get savedAt => $composableBuilder(
+    column: $table.savedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DraftPagesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DraftPagesTable> {
+  $$DraftPagesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ScanMode, int> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get originalPath => $composableBuilder(
+    column: $table.originalPath,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get editsJson =>
+      $composableBuilder(column: $table.editsJson, builder: (column) => column);
+
+  GeneratedColumn<int> get pageOrder =>
+      $composableBuilder(column: $table.pageOrder, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<CardSide?, int> get side =>
+      $composableBuilder(column: $table.side, builder: (column) => column);
+
+  GeneratedColumn<bool> get edgesDetected => $composableBuilder(
+    column: $table.edgesDetected,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get savedAt =>
+      $composableBuilder(column: $table.savedAt, builder: (column) => column);
+}
+
+class $$DraftPagesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DraftPagesTable,
+          DraftPageRow,
+          $$DraftPagesTableFilterComposer,
+          $$DraftPagesTableOrderingComposer,
+          $$DraftPagesTableAnnotationComposer,
+          $$DraftPagesTableCreateCompanionBuilder,
+          $$DraftPagesTableUpdateCompanionBuilder,
+          (
+            DraftPageRow,
+            BaseReferences<_$AppDatabase, $DraftPagesTable, DraftPageRow>,
+          ),
+          DraftPageRow,
+          PrefetchHooks Function()
+        > {
+  $$DraftPagesTableTableManager(_$AppDatabase db, $DraftPagesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DraftPagesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DraftPagesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DraftPagesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> id = const Value.absent(),
+                Value<ScanMode> mode = const Value.absent(),
+                Value<String> originalPath = const Value.absent(),
+                Value<String> editsJson = const Value.absent(),
+                Value<int> pageOrder = const Value.absent(),
+                Value<CardSide?> side = const Value.absent(),
+                Value<bool> edgesDetected = const Value.absent(),
+                Value<DateTime> savedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DraftPagesCompanion(
+                id: id,
+                mode: mode,
+                originalPath: originalPath,
+                editsJson: editsJson,
+                pageOrder: pageOrder,
+                side: side,
+                edgesDetected: edgesDetected,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String id,
+                required ScanMode mode,
+                required String originalPath,
+                required String editsJson,
+                required int pageOrder,
+                Value<CardSide?> side = const Value.absent(),
+                Value<bool> edgesDetected = const Value.absent(),
+                required DateTime savedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DraftPagesCompanion.insert(
+                id: id,
+                mode: mode,
+                originalPath: originalPath,
+                editsJson: editsJson,
+                pageOrder: pageOrder,
+                side: side,
+                edgesDetected: edgesDetected,
+                savedAt: savedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DraftPagesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DraftPagesTable,
+      DraftPageRow,
+      $$DraftPagesTableFilterComposer,
+      $$DraftPagesTableOrderingComposer,
+      $$DraftPagesTableAnnotationComposer,
+      $$DraftPagesTableCreateCompanionBuilder,
+      $$DraftPagesTableUpdateCompanionBuilder,
+      (
+        DraftPageRow,
+        BaseReferences<_$AppDatabase, $DraftPagesTable, DraftPageRow>,
+      ),
+      DraftPageRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2535,4 +3329,6 @@ class $AppDatabaseManager {
       $$PagesTableTableManager(_db, _db.pages);
   $$ActivitiesTableTableManager get activities =>
       $$ActivitiesTableTableManager(_db, _db.activities);
+  $$DraftPagesTableTableManager get draftPages =>
+      $$DraftPagesTableTableManager(_db, _db.draftPages);
 }

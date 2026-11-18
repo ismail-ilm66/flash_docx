@@ -340,9 +340,8 @@
   "backLeaveTitle": "Leave Flash Dox?",
   "backLeave": "Leave",
   "backStay": "Stay",
-  "discardScanTitle": "Discard this scan?",
-  "discardScanBody": "{count, plural, =1{1 page will be lost.} other{{count} pages will be lost.}}",
-  "@discardScanBody": {
+  "discardScanTitle": "{count, plural, =1{Discard 1 scan?} other{Discard {count} scans?}}",
+  "@discardScanTitle": {
     "placeholders": {
       "count": {
         "type": "int"
@@ -350,7 +349,9 @@
     }
   },
   "discardScan": "Discard",
-  "keepScanning": "Keep scanning",
+  "keepEditing": "Keep editing",
+  "homeDraftTitle": "Continue your last scan",
+  "homeDraftContinue": "Continue",
   "adjustEdgesNotFound": "Couldn't find the edges — drag the corners",
   "settingsShutterSound": "Shutter sound",
   "settingsDefaultQuality": "Default quality",
@@ -396,7 +397,7 @@
   "cameraHintDocument": "Hold the phone flat over the page",
   "cameraHoldStill": "Hold still…",
   "cameraLowLight": "Low light: turn on flash",
-  "adjustBlurry": "Part of this page looks blurry. Retake?",
+  "adjustBlurry": "This page looks blurry",
   "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
   "cameraCardBlurry": "Card looks blurry",
   "enhanceAdjust": "Adjust",

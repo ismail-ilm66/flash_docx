@@ -8,6 +8,7 @@ import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
@@ -24,6 +25,8 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../helpers/fake_drafts.dart';
 
 class _Proc extends Mock implements ImageProcessor {}
 
@@ -66,6 +69,7 @@ void main() {
     registerFallbackValue(RenderSize.preview);
     registerFallbackValue(ScanMode.document);
     registerFallbackValue(JobPriority.background);
+    registerFallbackValue(<ScanPage>[]);
   });
 
   setUp(() async {
@@ -171,6 +175,7 @@ void main() {
       PreviewCache(proc, files),
       _Namer(),
       bases,
+      FakeDrafts(),
       args,
     )..add(EditorStarted(args));
   }
@@ -320,6 +325,7 @@ void main() {
         PreviewCache(proc, files),
         _Namer(),
         bases,
+        FakeDrafts(),
         EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
       );
       const guide = Quad(
@@ -554,6 +560,7 @@ void main() {
         PreviewCache(proc, files),
         _Namer(),
         bases,
+        FakeDrafts(),
         args,
       )..add(EditorStarted(args));
     }
@@ -654,7 +661,7 @@ void main() {
 
   test('round 6, P1-1: a partly blurry shot offers a retake until Keep', () async {
     final args = EditorArgs(pages: [page], mode: ScanMode.document, blurryPages: {page.id});
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await settle();
     expect(bloc.state.currentBlurry, isTrue);
@@ -667,7 +674,7 @@ void main() {
   test('P0-3: the Adjust strip gets a crop-only preview for every page', () async {
     final second = page.copyWith(id: 'p2', order: 1);
     final args = EditorArgs(pages: [page, second], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await settle();
     for (final pg in [page, second]) {
@@ -677,5 +684,72 @@ void main() {
       expect(shown, isNot(pg.originalPath));
     }
     await bloc.close();
+  });
+
+  group('round 7, P0-3: a new scan is kept as a draft', () {
+    PageEditorBloc editor(FakeDrafts drafts, EditorArgs args, {_Create? create, _Render? render, _Namer? namer}) =>
+        PageEditorBloc(proc, files, create ?? _Create(), _Add(), _Update(), _Log(), render ?? _Render(), _Prepare(), PreviewCache(proc, files), namer ?? _Namer(), bases, drafts, args)
+          ..add(EditorStarted(args));
+
+    test('from the start, and again once a corner drag rests', () async {
+      final drafts = FakeDrafts();
+      final bloc = editor(drafts, EditorArgs(pages: [page], mode: ScanMode.document));
+      await settle();
+      expect(drafts.saved.single.single.id, page.id);
+      final moved = Quad.full(inset: 0.2);
+      for (final i in [0, 1, 2]) {
+        bloc.add(EditorCornerMoved(i, moved.points[i]));
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      expect(drafts.saved, hasLength(2), reason: 'one write for the whole drag');
+      expect(drafts.saved.last.single.edits.crop, bloc.state.current!.edits.crop);
+      await bloc.close();
+    });
+
+    test('Done clears it; nothing is written after', () async {
+      final drafts = FakeDrafts();
+      final create = _Create();
+      final render = _Render();
+      final namer = _Namer();
+      when(() => create(mode: any(named: 'mode'), pages: any(named: 'pages'), title: any(named: 'title'))).thenAnswer(
+        (_) async => Right(ScanDocument(id: 'd', title: 'D', mode: ScanMode.document, pages: const [], createdAt: DateTime(2026), updatedAt: DateTime(2026))),
+      );
+      when(() => render.ensureCachesFor(any())).thenAnswer((_) async {});
+      when(() => namer.suggestFor(any())).thenAnswer((_) async {});
+      final bloc = editor(drafts, EditorArgs(pages: [page], mode: ScanMode.document), create: create, render: render, namer: namer);
+      await settle();
+      bloc.add(const EditorSaveRequested());
+      await settle();
+      expect(bloc.state.status, EditorStatus.saved);
+      expect(drafts.finishedCalls, 1);
+      await bloc.close();
+      expect(drafts.saved, hasLength(1));
+    });
+
+    test('Discard deletes it', () async {
+      final drafts = FakeDrafts();
+      final bloc = editor(drafts, EditorArgs(pages: [page], mode: ScanMode.document));
+      await settle();
+      bloc.discardScan();
+      expect(drafts.discardCalls, 1);
+      expect(bloc.guardBack, isFalse);
+      await bloc.close();
+    });
+
+    test('not for a saved document, added pages or a tool scan', () async {
+      for (final args in [
+        EditorArgs(pages: [page], mode: ScanMode.document, documentId: 'd'),
+        EditorArgs(pages: [page], mode: ScanMode.document, documentId: 'd', addingPages: true),
+        EditorArgs(pages: [page], mode: ScanMode.document, tool: ToolTarget.sign),
+      ]) {
+        final drafts = FakeDrafts();
+        final bloc = editor(drafts, args);
+        await settle();
+        bloc.add(const EditorRotated(clockwise: true));
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        expect(drafts.saved, isEmpty);
+        await bloc.close();
+      }
+    });
   });
 }

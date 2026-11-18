@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 /// <app documents>/flashdox/docs/<docId>/processed/<pageId>.jpg   # cache
 /// <app documents>/flashdox/docs/<docId>/thumb/<pageId>.jpg       # cache
 /// <app documents>/flashdox/docs/<docId>/export/<pageId>_<size>_<key>.jpg  # export page renders (cache)
+/// <app documents>/flashdox/draft/<pageId>.jpg                     # originals of a scan not saved yet
 /// <temp>/flashdox_export/                                        # cleared on launch
 /// <temp>/flashdox_capture/                                       # camera shots awaiting a document,
 ///                                                                # editor previews, cleaned bases
@@ -22,6 +23,7 @@ class FileStore {
   late final Directory _root;
   late final Directory _exportTemp;
   late final Directory _captureTemp;
+  late final Directory _draftDir;
 
   /// Round 6 moved export page renders into the document folders; this temp
   /// folder (older builds) is removed on launch.
@@ -31,6 +33,10 @@ class FileStore {
   Directory get exportTemp => _exportTemp;
   Directory get captureTemp => _captureTemp;
 
+  /// Round 7, P0-3: page originals live here until their scan is saved, so
+  /// a draft survives the app being killed (temp is cleared on launch).
+  Directory get draftDir => _draftDir;
+
   @PostConstruct(preResolve: true)
   Future<void> init() async {
     final docs = await getApplicationDocumentsDirectory();
@@ -38,11 +44,13 @@ class FileStore {
     _root = Directory(p.join(docs.path, 'flashdox'));
     _exportTemp = Directory(p.join(tmp.path, 'flashdox_export'));
     _captureTemp = Directory(p.join(tmp.path, 'flashdox_capture'));
+    _draftDir = Directory(p.join(_root.path, 'draft'));
     _legacyExportCache = Directory(p.join(tmp.path, 'flashdox_export_cache'));
     await Future.wait([
       Directory(p.join(_root.path, 'docs')).create(recursive: true),
       _exportTemp.create(recursive: true),
       _captureTemp.create(recursive: true),
+      _draftDir.create(recursive: true),
     ]);
   }
 
@@ -272,6 +280,10 @@ class FileStore {
 
   /// A fresh path for a raw capture / import before it belongs to a document.
   String newCapturePath(String id) => p.join(_captureTemp.path, '$id.jpg');
+
+  /// Where a scanned page's original waits for its document (round 7,
+  /// P0-3): outside temp, so the draft can be continued after a restart.
+  String newOriginalPath(String id) => p.join(_draftDir.path, '$id.jpg');
 
   String exportPath(String fileName) => p.join(_exportTemp.path, fileName);
 

@@ -96,7 +96,7 @@ class _AdjustView extends StatelessWidget {
           guard: bloc.guardBack,
           pageCount: s.pages.length,
           onDiscard: () {
-            bloc.popAllowed = true;
+            bloc.discardScan();
             context.pop();
           },
           child: AppScaffold(
