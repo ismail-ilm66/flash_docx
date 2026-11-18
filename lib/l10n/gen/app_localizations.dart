@@ -1420,23 +1420,11 @@ abstract class AppLocalizations {
   /// **'Flash Scan'**
   String get defaultDocName;
 
-  /// No description provided for @cameraBlurryTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Photo looks blurry'**
-  String get cameraBlurryTitle;
-
   /// No description provided for @cameraRetake.
   ///
   /// In en, this message translates to:
   /// **'Retake'**
   String get cameraRetake;
-
-  /// No description provided for @cameraKeep.
-  ///
-  /// In en, this message translates to:
-  /// **'Keep'**
-  String get cameraKeep;
 
   /// No description provided for @cameraDark.
   ///
@@ -1521,12 +1509,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Fit the card in the frame · move back if it\'s blurry'**
   String get cameraHintCard;
-
-  /// No description provided for @cameraCardBlurry.
-  ///
-  /// In en, this message translates to:
-  /// **'Card looks blurry'**
-  String get cameraCardBlurry;
 
   /// No description provided for @enhanceAdjust.
   ///

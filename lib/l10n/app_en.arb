@@ -372,9 +372,7 @@
   "shareLayoutOneImage": "One image (front + back)",
   "shareLayoutSeparate": "Separate images",
   "defaultDocName": "Flash Scan",
-  "cameraBlurryTitle": "Photo looks blurry",
   "cameraRetake": "Retake",
-  "cameraKeep": "Keep",
   "cameraDark": "It's dark — turn on the flash for a sharper scan.",
   "cameraUnreadable": "That photo couldn't be read. Please take it again.",
   "cameraStorageLow": "Your phone storage is almost full — scans may be slow.",
@@ -399,7 +397,6 @@
   "cameraLowLight": "Low light: turn on flash",
   "adjustBlurry": "This page looks blurry",
   "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
-  "cameraCardBlurry": "Card looks blurry",
   "enhanceAdjust": "Adjust",
   "enhanceAllPages": "{count, plural, =1{1 page} other{All {count} pages}}",
   "@enhanceAllPages": {

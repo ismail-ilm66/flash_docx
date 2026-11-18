@@ -655,7 +655,7 @@ void main() {
             onShutter: () {},
             onFinish: () {},
             onGallery: () {},
-            banner: Text(l.cameraCardBlurry),
+            banner: Text(l.cameraDark),
             // Round 7, P0-2: the 16:9 photo, shown whole; "Hold still…".
             photoAspect: 9 / 16,
             saving: hint == CameraHint.document,

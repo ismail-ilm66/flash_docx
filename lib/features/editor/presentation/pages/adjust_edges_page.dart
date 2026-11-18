@@ -156,7 +156,8 @@ class _AdjustView extends StatelessWidget {
                                   ),
                           ),
                         ),
-                        // Round 6, P1-1: the phone moved during the shot.
+                        // Round 7, P0-4: a blurry page, once, for 4 s; never
+                        // a dialog.
                         if (s.currentBlurry)
                           Positioned(
                             left: Space.x3,
@@ -165,10 +166,7 @@ class _AdjustView extends StatelessWidget {
                             child: NoticeBanner(
                               text: l.adjustBlurry,
                               icon: AppIcons.warning,
-                              actions: [
-                                (l.cameraRetake, () => _retake(context)),
-                                (l.cameraKeep, () => bloc.add(const EditorBlurryKept())),
-                              ],
+                              actions: [(l.cameraRetake, () => _retake(context))],
                             ),
                           ),
                         // P0-1: dev builds show how the photo was turned, for

@@ -746,13 +746,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get defaultDocName => 'Flash Scan';
 
   @override
-  String get cameraBlurryTitle => 'Photo looks blurry';
-
-  @override
   String get cameraRetake => 'Retake';
-
-  @override
-  String get cameraKeep => 'Keep';
 
   @override
   String get cameraDark => 'It\'s dark — turn on the flash for a sharper scan.';
@@ -802,9 +796,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get cameraHintCard =>
       'Fit the card in the frame · move back if it\'s blurry';
-
-  @override
-  String get cameraCardBlurry => 'Card looks blurry';
 
   @override
   String get enhanceAdjust => 'Adjust';

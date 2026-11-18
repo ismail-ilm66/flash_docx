@@ -157,12 +157,16 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
       list[i] = list[i].copyWith(status: CaptureStatus.failed);
       notice = CaptureNotice(NoticeKind.unreadable, e.id);
     } else {
+      // Round 7, P0-4: blur is never raised here, on the camera, nor for
+      // ID / passport. A document page that's partly smeared (2 of 9
+      // cells) or clearly unreadable gets a short banner on Adjust edges.
+      final isCard = state.rules.aspectRatio != null;
       list[i] = list[i].copyWith(
         status: CaptureStatus.ready,
         page: e.page,
         sharpness: e.result?.sharpness,
         brightness: e.result?.brightness,
-        blurry: e.result?.blurry ?? false,
+        blurry: !isCard && ((e.result?.blurry ?? false) || CaptureChecks.isBlurry(e.result?.sharpness)),
       );
       // The stack shows the cropped page, not the photo (P0-3).
       final page = e.page!;
@@ -173,12 +177,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
           debugPrint('[capture] stack thumb: $err');
         }),
       );
-      final isCard = state.rules.aspectRatio != null;
-      if (isCard && CaptureChecks.isCardBlurry(e.result?.cardSharpness)) {
-        notice = CaptureNotice(NoticeKind.blurryCard, e.id);
-      } else if (!isCard && CaptureChecks.isBlurry(e.result?.sharpness)) {
-        notice = CaptureNotice(NoticeKind.blurry, e.id);
-      } else if (!state.flashOn && CaptureChecks.isDark(e.result?.brightness)) {
+      if (!state.flashOn && CaptureChecks.isDark(e.result?.brightness)) {
         notice = CaptureNotice(NoticeKind.dark, e.id);
       }
     }

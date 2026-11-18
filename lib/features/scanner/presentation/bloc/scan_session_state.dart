@@ -21,8 +21,8 @@ class Capture extends Equatable {
 
   final String id;
 
-  /// Part of the page is much blurrier than the rest (round 6, P1-1):
-  /// Adjust edges offers a retake.
+  /// A document page that's partly smeared or clearly unreadable (round 6
+  /// P1-1, round 7 P0-4): Adjust edges offers a retake, once.
   final bool blurry;
 
   /// Raw photo from the camera (moved into place by the background job).
@@ -73,7 +73,7 @@ class Capture extends Equatable {
 }
 
 /// A post-capture prompt for one capture (round 3, A3).
-enum NoticeKind { blurry, blurryCard, dark, unreadable }
+enum NoticeKind { dark, unreadable }
 
 class CaptureNotice extends Equatable {
   const CaptureNotice(this.kind, this.captureId);
@@ -105,7 +105,7 @@ class ScanSessionState extends Equatable {
   /// Prepared draft pages, set when [status] is [SessionStatus.ready].
   final List<ScanPage>? result;
 
-  /// Pages whose shot is partly blurry (round 6, P1-1), by page id.
+  /// Document pages that came out blurry (round 7, P0-4), by page id.
   Set<String> get blurryPages => {
     for (final c in captures)
       if (c.blurry && c.page != null) c.page!.id,

@@ -102,7 +102,7 @@ void main() {
     await bloc.close();
   });
 
-  test('a blurry photo raises a notice; Retake puts the next shot in its place', () async {
+  test('round 7, P0-4: a blurry page is never raised on the camera; Adjust edges gets it', () async {
     final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a');
     final b = shot('b');
@@ -113,11 +113,12 @@ void main() {
       ..add(SessionCaptured(b))
       ..add(SessionCaptured(c));
     await pump();
-    final notice = bloc.state.notice!;
-    expect(notice.kind, NoticeKind.blurry);
+    expect(bloc.state.notice, isNull);
     expect(bloc.state.captures[1].path, b);
+    expect(bloc.state.blurryPages, {b});
 
-    bloc.add(SessionRetakeRequested(notice.captureId));
+    // A retake still takes the old shot's place.
+    bloc.add(SessionRetakeRequested(bloc.state.captures[1].id));
     await pump();
     expect(bloc.state.count, 2);
     expect(bloc.state.notice, isNull);
@@ -140,8 +141,10 @@ void main() {
     expect(bloc.state.nextSide, CardSide.back);
     bloc.add(SessionCaptured(back));
     await pump();
-    expect(bloc.state.notice!.kind, NoticeKind.blurryCard, reason: 'card wording in ID mode (P0-2)');
-    bloc.add(SessionRetakeRequested(bloc.state.notice!.captureId));
+    // Round 7, P0-4: no blur warnings for cards at all.
+    expect(bloc.state.notice, isNull);
+    expect(bloc.state.blurryPages, isEmpty);
+    bloc.add(SessionRetakeRequested(bloc.state.captures[1].id));
     await pump();
     expect(bloc.state.nextSide, CardSide.back);
     bloc.add(SessionCaptured(shot('back2')));

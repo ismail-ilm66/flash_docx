@@ -58,9 +58,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorPageSelected>(_onPageSelected);
     on<EditorCornerMoved>(_onCornerMoved);
     on<EditorCornerDragEnded>((_, _) {});
-    on<EditorBlurryKept>((_, emit) {
-      final id = state.current?.id;
-      if (id != null) emit(state.copyWith(blurryPages: {...state.blurryPages}..remove(id)));
+    on<EditorBlurryHidden>((e, emit) {
+      emit(state.copyWith(blurryPages: {...state.blurryPages}..remove(e.pageId)));
     });
     on<EditorEnhanceClosed>((_, _) {
       // Back on Adjust edges: the crop may change, so stop preparing looks.
@@ -126,9 +125,21 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     if (_keepsDraft) unawaited(_drafts.discard());
   }
 
+  /// Round 7, P0-4: a page's blur banner shows once, for [blurryShown].
+  @visibleForTesting
+  static Duration blurryShown = const Duration(seconds: 4);
+  final Map<String, Timer> _blurryTimers = {};
+
   @override
   void onChange(Change<PageEditorState> change) {
     super.onChange(change);
+    final next = change.nextState;
+    if (next.currentBlurry) {
+      final id = next.current!.id;
+      _blurryTimers[id] ??= Timer(blurryShown, () {
+        if (!isClosed) add(EditorBlurryHidden(id));
+      });
+    }
     if (!_keepsDraft || popAllowed || identical(change.currentState.pages, change.nextState.pages)) return;
     // Corner drags change the pages many times a second: one write when
     // they rest.
@@ -145,6 +156,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   @override
   Future<void> close() {
     _prefetchCancel?.cancel();
+    for (final t in _blurryTimers.values) {
+      t.cancel();
+    }
     // A pending edit is written before the editor goes.
     if (_draftTimer?.isActive ?? false) {
       _draftTimer!.cancel();

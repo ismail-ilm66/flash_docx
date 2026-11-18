@@ -17,11 +17,13 @@ void main() {
   const shot = CaptureMeta(sensorOrientation: 0, deviceTurns: 0);
 
   /// The letter page photo, its right half smeared like a turning phone.
-  String photo(String name, {required bool shaken}) {
+  String photo(String name, {required bool shaken, bool corner = false}) {
     final img = cv.imread('test/fixtures/edges/letter_page.jpg');
-    if (shaken) {
-      final x0 = img.cols ~/ 2;
-      final roi = img.region(cv.Rect(x0, 0, img.cols - x0, img.rows));
+    if (shaken || corner) {
+      // A smeared half, or (round 7) one small soft patch.
+      final x0 = corner ? img.cols * 3 ~/ 5 : img.cols ~/ 2;
+      final y0 = corner ? img.rows * 3 ~/ 5 : 0;
+      final roi = img.region(cv.Rect(x0, y0, corner ? img.cols ~/ 6 : img.cols - x0, corner ? img.rows ~/ 6 : img.rows));
       final smeared = cv.gaussianBlur(roi, (0, 0), 4);
       smeared.copyTo(roi);
       for (final m in [roi, smeared]) {
@@ -42,6 +44,20 @@ void main() {
     expect(r.quad, isNotNull);
     expect(r.blurryCells, isNotEmpty);
     expect(r.blurryCells.every((c) => c.$2 >= 1), isTrue, reason: 'the right side: ${r.blurryCells}');
+  });
+
+  test('round 7, P0-4: one soft patch is not worth a retake', () {
+    final src = photo('corner', shaken: false, corner: true);
+    final r = ingest(src, capture: shot);
+    expect(r.quad, isNotNull);
+    expect(r.blurryCells, isEmpty);
+    // Round 6's rule (any cell under 0.5 × the best) asked for a retake.
+    final prev = cv.imread(p.join(tmp.path, 'prev_${p.basename(src)}'));
+    final page = pipe.warpToQuad(prev, r.quad!);
+    expect(pipe.blurryRegions(page, ratio: 0.5, minCells: 1), isNotEmpty);
+    for (final m in [prev, page]) {
+      m.dispose();
+    }
   });
 
   test('an evenly sharp shot is not', () {

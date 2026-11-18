@@ -106,9 +106,12 @@ void main() {
       test('blurry regions match the reference (round 6, P1-1)', () {
         final expected = jsonDecode(File(p.join(refDir.path, '${name}_blur.json')).readAsStringSync()) as Map<String, dynamic>;
         List<List<int>> cells(List<(int, int)> c) => [for (final (r, k) in c) [r, k]];
-        expect(cells(pipe.blurryRegions(warp)), expected['warp']);
+        // The fixtures come from the round 6 reference (any cell under
+        // 0.5 × the best). TODO(round 7): regenerate from the round 7
+        // reference (2 cells under 0.4) when it arrives.
+        expect(cells(pipe.blurryRegions(warp, ratio: 0.5, minCells: 1)), expected['warp']);
         final shaken = cv.imread(p.join(refDir.path, '${name}_shaken.png'));
-        expect(cells(pipe.blurryRegions(shaken)), expected['shaken']);
+        expect(cells(pipe.blurryRegions(shaken, ratio: 0.5, minCells: 1)), expected['shaken']);
         shaken.dispose();
       });
 

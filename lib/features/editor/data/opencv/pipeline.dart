@@ -1236,12 +1236,16 @@ cv.Mat denoisePreview(cv.Mat bgr) {
 /// Parts of a page much blurrier than its sharpest part: camera shake or
 /// focus fall-off (reference `blurry_regions`, round 6 P1-1). Returns the
 /// (row, col) cells of a [grid] × [grid] split whose score is below
-/// [ratio] × the best, or [] when the page is evenly sharp or has too
-/// little detail to judge. Run on the cropped page, before filters.
+/// [ratio] × the best, or [] when the page is evenly sharp, has too little
+/// detail to judge, or fewer than [minCells] cells are that soft. Run on
+/// the cropped page, before filters.
+///
+/// Round 7, P0-4: 10–12 retake prompts for 8 pages. A warning now needs 2
+/// of 9 cells under 0.4 × the sharpest (was 1 under 0.5).
 ///
 /// Score: on each cell's strongest edges, median |Laplacian| / |gradient|,
 /// about 1/σ for an edge blurred by σ whatever the ink's darkness.
-List<(int, int)> blurryRegions(cv.Mat warped, {int grid = 3, double ratio = 0.5}) {
+List<(int, int)> blurryRegions(cv.Mat warped, {int grid = 3, double ratio = 0.4, int minCells = 2}) {
   final gray = cv.cvtColor(warped, cv.COLOR_BGR2GRAY);
   var g = gray.convertTo(cv.MatType.CV_32FC1);
   gray.dispose();
@@ -1302,10 +1306,11 @@ List<(int, int)> blurryRegions(cv.Mat warped, {int grid = 3, double ratio = 0.5}
   }
   if (scores.length < 3) return const [];
   final best = scores.values.reduce(math.max);
-  return [
+  final soft = [
     for (final e in scores.entries)
       if (e.value < ratio * best) e.key,
   ]..sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
+  return soft.length < minCells ? const [] : soft;
 }
 
 /// All values of a one-channel float Mat, row-major.

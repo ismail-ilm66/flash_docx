@@ -485,28 +485,6 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     final n = s.notice;
     if (n != null) {
       return switch (n.kind) {
-        NoticeKind.blurryCard => NoticeBanner(
-          text: l.cameraCardBlurry,
-          icon: AppIcons.warning,
-          actions: [
-            (
-              l.cameraRetake,
-              () => bloc.add(SessionRetakeRequested(n.captureId)),
-            ),
-            (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
-          ],
-        ),
-        NoticeKind.blurry => NoticeBanner(
-          text: l.cameraBlurryTitle,
-          icon: AppIcons.warning,
-          actions: [
-            (
-              l.cameraRetake,
-              () => bloc.add(SessionRetakeRequested(n.captureId)),
-            ),
-            (l.cameraKeep, () => bloc.add(const SessionNoticeDismissed())),
-          ],
-        ),
         NoticeKind.unreadable => NoticeBanner(
           text: l.cameraUnreadable,
           icon: AppIcons.warning,

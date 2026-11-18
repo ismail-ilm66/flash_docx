@@ -659,14 +659,22 @@ void main() {
     });
   });
 
-  test('round 6, P1-1: a partly blurry shot offers a retake until Keep', () async {
-    final args = EditorArgs(pages: [page], mode: ScanMode.document, blurryPages: {page.id});
+  test('round 7, P0-4: the blurry-page banner shows once, then hides itself', () async {
+    PageEditorBloc.blurryShown = const Duration(milliseconds: 300);
+    addTearDown(() => PageEditorBloc.blurryShown = const Duration(seconds: 4));
+    final second = page.copyWith(id: 'p2', order: 1);
+    final args = EditorArgs(pages: [page, second], mode: ScanMode.document, blurryPages: {page.id});
     final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await settle();
     expect(bloc.state.currentBlurry, isTrue);
-    bloc.add(const EditorBlurryKept());
+    // Away and back while it shows: the same countdown, not a new one.
+    bloc.add(const EditorPageSelected(1));
     await settle();
+    expect(bloc.state.currentBlurry, isFalse);
+    bloc.add(const EditorPageSelected(0));
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    expect(bloc.state.blurryPages, isEmpty);
     expect(bloc.state.currentBlurry, isFalse);
     await bloc.close();
   });

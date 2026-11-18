@@ -24,9 +24,10 @@ class EditorCornerDragEnded extends PageEditorEvent {
   const EditorCornerDragEnded();
 }
 
-/// "Keep" on the partly-blurry notice for the current page (P1-1).
-class EditorBlurryKept extends PageEditorEvent {
-  const EditorBlurryKept();
+/// The blurry-page banner hides itself after a few seconds (round 7, P0-4).
+class EditorBlurryHidden extends PageEditorEvent {
+  const EditorBlurryHidden(this.pageId);
+  final String pageId;
 }
 
 /// Enhance was closed (back to Adjust edges).
