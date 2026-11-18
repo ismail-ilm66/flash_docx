@@ -14,7 +14,7 @@ import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
-import 'package:flash_dox/features/scanner/data/steady_gate.dart';
+import 'package:flash_dox/features/scanner/data/motion_monitor.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
@@ -128,6 +128,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Timer? _focusRingTimer;
   StorageLevel _storage = StorageLevel.ok;
 
+  /// Round 7, P0-1: the gyroscope shows "Hold still" while the phone moves
+  /// (never blocks the shutter) and tells focus when to go back to the page.
+  final MotionMonitor _motion = MotionMonitor();
+  StreamSubscription<GyroscopeEvent>? _gyro;
+  Timer? _focusTimer;
+  bool _moving = false;
+
+  /// The photo is being saved after the tap: "Hold still…" on the preview.
+  bool _saving = false;
+
   /// Portrait aspect (width / height) of the capture, or 3:4 until known.
   double get _photoAspect {
     final c = _controller;
@@ -146,6 +156,44 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     _orientation.start();
     unawaited(_init(lens: _lens));
     unawaited(_checkStorage());
+    unawaited(_loadShutterSound());
+    _gyro = gyroscopeEventStream(samplingPeriod: SensorInterval.uiInterval).listen(
+      (e) {
+        if (_motion.add((x: e.x, y: e.y, z: e.z, at: e.timestamp)) && mounted) {
+          setState(() => _moving = _motion.isMoving);
+        }
+      },
+      onError: (Object _) {}, // no gyroscope: no hint
+      cancelOnError: true,
+    );
+    // Focus before the tap: continuous autofocus, and every ~1.5 s, if the
+    // phone moved, focus and exposure go back to the page.
+    _focusTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _refocusOnPage());
+  }
+
+  /// Preloaded so the click is heard with the flash, not after it.
+  Future<void> _loadShutterSound() async {
+    try {
+      await _shutterPlayer.setReleaseMode(ReleaseMode.stop);
+      await _shutterPlayer.setSource(AssetSource('sounds/shutter.wav'));
+      await _shutterPlayer.setVolume(0.9);
+    } catch (e) {
+      debugPrint('[capture] shutter sound: $e');
+    }
+  }
+
+  /// The page centre: the ID / passport frame, else the middle of the
+  /// preview. Skipped right after a tap-to-focus, while shooting, and when
+  /// the phone hasn't moved (re-aiming a steady phone only makes the lens
+  /// hunt).
+  Future<void> _refocusOnPage() async {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized || _capturing) return;
+    final tapped = _focusedAt != null && DateTime.now().difference(_focusedAt!) < const Duration(seconds: 5);
+    if (tapped || !_motion.takeFocusRefresh()) return;
+    final point = _cardFocusPoint() ?? const Offset(0.5, 0.5);
+    await _trySet(() => c.setFocusPoint(point));
+    await _trySet(() => c.setExposurePoint(point));
   }
 
   Future<void> _checkStorage() async {
@@ -166,11 +214,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         (c) => c.lensDirection == lens,
         orElse: () => cams.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cams.first),
       );
-      // `max` is the sensor's full 4:3 photo size on both platforms, which
-      // matches the 3:4 preview well: what you see is what you capture.
+      // Round 7, P0-1/P0-2: 3840 × 2160 instead of the full 16 MP sensor.
+      // Pages are resized to 3000 px anyway, and old phones save it much
+      // faster. Preview and photo share the 16:9 shape, and the preview is
+      // shown whole, so what you see is what you get.
       final ctrl = CameraController(
         back,
-        ResolutionPreset.max,
+        ResolutionPreset.ultraHigh,
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
@@ -243,7 +293,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     final photo = PreviewGeometry.viewportToPhoto(
       screen,
       photoAspect: _photoAspect,
-      viewport: MediaQuery.sizeOf(context),
+      viewport: _layout.box.size,
     );
     setState(() => _focusPoint = screen);
     _focusedAt = DateTime.now();
@@ -257,31 +307,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     await _trySet(() => c.setExposurePoint(target));
   }
 
-  /// Continuous autofocus is always on. Only right after a tap-to-focus
-  /// do we hold the shutter until focus has had ~300 ms to settle (A3).
-  Future<void> _waitForTapFocus() async {
-    final at = _focusedAt;
-    if (at == null) return;
-    final left =
-        const Duration(milliseconds: 300) - DateTime.now().difference(at);
-    if (left > Duration.zero) await Future<void>.delayed(left);
-  }
-
   /// Sound, haptic and the white flash — before `takePicture()` (P0-C).
   void _captureFeedback() {
     unawaited(HapticFeedback.mediumImpact());
     if (getIt<PrefsService>().shutterSound) {
       unawaited(
-        _shutterPlayer.play(AssetSource('sounds/shutter.wav'), volume: 0.9),
+        _shutterPlayer.seek(Duration.zero).then((_) => _shutterPlayer.resume()).catchError((Object _) {}),
       );
     }
-    setState(() => _flashTick++);
+    setState(() {
+      _flashTick++;
+      _saving = true;
+    });
   }
 
   ScanMode? _cameraMode;
-
-  /// The shutter is waiting for the phone to hold still (P1-1).
-  bool _holdingStill = false;
 
   /// ID / passport zoom. Round 4 (P0-2) used 1.5× against blur; users had
   /// to hold the phone too far away, so 14 Nov 2026 it came down 20 %.
@@ -316,11 +356,12 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (!mounted) return null;
     final aspect = context.read<ScanSessionBloc>().state.rules.aspectRatio;
     if (aspect == null) return null;
+    final layout = _layout;
     final q = PreviewGeometry.guideQuad(
       aspect,
       photoAspect: _photoAspect,
-      viewport: MediaQuery.sizeOf(context),
-      area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
+      viewport: layout.box.size,
+      area: layout.guideArea,
     );
     final pts = q.points;
     return Offset(
@@ -356,14 +397,19 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     _orientation.stop();
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _focusRingTimer?.cancel();
+    _focusTimer?.cancel();
+    unawaited(_gyro?.cancel());
     _shutterPlayer.dispose();
     _controller?.dispose();
     super.dispose();
   }
 
-  /// The shutter path does only: feedback → takePicture() → queue → ready
-  /// (P0-C). Moving, uprighting, detection and previews run in the session's
-  /// background queue.
+  /// Round 7, P0-1: the photo is taken the moment the shutter is tapped.
+  /// No waiting for the phone to hold still and no focus call here (focus
+  /// is kept on the page before the tap). Within a frame: white flash,
+  /// sound, vibration, then "Hold still…" until the file is saved, then the
+  /// page flies to the stack. Everything else runs in the session's
+  /// background queue (P0-C).
   Future<void> _capture() async {
     final c = _controller;
     final bloc = context.read<ScanSessionBloc>();
@@ -374,40 +420,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         !bloc.state.canCapture) {
       return;
     }
-    setState(() => _capturing = true);
     final total = Stopwatch()..start();
-    var locked = false;
+    setState(() => _capturing = true);
+    _captureFeedback();
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => debugPrint('[perf] shutter tap → flash on screen ${total.elapsedMilliseconds} ms'),
+    );
     try {
-      // Round 6, P1-1: focus and exposure on the page (the card frame, a
-      // point the user just tapped, else the frame centre), settled, while
-      // the phone comes to rest; then focus is locked for the shot, so it
-      // can't hunt while the shutter is open. The plugin has no "focus
-      // done" callback: 400 ms. The shutter stays disabled meanwhile.
-      final tapped = _focusedAt != null &&
-          DateTime.now().difference(_focusedAt!) < const Duration(seconds: 5);
-      final point = _cardFocusPoint() ?? (tapped ? null : const Offset(0.5, 0.5));
-      if (point != null) {
-        await _trySet(() => c.setFocusPoint(point));
-        await _trySet(() => c.setExposurePoint(point));
-      }
-      final settle = point != null
-          ? Future<void>.delayed(const Duration(milliseconds: 400))
-          : _waitForTapFocus();
-      setState(() => _holdingStill = true);
-      final steady = await Future.wait([
-        SteadyGate.wait(
-          gyroscopeEventStream(samplingPeriod: SensorInterval.gameInterval)
-              .map((e) => (x: e.x, y: e.y, z: e.z, at: e.timestamp)),
-        ),
-        settle.then((_) => true),
-      ]);
-      if (!mounted) return;
-      setState(() => _holdingStill = false);
-      if (!steady.first) debugPrint('[capture] still moving after 1 s: shot anyway');
-      await _trySet(() => c.setFocusMode(FocusMode.locked));
-      locked = true;
-      _captureFeedback();
-      final take = Stopwatch()..start();
       // How the phone is held right now (round 5, P0-1): from the
       // accelerometer, since the plugin's orientation follows the UI, which
       // is locked to portrait. Applied with the sensor angle at ingest.
@@ -417,44 +436,48 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         frontCamera: c.description.lensDirection == CameraLensDirection.front,
       );
       final shot = await c.takePicture();
-      take.stop();
+      debugPrint('[perf] shutter tap → photo saved ${total.elapsedMilliseconds} ms');
       if (!mounted) return;
       // The guide frame in photo coordinates: searched first, and the
       // fallback crop if detection finds nothing (ID / passport only).
       final guideAspect = bloc.state.rules.aspectRatio;
+      final layout = _layout;
       final guide = guideAspect == null
           ? null
           : PreviewGeometry.guideQuad(
               guideAspect,
               photoAspect: _photoAspect,
-              viewport: MediaQuery.sizeOf(context),
-              area: CameraOverlay.guideAreaFor(MediaQuery.of(context)),
+              viewport: layout.box.size,
+              area: layout.guideArea,
             );
       if (widget.args.retake) {
         context.pop(RetakeShot(shot.path, guide: guide, capture: capture));
         return;
       }
       bloc.add(SessionCaptured(shot.path, guide: guide, capture: capture));
-      setState(() => _flyTick++);
-      debugPrint(
-        '[capture] takePicture ${take.elapsedMilliseconds} ms; '
-        'shutter ready again after ${total.elapsedMilliseconds} ms',
-      );
+      setState(() {
+        _saving = false;
+        _flyTick++;
+      });
       // ID card (2 sides) / passport (1 page) finish by themselves.
       if (bloc.state.isComplete) bloc.add(const SessionFinished());
     } catch (e) {
       debugPrint('[capture] failed: $e');
       if (mounted) context.showSnack(context.l10n.errorImage, error: true);
     } finally {
-      if (locked) await _trySet(() => c.setFocusMode(FocusMode.auto));
       if (mounted) {
         setState(() {
           _capturing = false;
-          _holdingStill = false;
+          _saving = false;
         });
       }
     }
   }
+
+  /// Where the preview box and the frame are (round 7, P0-2).
+  CameraLayout get _layout => CameraOverlay.layoutFor(MediaQuery.of(context), _photoAspect, modes: _showModes);
+
+  bool get _showModes => !widget.args.retake && !widget.args.returnPages && widget.args.addToDocumentId == null;
 
   Widget? _banner(BuildContext context, ScanSessionState s) {
     final l = context.l10n;
@@ -604,10 +627,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   // The cropped page once processed (P0-3); a placeholder before.
                   lastCapturePath: s.captures.lastOrNull?.thumb,
                   canFinish: s.canFinish && !widget.args.retake,
-                  showModes:
-                      !widget.args.retake &&
-                      !widget.args.returnPages &&
-                      widget.args.addToDocumentId == null,
+                  showModes: _showModes,
+                  photoAspect: _photoAspect,
+                  saving: _saving,
                   capturing:
                       _capturing ||
                       s.status == SessionStatus.preparing ||
@@ -658,9 +680,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   String _guideText(AppLocalizations l, ScanSessionState s) {
-    // Round 6, P1-1: while the shutter waits for the phone to rest, and
+    // Round 7, P0-1: while the phone moves (a hint, never a wait); round 6:
     // after a dark shot until the flash is on or a shot is bright enough.
-    if (_holdingStill) return l.cameraHoldStill;
+    if (_moving) return l.cameraHoldStill;
     if (s.lowLight) return l.cameraLowLight;
     final hint = widget.args.hint ??
         switch (s.guide) {
@@ -690,17 +712,13 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         ),
       );
     }
-    // Cover-fit the 4:3 capture into the 3:4 well (an exact fit on most
-    // devices; a hair of cropping on the rest, see PreviewGeometry).
-    final portraitAspect = 1 / c.value.aspectRatio;
-    return ClipRect(
-      child: FittedBox(
-        fit: BoxFit.cover,
-        child: SizedBox(
-          width: 1000,
-          height: 1000 / portraitAspect,
-          child: CameraPreview(c),
-        ),
+    // Round 7, P0-2: the whole preview in a box of its own shape, never
+    // cover-cropped: the photo shows exactly what's on screen.
+    return FittedBox(
+      child: SizedBox(
+        width: 1000,
+        height: 1000 / _photoAspect,
+        child: CameraPreview(c),
       ),
     );
   }

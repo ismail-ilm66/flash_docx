@@ -2,14 +2,16 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flutter/painting.dart' show EdgeInsets;
 
-/// Pure geometry for the full-screen camera preview (round 4, P1-2).
+/// Pure geometry for the camera preview.
 ///
-/// The photo (4:3 sensor, shown portrait as 3:4) is cover-fitted to the
-/// whole screen, so on tall phones its sides run off the screen. These
-/// helpers map between screen fractions and photo fractions through that
-/// cover crop, so the guide frame and tap-to-focus land where the user sees
-/// them.
+/// Round 4 cover-fitted the photo to the whole screen, which cut its sides
+/// off: pages looked further away than they were, and users stepped back
+/// (round 7, P0-2). The preview is now shown whole in a box of the photo's
+/// shape ([CameraLayout]), so with the box as the viewport these helpers
+/// map screen fractions to the same photo fractions. They still handle a
+/// viewport of another shape (cover fit) for safety.
 abstract final class PreviewGeometry {
   /// Portrait aspect (width / height) of a capture until the camera reports
   /// its own.
@@ -65,4 +67,51 @@ abstract final class PreviewGeometry {
 
     return Quad(tl: pt(r.topLeft), tr: pt(r.topRight), br: pt(r.bottomRight), bl: pt(r.bottomLeft));
   }
+}
+
+/// Round 7, P0-2: what you see is what you get. The preview is shown whole
+/// (no cover crop) in a box of the photo's own aspect, top-aligned under
+/// the status bar, as wide as the screen unless the shutter row below
+/// wouldn't fit. The top bar, mode pills and hint sit over the box.
+class CameraLayout {
+  const CameraLayout._(this.box, this.guideArea);
+
+  /// Builds the layout for a [screen] with system [padding] and a photo of
+  /// [photoAspect] (portrait width / height). [modes]: the mode pills are
+  /// shown over the bottom of the box.
+  factory CameraLayout.of(Size screen, EdgeInsets padding, double photoAspect, {required bool modes}) {
+    final top = padding.top;
+    final maxH = screen.height - top - controlsHeight - padding.bottom;
+    var w = screen.width;
+    var h = w / photoAspect;
+    if (h > maxH && maxH > 0) {
+      h = maxH;
+      w = h * photoAspect;
+    }
+    final box = Rect.fromLTWH((screen.width - w) / 2, top, w, h);
+    final below = bottomOverlay(modes: modes);
+    final guideTop = math.min(topBar / h, 0.4);
+    final guideBottom = math.max((h - below) / h, 0.6);
+    return CameraLayout._(box, Rect.fromLTRB(0, guideTop, 1, guideBottom));
+  }
+
+  /// ✕ · title · flash, over the top of the box.
+  static const double topBar = 70;
+
+  /// The shutter row (80) and its margins, below the box.
+  static const double controlsHeight = 80 + 2 * 14;
+
+  static const double modePills = 36;
+  static const double hintChip = 40;
+  static const double gap = 10;
+
+  /// How much of the box bottom the pills and the hint cover.
+  static double bottomOverlay({required bool modes}) => (modes ? modePills + gap : 0) + hintChip + gap;
+
+  /// The preview box, in screen pixels. The photo is exactly what's in it.
+  final Rect box;
+
+  /// Where the ID / passport frame is centred: the part of the box between
+  /// the top bar and the pills, as fractions of the box.
+  final Rect guideArea;
 }

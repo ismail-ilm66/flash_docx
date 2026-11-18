@@ -285,4 +285,14 @@ void main() {
     expect(drafts.discardCalls, 0);
     await bloc.close();
   });
+
+  test('round 7, P0-1: Document starts with the flash off; ID cards remember it', () async {
+    await prefs.setFlashOn(true);
+    final doc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final card = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.idCard, null);
+    expect(doc.state.flashOn, isFalse);
+    expect(card.state.flashOn, isTrue);
+    await doc.close();
+    await card.close();
+  });
 }

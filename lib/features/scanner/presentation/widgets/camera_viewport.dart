@@ -1,10 +1,11 @@
 import 'package:flash_dox/app/theme/app_tokens.dart';
+import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flutter/material.dart';
 
-/// The full-screen camera viewport (round 4, P1-2): camera feed (cover
-/// fit), guide frame, tap-to-focus ring, the white capture flash and the
-/// page that flies into the stack.
+/// The camera viewport: camera feed (the whole photo, round 7), guide
+/// frame, tap-to-focus ring, the white capture flash, "Hold still…" while
+/// the photo is saved, and the page that flies into the stack.
 class CameraViewport extends StatefulWidget {
   const CameraViewport({
     required this.preview,
@@ -16,7 +17,12 @@ class CameraViewport extends StatefulWidget {
     this.onTap,
     this.stackKey,
     this.flyTick = 0,
+    this.saving = false,
   });
+
+  /// Round 7, P0-1: the shutter fired and the photo is being saved. The
+  /// preview is veiled with "Hold still…" so nobody moves the phone away.
+  final bool saving;
 
   final Widget preview;
 
@@ -120,6 +126,16 @@ class _CameraViewportState extends State<CameraViewport> with TickerProviderStat
                     top: widget.focusPoint!.dy * size.height - 32,
                     child: const _FocusRing(key: ValueKey('focus')),
                   ),
+                IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: widget.saving ? 1 : 0,
+                    duration: widget.saving ? Duration.zero : Motion.fast,
+                    child: ColoredBox(
+                      color: const Color(0x73000000),
+                      child: Center(child: _HoldStill(label: context.l10n.cameraHoldStill)),
+                    ),
+                  ),
+                ),
                 FadeTransition(
                   opacity: _flash,
                   child: const ColoredBox(color: Colors.white),
@@ -155,6 +171,27 @@ class _CameraViewportState extends State<CameraViewport> with TickerProviderStat
           ),
         );
       },
+    );
+  }
+}
+
+class _HoldStill extends StatelessWidget {
+  const _HoldStill({required this.label});
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 10),
+      decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+          const SizedBox(width: Space.x2),
+          Text(label, style: context.text.labelLarge?.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+        ],
+      ),
     );
   }
 }

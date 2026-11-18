@@ -38,7 +38,9 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         super(
           ScanSessionState(
             mode: initialMode ?? ScanMode.document,
-            flashOn: _prefs.flashOn,
+            // Round 7, P0-1: Document always starts with the flash off (it
+            // adds a metering delay and glare on paper); cards remember it.
+            flashOn: (initialMode ?? ScanMode.document) != ScanMode.document && _prefs.flashOn,
           ),
         ) {
     on<SessionModeChanged>(_onMode);

@@ -5,6 +5,7 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_viewport.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -40,7 +41,15 @@ class CameraOverlay extends StatelessWidget {
     this.timerOn = false,
     this.onTimer,
     this.countdown,
+    this.photoAspect = PreviewGeometry.defaultPhotoAspect,
+    this.saving = false,
   });
+
+  /// Portrait aspect (width / height) of the photo: the preview box's shape.
+  final double photoAspect;
+
+  /// The shutter fired and the photo is being saved: "Hold still…".
+  final bool saving;
 
   /// Passport photo only (P1-3.1): switch between back and front camera,
   /// and a 3 s self-timer. Hidden when null.
@@ -85,19 +94,9 @@ class CameraOverlay extends StatelessWidget {
   /// Storage / blur / dark notice shown above the hint.
   final Widget? banner;
 
-  /// Heights from the artboard (round 4, P1-2).
-  static const double topFade = 96;
-  static const double bottomFade = 250;
-
-  /// The visible part of the full-screen preview between the top bar and
-  /// the controls, as fractions of the screen. The guide frame is centred in
-  /// it; the camera page uses the same area to map the frame into the photo.
-  static Rect guideAreaFor(MediaQueryData mq) {
-    final h = mq.size.height;
-    final top = mq.padding.top + 70;
-    final bottom = h - mq.padding.bottom - bottomFade;
-    return Rect.fromLTRB(0, top / h, 1, (bottom > top ? bottom : h) / h);
-  }
+  /// Round 7, P0-2: where the preview box and the frame go on this screen.
+  static CameraLayout layoutFor(MediaQueryData mq, double photoAspect, {required bool modes}) =>
+      CameraLayout.of(mq.size, mq.padding, photoAspect, modes: modes);
 
   @override
   Widget build(BuildContext context) {
@@ -106,23 +105,28 @@ class CameraOverlay extends StatelessWidget {
     // P1-4: Document has no frame guide; ID / passport frames are always
     // landscape and a constant in screen space.
     final aspect = rules.aspectRatio;
+    final layout = layoutFor(mq, photoAspect, modes: showModes);
+    final box = layout.box;
     return Stack(
       children: [
-        // ---- preview: the whole screen, under a transparent status bar ----
-        Positioned.fill(
+        // ---- preview: the whole photo, uncropped (round 7, P0-2) ----
+        Positioned.fromRect(
+          rect: box,
           child: CameraViewport(
             preview: preview,
             guideAspect: aspect,
-            guideArea: guideAreaFor(mq),
+            guideArea: layout.guideArea,
             focusPoint: focusPoint,
             flashTick: flashTick,
             onTap: onPreviewTap,
             stackKey: stackKey,
             flyTick: flyTick,
+            saving: saving,
           ),
         ),
         if (countdown != null)
-          Positioned.fill(
+          Positioned.fromRect(
+            rect: box,
             child: IgnorePointer(
               child: Center(
                 child: Text(
@@ -140,7 +144,7 @@ class CameraOverlay extends StatelessWidget {
           child: IgnorePointer(
             ignoring: false,
             child: Container(
-              height: topFade + mq.padding.top,
+              height: CameraLayout.topBar + mq.padding.top + 26,
               padding: EdgeInsets.fromLTRB(Space.x2, mq.padding.top + 14, Space.x2, 0),
               decoration: const BoxDecoration(
                 gradient: LinearGradient(
@@ -193,80 +197,84 @@ class CameraOverlay extends StatelessWidget {
             ),
           ),
         ),
-        // ---- hint chip (and notices) just above the bottom fade ----
+        // ---- over the bottom of the box: notices, the hint, the modes ----
         Positioned(
-          left: Space.x4,
-          right: Space.x4,
-          bottom: mq.padding.bottom + bottomFade + 12,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (banner != null) ...[banner!, const SizedBox(height: Space.x2)],
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Text(
-                  guide,
-                  textAlign: TextAlign.center,
-                  style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+          left: box.left,
+          width: box.width,
+          bottom: mq.size.height - box.bottom,
+          child: IgnorePointer(
+            ignoring: false,
+            child: Container(
+              padding: const EdgeInsets.only(top: Space.x6, bottom: CameraLayout.gap),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00000000), Color(0x8C000000)],
                 ),
               ),
-            ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (banner != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(Space.x3, 0, Space.x3, Space.x2),
+                      child: banner,
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.6),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Text(
+                        guide,
+                        textAlign: TextAlign.center,
+                        style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
+                      ),
+                    ),
+                  ),
+                  if (showModes) ...[
+                    const SizedBox(height: CameraLayout.gap),
+                    _ModePills(selected: rules.mode, onMode: onMode),
+                  ],
+                ],
+              ),
+            ),
           ),
         ),
-        // ---- bottom fade: modes, then Import · shutter · stack ----
+        // ---- below the box: Import · shutter · stack ----
         Positioned(
           left: 0,
           right: 0,
-          bottom: 0,
-          child: Container(
-            height: bottomFade + mq.padding.bottom,
-            padding: EdgeInsets.only(bottom: 28 + mq.padding.bottom),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [Color(0x00000000), Color(0xC7000000)],
-                stops: [0, 0.32],
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
+          top: box.bottom,
+          bottom: mq.padding.bottom,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.x8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (showModes) ...[
-                  _ModePills(selected: rules.mode, onMode: onMode),
-                  const SizedBox(height: 22),
-                ],
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.x8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      SizedBox(
-                        width: 56,
-                        height: 56,
-                        child: onGallery == null ? null : _ImportButton(onTap: onGallery!),
-                      ),
-                      _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
-                      SizedBox(
-                        width: 56,
-                        height: 64,
-                        child: captureCount == 0
-                            ? null
-                            : _PageStack(
-                                key: stackKey,
-                                count: captureCount,
-                                path: lastCapturePath,
-                                onTap: canFinish ? onFinish : onRemoveLast,
-                                onLongPress: onRemoveLast,
-                                label: canFinish ? l.cameraDone : l.cameraRemoveLast,
-                              ),
-                      ),
-                    ],
-                  ),
+                SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: onGallery == null ? null : _ImportButton(onTap: onGallery!),
+                ),
+                _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
+                SizedBox(
+                  width: 56,
+                  height: 64,
+                  child: captureCount == 0
+                      ? null
+                      : _PageStack(
+                          key: stackKey,
+                          count: captureCount,
+                          path: lastCapturePath,
+                          onTap: canFinish ? onFinish : onRemoveLast,
+                          onLongPress: onRemoveLast,
+                          label: canFinish ? l.cameraDone : l.cameraRemoveLast,
+                        ),
                 ),
               ],
             ),
