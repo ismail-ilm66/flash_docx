@@ -8,6 +8,7 @@ import 'package:flash_dox/core/constants/app_info.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flutter/material.dart';
@@ -76,6 +77,15 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     }
   }
 
+  /// Temp files from the last run go; so do the documents' cached page
+  /// images when pages now render differently ([FileStore.renderVersion]).
+  Future<void> _refreshPageCaches(FileStore files) async {
+    final prefs = getIt<PrefsService>();
+    if (prefs.renderVersion >= FileStore.renderVersion) return files.clearExportTemp();
+    await files.clearCaches();
+    await prefs.setRenderVersion(FileStore.renderVersion);
+  }
+
   Future<void> _start() async {
     final minimum = Future<void>.delayed(_hold);
     // Housekeeping (round 6, P0-3): export and capture temp files from the
@@ -83,7 +93,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     final files = getIt<FileStore>();
     // Round 7, P0-3: an unsaved scan from the last run, for Home's card.
     final work = Future.wait<void>([
-      files.clearExportTemp(),
+      _refreshPageCaches(files),
       _loadDeviceProfile(),
       getIt<DraftService>().init(),
     ]).catchError((_) => const <void>[]);

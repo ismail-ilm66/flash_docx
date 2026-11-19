@@ -360,6 +360,11 @@ class FileStore {
     if (f.existsSync()) await f.delete();
   }
 
+  /// Bumped when the look of a rendered page changes (round 8: the border
+  /// clean-up). On the first launch after, the documents' cached page
+  /// images are dropped and rebuild on demand ([clearCaches]).
+  static const int renderVersion = 8;
+
   /// Export temp + processed/thumb caches. They rebuild on demand.
   Future<void> clearCaches() async {
     await clearExportTemp();

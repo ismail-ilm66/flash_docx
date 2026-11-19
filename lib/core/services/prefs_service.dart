@@ -18,6 +18,7 @@ class PrefsService {
   static const _magneticEdges = 'crop_magnetic_edges';
   static const _defaultQuality = 'default_export_quality';
   static const _signatureInk = 'signature_ink';
+  static const _renderVersion = 'page_render_version';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -32,6 +33,10 @@ class PrefsService {
   String? get defaultPageSize => _prefs.getString(_defaultPageSize);
   Future<void> setDefaultPageSize(String v) =>
       _prefs.setString(_defaultPageSize, v);
+
+  /// The page look the documents' cached images were made with.
+  int get renderVersion => _prefs.getInt(_renderVersion) ?? 0;
+  Future<void> setRenderVersion(int v) => _prefs.setInt(_renderVersion, v);
 
   bool get flashOn => _prefs.getBool(_flashOn) ?? false;
   Future<void> setFlashOn(bool v) => _prefs.setBool(_flashOn, v);
