@@ -84,7 +84,31 @@ class _PagesMsg {
 }
 
 const double _mm = PdfPageFormat.mm;
-const double _fitDpi = 200;
+
+/// Round 8, P0-8: the page and how the image sits on it, like CamScanner,
+/// where you can't see where the image ends. No margins, ever.
+///
+/// * The page turns with the image: a landscape image gets a landscape page.
+/// * Auto: within 6 % of A4's shape, the image fills A4 (a stretch that
+///   small is invisible); otherwise the page takes the image's shape at A4
+///   width (receipts, ID cards, book pages).
+/// * A4 / Letter: as Auto when close, else the image fits inside, centred.
+/// * Fit to image: always the image's shape, at A4 width.
+(PdfPageFormat, pw.BoxFit) pdfPageLayout(int imgW, int imgH, PdfPageSize size) {
+  final landscape = imgW > imgH;
+  var base = size == PdfPageSize.letter ? PdfPageFormat.letter : PdfPageFormat.a4;
+  if (landscape) base = base.landscape;
+  final imgRatio = imgH / imgW;
+  final pageRatio = base.height / base.width;
+  final close = (imgRatio - pageRatio).abs() / pageRatio <= 0.06;
+  final full = PdfPageFormat(base.width, base.height);
+  final imageShaped = PdfPageFormat(base.width, base.width * imgRatio);
+  return switch (size) {
+    PdfPageSize.auto => (close ? full : imageShaped, pw.BoxFit.fill),
+    PdfPageSize.fit => (imageShaped, pw.BoxFit.fill),
+    PdfPageSize.a4 || PdfPageSize.letter => (full, close ? pw.BoxFit.fill : pw.BoxFit.contain),
+  };
+}
 
 Future<Uint8List> _buildPages(_PagesMsg m) async {
   final t = StepTimer('PDF build on worker');
@@ -95,22 +119,12 @@ Future<Uint8List> _buildPages(_PagesMsg m) async {
     final bytes = File(path).readAsBytesSync();
     final image = pw.MemoryImage(bytes);
     reading += read.elapsedMilliseconds;
-    final PdfPageFormat format;
-    if (m.size == PdfPageSize.fit) {
-      final w = (image.width ?? 1000) / _fitDpi * PdfPageFormat.inch;
-      final h = (image.height ?? 1400) / _fitDpi * PdfPageFormat.inch;
-      format = PdfPageFormat(w, h);
-    } else {
-      format = PdfPageFormat(
-        m.size.widthMm! * _mm,
-        m.size.heightMm! * _mm,
-        marginAll: 8 * _mm,
-      );
-    }
+    final (format, fit) = pdfPageLayout(image.width ?? 1000, image.height ?? 1414, m.size);
     doc.addPage(
       pw.Page(
         pageFormat: format,
-        build: (_) => pw.Center(child: pw.Image(image, fit: pw.BoxFit.contain)),
+        margin: pw.EdgeInsets.zero,
+        build: (_) => pw.Center(child: pw.Image(image, fit: fit, width: format.width, height: format.height)),
       ),
     );
   }

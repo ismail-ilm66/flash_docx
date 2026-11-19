@@ -47,6 +47,7 @@ class _SettingsView extends StatelessWidget {
   String _pageSize(BuildContext context, PdfPageSize p) {
     final l = context.l10n;
     return switch (p) {
+      PdfPageSize.auto => l.sharePageAuto,
       PdfPageSize.a4 => l.sharePageA4,
       PdfPageSize.letter => l.sharePageLetter,
       PdfPageSize.fit => l.sharePageFit,

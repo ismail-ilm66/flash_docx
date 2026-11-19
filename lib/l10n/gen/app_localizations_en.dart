@@ -305,6 +305,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sharePageSize => 'Page size';
 
   @override
+  String get sharePageAuto => 'Auto';
+
+  @override
   String get sharePageA4 => 'A4';
 
   @override

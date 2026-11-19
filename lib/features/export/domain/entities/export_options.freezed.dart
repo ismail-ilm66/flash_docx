@@ -90,7 +90,7 @@ as int?,
 
 
 class _ExportOptions extends ExportOptions {
-  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.a4, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false, this.pixelWidth, this.pixelHeight}): super._();
+  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.auto, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false, this.pixelWidth, this.pixelHeight}): super._();
   
 
 @override@JsonKey() final  ExportFormat format;
@@ -240,7 +240,7 @@ as String?,
 
 
 class _PdfOptions implements PdfOptions {
-  const _PdfOptions({this.pageSize = PdfPageSize.a4, this.title});
+  const _PdfOptions({this.pageSize = PdfPageSize.auto, this.title});
   
 
 @override@JsonKey() final  PdfPageSize pageSize;

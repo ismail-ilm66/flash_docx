@@ -231,7 +231,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
             PdfPageSize.values
                 .where((s) => s.name == p.defaultPageSize)
                 .firstOrNull ??
-            PdfPageSize.a4,
+            PdfPageSize.auto,
         quality:
             ExportQuality.values
                 .where((q) => q.name == p.defaultQuality)

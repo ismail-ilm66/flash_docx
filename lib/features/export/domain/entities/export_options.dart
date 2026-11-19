@@ -7,7 +7,11 @@ enum ExportFormat { pdf, jpg, png }
 
 enum ExportQuality { standard, high }
 
+/// Round 8, P0-8: Auto (the default) fills A4 when the image is within 6 %
+/// of its shape, else the page takes the image's shape at A4 width. A4 and
+/// Letter fit the image inside; Fit to image is always image-shaped.
 enum PdfPageSize {
+  auto(null, null),
   a4(PaperMm.a4Width, PaperMm.a4Height),
   letter(PaperMm.letterWidth, PaperMm.letterHeight),
   fit(null, null)
@@ -29,7 +33,7 @@ abstract class ExportOptions with _$ExportOptions {
   const factory ExportOptions({
     @Default(ExportFormat.pdf) ExportFormat format,
     @Default(ExportQuality.standard) ExportQuality quality,
-    @Default(PdfPageSize.a4) PdfPageSize pageSize,
+    @Default(PdfPageSize.auto) PdfPageSize pageSize,
     @Default('') String fileName,
     @Default(ExportLayout.oneImage) ExportLayout layout,
 
@@ -60,7 +64,7 @@ abstract class ExportOptions with _$ExportOptions {
 @freezed
 abstract class PdfOptions with _$PdfOptions {
   const factory PdfOptions({
-    @Default(PdfPageSize.a4) PdfPageSize pageSize,
+    @Default(PdfPageSize.auto) PdfPageSize pageSize,
     String? title,
   }) = _PdfOptions;
 }

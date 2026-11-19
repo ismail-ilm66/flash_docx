@@ -14,7 +14,7 @@ class SettingsState extends Equatable {
   const SettingsState({
     this.defaultFilter = FilterType.auto,
     this.defaultFormat = ExportFormat.pdf,
-    this.defaultPageSize = PdfPageSize.a4,
+    this.defaultPageSize = PdfPageSize.auto,
     this.defaultQuality = ExportQuality.standard,
     this.shutterSound = true,
     this.magneticEdges = true,
@@ -78,7 +78,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   static SettingsState _read(PrefsService p) => SettingsState(
         defaultFilter: _enum(FilterType.values, p.defaultFilter, FilterType.auto),
         defaultFormat: _enum(ExportFormat.values, p.defaultExportFormat, ExportFormat.pdf),
-        defaultPageSize: _enum(PdfPageSize.values, p.defaultPageSize, PdfPageSize.a4),
+        defaultPageSize: _enum(PdfPageSize.values, p.defaultPageSize, PdfPageSize.auto),
         defaultQuality: _enum(ExportQuality.values, p.defaultQuality, ExportQuality.standard),
         shutterSound: p.shutterSound,
         magneticEdges: p.magneticEdges,

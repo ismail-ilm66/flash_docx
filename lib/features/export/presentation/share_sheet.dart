@@ -183,6 +183,7 @@ class _SharePanelState extends State<SharePanel> {
                   for (final p in PdfPageSize.values)
                     OptionChip(
                       label: switch (p) {
+                        PdfPageSize.auto => l.sharePageAuto,
                         PdfPageSize.a4 => l.sharePageA4,
                         PdfPageSize.letter => l.sharePageLetter,
                         PdfPageSize.fit => l.sharePageFit,

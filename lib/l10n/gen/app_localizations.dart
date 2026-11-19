@@ -652,6 +652,12 @@ abstract class AppLocalizations {
   /// **'Page size'**
   String get sharePageSize;
 
+  /// No description provided for @sharePageAuto.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto'**
+  String get sharePageAuto;
+
   /// No description provided for @sharePageA4.
   ///
   /// In en, this message translates to:

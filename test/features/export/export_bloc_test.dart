@@ -199,7 +199,7 @@ void main() {
         ),
       ).captured;
       expect(prepared.map((o) => (o as ExportOptions).pageSize), [
-        PdfPageSize.a4,
+        PdfPageSize.auto, // round 8, P0-8: the new default
         PdfPageSize.letter,
       ]);
       final delivered =
