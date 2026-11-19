@@ -1,5 +1,4 @@
 import 'package:flash_dox/app/di/injection.dart';
-import 'package:flash_dox/app/flavor.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
@@ -13,6 +12,7 @@ import 'package:flash_dox/features/scanner/domain/capture_orientation_log.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/shared/widgets/widgets.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -169,9 +169,9 @@ class _AdjustView extends StatelessWidget {
                               actions: [(l.cameraRetake, () => _retake(context))],
                             ),
                           ),
-                        // P0-1: dev builds show how the photo was turned, for
-                        // testers without adb. Never in the store build.
-                        if (FlavorConfig.isDev && page != null && CaptureOrientationLog.lineFor(page.id) != null)
+                        // P0-1: how the photo was turned. Round 8, P2: debug
+                        // builds only, never in a build testers get.
+                        if (kDebugMode && page != null && CaptureOrientationLog.lineFor(page.id) != null)
                           Positioned(
                             left: Space.x2,
                             right: Space.x2,
