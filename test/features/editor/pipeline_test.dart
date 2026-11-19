@@ -236,10 +236,12 @@ void main() {
       // plain filters on that same image.
       File(base).deleteSync();
       final page = pipe.readUpright(work);
+      // Round 8, P0-7: Enhance shows the border clean-up the page gets.
+      cv.Mat bordered(cv.Mat m) => pipe.withCleanBorder(m, const PageEdits());
       for (final (f, direct) in [
-        (FilterType.colorBoost, pipe.colorBoostFilter(page)),
-        (FilterType.grayscale, pipe.grayscaleFilter(page)),
-        (FilterType.auto, pipe.autoFilter(page)),
+        (FilterType.colorBoost, bordered(pipe.colorBoostFilter(page))),
+        (FilterType.grayscale, bordered(pipe.grayscaleFilter(page))),
+        (FilterType.auto, bordered(pipe.autoFilter(page))),
       ]) {
         final viaBase = look(f); // the first one writes the base, the rest read it
         final diff = cv.absDiff(viaBase, direct);

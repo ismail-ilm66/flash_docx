@@ -1845,11 +1845,125 @@ cv.Mat renderEdits(String path, PageEdits edits, {int? maxLongEdge, bool preview
   return finishEdits(filtered, edits, timer: timer);
 }
 
-/// What comes after the filter: the sliders, a passport photo's finish and
-/// signatures. Takes ownership of [filtered].
-cv.Mat finishEdits(cv.Mat filtered, PageEdits edits, {StepTimer? timer}) {
-  final adjusted = brightnessContrast(filtered, edits);
+/// Round 8, P0-7: table left in the crop of a curled or wavy page prints
+/// as dark lines along its sides. Dark areas that touch the image edge and
+/// stay within [band] of it are painted with the paper colour; dark areas
+/// reaching deeper (a black header bar, a photo printed to the edge) are
+/// page content and stay. Returns a new Mat.
+///
+/// PROVISIONAL: written from the fix list's description of the reference
+/// `clean_page_border()`, which hasn't arrived yet. Replace with a straight
+/// port (and a parity test) when it does.
+cv.Mat cleanPageBorder(cv.Mat bgr, {double band = 0.05}) {
+  final h = bgr.rows;
+  final w = bgr.cols;
+  final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
+  try {
+    // Paper: the bright end of the page. Not a paper page: leave it.
+    final paper = _percentileU8(gray, 90);
+    if (paper < 120 || w < 20 || h < 20) return bgr.clone();
+    final (_, dark) = cv.threshold(gray, paper * 0.75, 255, cv.THRESH_BINARY_INV);
+    final labels = cv.Mat.empty();
+    final stats = cv.Mat.empty();
+    final centroids = cv.Mat.empty();
+    final n = cv.connectedComponentsWithStats(dark, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
+    centroids.dispose();
+    try {
+      if (n <= 1) return bgr.clone();
+      final lab = labels.data.buffer.asInt32List(labels.data.offsetInBytes, w * h);
+      // Components touching the image edge.
+      final touches = List<bool>.filled(n, false);
+      for (var i = 1; i < n; i++) {
+        final x = stats.at<int>(i, cv.CC_STAT_LEFT);
+        final y = stats.at<int>(i, cv.CC_STAT_TOP);
+        final cw = stats.at<int>(i, cv.CC_STAT_WIDTH);
+        final ch = stats.at<int>(i, cv.CC_STAT_HEIGHT);
+        touches[i] = x == 0 || y == 0 || x + cw == w || y + ch == h;
+      }
+      if (!touches.contains(true)) return bgr.clone();
+      // …and those of them that reach past the band: page content.
+      final bx = (w * band).ceil();
+      final by = (h * band).ceil();
+      final deep = List<bool>.filled(n, false);
+      for (var y = by; y < h - by; y++) {
+        final row = y * w;
+        for (var x = bx; x < w - bx; x++) {
+          final l = lab[row + x];
+          if (l != 0 && touches[l]) deep[l] = true;
+        }
+      }
+      final paint = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
+      final pm = paint.data;
+      var any = false;
+      for (var i = 0; i < w * h; i++) {
+        final l = lab[i];
+        if (l != 0 && touches[l] && !deep[l]) {
+          pm[i] = 255;
+          any = true;
+        }
+      }
+      if (!any) {
+        paint.dispose();
+        return bgr.clone();
+      }
+      // Cover the soft rim between the dark strip and the paper too.
+      final k = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
+      final grown = cv.dilate(paint, k);
+      paint.dispose();
+      k.dispose();
+      final (_, light) = cv.threshold(gray, paper * 0.9, 255, cv.THRESH_BINARY);
+      final colour = cv.mean(bgr, mask: light);
+      light.dispose();
+      final out = bgr.clone();
+      out.setTo(cv.Scalar(colour.val1, colour.val2, colour.val3), mask: grown);
+      grown.dispose();
+      return out;
+    } finally {
+      for (final m in [dark, labels, stats]) {
+        m.dispose();
+      }
+    }
+  } finally {
+    gray.dispose();
+  }
+}
+
+/// [cleanPageBorder] where it belongs: Document pages after a filter. Not
+/// ID / passport cards, passport photos, or the raw Original. Takes
+/// ownership of [filtered].
+cv.Mat withCleanBorder(cv.Mat filtered, PageEdits edits) {
+  if (edits.outputAspect != null || edits.photoWidthMm != null || edits.filter == FilterType.original) {
+    return filtered;
+  }
+  final out = cleanPageBorder(filtered);
   filtered.dispose();
+  return out;
+}
+
+/// The [p]th percentile of a continuous 8-bit one-channel Mat, from its
+/// histogram.
+int _percentileU8(cv.Mat gray8, double p) {
+  final d = gray8.data;
+  final hist = List<int>.filled(256, 0);
+  for (final v in d) {
+    hist[v]++;
+  }
+  final target = d.length * p / 100;
+  var acc = 0;
+  for (var v = 0; v < 256; v++) {
+    acc += hist[v];
+    if (acc >= target) return v;
+  }
+  return 255;
+}
+
+/// What comes after the filter: the page border clean-up (round 8), the
+/// sliders, a passport photo's finish and signatures. Takes ownership of
+/// [filtered].
+cv.Mat finishEdits(cv.Mat filtered, PageEdits edits, {StepTimer? timer}) {
+  final bordered = withCleanBorder(filtered, edits);
+  final adjusted = brightnessContrast(bordered, edits);
+  bordered.dispose();
   final backed = _withPhotoFinish(adjusted, edits);
   disposeUnless(adjusted, backed);
   final out = withOverlays(backed, edits.overlays);
@@ -3069,7 +3183,7 @@ IngestReport ingest({
 /// switching filters decodes a ~1600 px image instead of the 12 MP original.
 /// The [autoFilter] result (the slow part: its denoise) is cached losslessly
 /// at [autoBasePath], so Auto, Colour Boost and Grayscale share one.
-cv.Mat renderLook(
+cv.Mat _renderLook(
   String originalPath,
   PageEdits edits, {
   required String workPath,
@@ -3132,7 +3246,7 @@ cv.Mat _workImage(
 /// ready. The work image with the reference's instant bilateral clean-up
 /// ([denoisePreview]) and the filter. Never the raw photo (except for the
 /// `original` filter, which is the raw page by definition).
-cv.Mat renderInstantLook(
+cv.Mat _renderInstantLook(
   String originalPath,
   PageEdits edits, {
   required String workPath,
@@ -3153,7 +3267,7 @@ cv.Mat renderInstantLook(
 /// Round 6, P0-2: Enhance's image once the cleaned base exists, from its
 /// preview-size copy ([cleanPreviewPath]). The Auto result is cached at
 /// [autoPath], so Colour Boost and Grayscale only add their last step.
-cv.Mat renderLookFromClean(
+cv.Mat _renderLookFromClean(
   String cleanPreviewPath,
   PageEdits edits, {
   String? autoPath,
@@ -3184,6 +3298,43 @@ cv.Mat renderLookFromClean(
     clean.dispose();
   }
 }
+
+/// Enhance's images get the same border clean-up as the saved page (round
+/// 8, P0-7), so what you see is what prints.
+cv.Mat renderLook(
+  String originalPath,
+  PageEdits edits, {
+  required String workPath,
+  required int previewLongEdge,
+  String? autoBasePath,
+  StepTimer? timer,
+}) =>
+    withCleanBorder(
+      _renderLook(originalPath, edits, workPath: workPath, previewLongEdge: previewLongEdge, autoBasePath: autoBasePath, timer: timer),
+      edits,
+    );
+
+/// See [renderLook].
+cv.Mat renderInstantLook(
+  String originalPath,
+  PageEdits edits, {
+  required String workPath,
+  required int previewLongEdge,
+  StepTimer? timer,
+}) =>
+    withCleanBorder(
+      _renderInstantLook(originalPath, edits, workPath: workPath, previewLongEdge: previewLongEdge, timer: timer),
+      edits,
+    );
+
+/// See [renderLook].
+cv.Mat renderLookFromClean(
+  String cleanPreviewPath,
+  PageEdits edits, {
+  String? autoPath,
+  StepTimer? timer,
+}) =>
+    withCleanBorder(_renderLookFromClean(cleanPreviewPath, edits, autoPath: autoPath, timer: timer), edits);
 
 /// [autoFilter] of [work] ([autoFrom] when [cleaned]), read from [path] if
 /// an earlier look wrote it.
