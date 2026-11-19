@@ -158,13 +158,9 @@ def detect_document(bgr: np.ndarray, mode: str = "document"):
             if q is None:
                 continue
             q = _order_corners(q)
-            if name != "edges":
-                # Region maps sit slightly inside the real edge (dark rim, rounded
-                # corners) -> push corners 2% outward from the centre.
-                cxy = q.mean(axis=0)
-                q = cxy + (q - cxy) * 1.02
-                q[:, 0] = np.clip(q[:, 0], 0, w - 1)
-                q[:, 1] = np.clip(q[:, 1], 0, h - 1)
+            # Round 8 (P0-7): region quads are no longer pushed 2% outward; that
+            # pulled a strip of table into the crop. (Applied here from the fix
+            # list until the round 8 reference file arrives.)
             qa = cv.contourArea(q)
             frac = qa / img_area
             if frac > 0.98:                    # that's just the photo border

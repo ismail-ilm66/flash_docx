@@ -385,19 +385,9 @@ DetectionReport _detect(cv.Mat bgr, double? target) {
       if (area < kMinAreaFrac * imgArea) continue;
       final raw = _quadFromContour(c);
       if (raw == null) continue;
-      var q = orderCorners(raw);
-      if (name != 'edges') {
-        // Region maps sit slightly inside the real edge: push 2 % outward.
-        final cx = q.map((p) => p.x).reduce((a, b) => a + b) / 4;
-        final cy = q.map((p) => p.y).reduce((a, b) => a + b) / 4;
-        q = [
-          for (final p in q)
-            (
-              x: (cx + (p.x - cx) * 1.02).clamp(0.0, w - 1),
-              y: (cy + (p.y - cy) * 1.02).clamp(0.0, h - 1),
-            ),
-        ];
-      }
+      // Round 8, P0-7: region quads are no longer pushed 2 % outward; that
+      // pulled a strip of table into the crop (dark lines when printed).
+      final q = orderCorners(raw);
       final qa = _polyArea(q);
       final frac = qa / imgArea;
       if (frac > 0.98) continue;

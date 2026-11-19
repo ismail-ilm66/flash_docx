@@ -17,23 +17,23 @@
  ],
  "source": "reference corners, checked by eye on the overlay (owner photo)",
  "map": "bright",
- "score": 0.696,
+ "score": 0.6924,
  "reference_found": {
   "tl": [
-   0.07922,
-   0.10181
+   0.08831,
+   0.1075
   ],
   "tr": [
    0.99634,
-   0.11073
+   0.11625
   ],
   "br": [
    0.99634,
-   0.68066
+   0.675
   ],
   "bl": [
-   0.08153,
-   0.67556
+   0.09058,
+   0.67
   ]
  }
 }
