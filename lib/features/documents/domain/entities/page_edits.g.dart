@@ -70,6 +70,9 @@ const _$PhotoBackgroundEnumMap = {
   PhotoBackground.original: 'original',
   PhotoBackground.white: 'white',
   PhotoBackground.darkBlue: 'darkBlue',
+  PhotoBackground.offWhite: 'offWhite',
+  PhotoBackground.paleBlue: 'paleBlue',
+  PhotoBackground.skyBlue: 'skyBlue',
 };
 
 const _$PhotoEnhanceEnumMap = {

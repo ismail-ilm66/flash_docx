@@ -121,6 +121,18 @@ void main() {
     expect(e.photoBackground, PhotoBackground.darkBlue);
   });
 
+  test('round 10, P1-7: the new light shades round-trip; old lightBlue stays dark blue', () {
+    for (final b in PhotoBackground.values) {
+      final e = PageEdits(photoBackground: b);
+      expect(PageEdits.fromJson(e.toJson()).photoBackground, b);
+    }
+    expect(PhotoBackgrounds.shown.first, PhotoBackground.white);
+    expect(PhotoBackgrounds.argb(PhotoBackground.paleBlue), 0xFFCFE2F3);
+    expect(PhotoBackgrounds.argb(PhotoBackground.skyBlue), 0xFF9CC3E6);
+    final c = pipe.photoBackgroundColor(PhotoBackground.paleBlue)!;
+    expect((c.val1, c.val2, c.val3), (0xF3, 0xE2, 0xCF), reason: 'BGR');
+  });
+
   group('edges (round 5 feedback: white fringe on dark blue)', () {
     // Head and shoulders on a white wall; the mask is ML Kit-like: low
     // resolution and a few px too generous.

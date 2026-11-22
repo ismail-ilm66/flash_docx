@@ -2482,6 +2482,24 @@ abstract class AppLocalizations {
   /// **'White'**
   String get photoBackgroundWhite;
 
+  /// No description provided for @photoBackgroundOffWhite.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-white'**
+  String get photoBackgroundOffWhite;
+
+  /// No description provided for @photoBackgroundLightBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Light blue'**
+  String get photoBackgroundLightBlue;
+
+  /// No description provided for @photoBackgroundSkyBlue.
+  ///
+  /// In en, this message translates to:
+  /// **'Sky blue'**
+  String get photoBackgroundSkyBlue;
+
   /// No description provided for @shareImageSize.
   ///
   /// In en, this message translates to:

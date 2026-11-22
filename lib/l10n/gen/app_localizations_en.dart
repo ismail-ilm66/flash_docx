@@ -1364,6 +1364,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoBackgroundWhite => 'White';
 
   @override
+  String get photoBackgroundOffWhite => 'Off-white';
+
+  @override
+  String get photoBackgroundLightBlue => 'Light blue';
+
+  @override
+  String get photoBackgroundSkyBlue => 'Sky blue';
+
+  @override
   String get shareImageSize => 'Image size';
 
   @override

@@ -2033,13 +2033,13 @@ cv.Mat cardFromClean(
   return _toCardSize(full, tw, th, timer);
 }
 
-/// Background colours (BGR): white, and a deep passport-studio blue
-/// #1F4E8C.
-cv.Scalar? photoBackgroundColor(PhotoBackground b) => switch (b) {
-  PhotoBackground.original => null,
-  PhotoBackground.white => cv.Scalar(255, 255, 255),
-  PhotoBackground.darkBlue => cv.Scalar(140, 78, 31),
-};
+/// Background colours (BGR) from [PhotoBackgrounds.argb] (round 10, P1-7:
+/// white, off-white, light and sky blue, and the deep studio blue).
+cv.Scalar? photoBackgroundColor(PhotoBackground b) {
+  final c = PhotoBackgrounds.argb(b);
+  if (c == null) return null;
+  return cv.Scalar((c & 0xFF).toDouble(), ((c >> 8) & 0xFF).toDouble(), ((c >> 16) & 0xFF).toDouble());
+}
 
 /// Passport photo finish: [enhancePhoto] (if on), then the background
 /// colour. The person mask (whole upright photo) is warped with the same

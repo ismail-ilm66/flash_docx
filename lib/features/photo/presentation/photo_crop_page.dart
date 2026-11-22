@@ -8,6 +8,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
@@ -116,8 +117,12 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   /// Background (artboard *Passport photo · crop*) and Enhance: the
   /// choices, the person mask for [_photo], whether segmentation works
   /// here (null while finding out) and a preview per combination.
+  // Round 10, P1-7: a new photo starts on the colour chosen last, White at
+  // first; a saved one keeps its own.
   late PhotoBackground _background =
-      widget.args.page?.edits.photoBackground ?? PhotoBackground.original;
+      widget.args.page?.edits.photoBackground ??
+      PhotoBackground.values.where((b) => b.name == getIt<PrefsService>().photoBackground).firstOrNull ??
+      PhotoBackground.white;
   // New photos start Natural; a saved one keeps its choice (Off if it was
   // made before Enhance existed).
   late PhotoEnhance _enhance =
@@ -257,7 +262,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     if (_segmentable == null) return; // the mask (or its absence) first
     await _renderPreview((_background, _enhance));
     if (!(_segmentable ?? false)) return;
-    for (final bg in [PhotoBackground.white, PhotoBackground.darkBlue]) {
+    for (final bg in PhotoBackgrounds.shown) {
       await _renderPreview((bg, _enhance));
     }
   }
@@ -292,6 +297,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   }
 
   void _choose({PhotoBackground? background, PhotoEnhance? enhance}) {
+    if (background != null) unawaited(getIt<PrefsService>().setPhotoBackground(background.name));
     setState(() {
       _background = background ?? _background;
       _enhance = enhance ?? _enhance;
@@ -677,40 +683,34 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                   bottom: Space.x2,
                                 ),
                               ),
+                              // Round 10, P1-7: named swatches, the usual
+                              // light blues among them.
                               Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  for (final (i, bg)
-                                      in PhotoBackground.values.indexed) ...[
-                                    if (i > 0) const SizedBox(width: Space.x2),
+                                  for (final bg in PhotoBackgrounds.shown)
                                     Expanded(
-                                      child: _Choice(
-                                        label: switch (bg) {
-                                          PhotoBackground.original =>
-                                            l.photoBackgroundOriginal,
-                                          PhotoBackground.white =>
-                                            l.photoBackgroundWhite,
-                                          PhotoBackground.darkBlue =>
-                                            l.photoBackgroundDarkBlue,
-                                        },
-                                        swatch: switch (bg) {
-                                          PhotoBackground.original => null,
-                                          PhotoBackground.white => Colors.white,
-                                          PhotoBackground.darkBlue =>
-                                            const Color(0xFF1F4E8C),
-                                        },
-                                        selected: _background == bg,
-                                        // Ready once the person is found.
-                                        loading:
-                                            bg != PhotoBackground.original &&
-                                            _segmentable == null,
-                                        onTap:
-                                            bg == PhotoBackground.original ||
-                                                (_segmentable ?? false)
-                                            ? () => _choose(background: bg)
-                                            : null,
+                                      child: _Swatch(
+                                      label: switch (bg) {
+                                        PhotoBackground.original => l.photoBackgroundOriginal,
+                                        PhotoBackground.white => l.photoBackgroundWhite,
+                                        PhotoBackground.offWhite => l.photoBackgroundOffWhite,
+                                        PhotoBackground.paleBlue => l.photoBackgroundLightBlue,
+                                        PhotoBackground.skyBlue => l.photoBackgroundSkyBlue,
+                                        PhotoBackground.darkBlue => l.photoBackgroundDarkBlue,
+                                      },
+                                      color: switch (PhotoBackgrounds.argb(bg)) {
+                                        null => null,
+                                        final v => Color(v),
+                                      },
+                                      selected: _background == bg,
+                                      // Ready once the person is found.
+                                      loading: bg != PhotoBackground.original && _segmentable == null,
+                                      onTap: bg == PhotoBackground.original || (_segmentable ?? false)
+                                          ? () => _choose(background: bg)
+                                          : null,
                                       ),
                                     ),
-                                  ],
                                 ],
                               ),
                             ],
@@ -931,14 +931,10 @@ class _Choice extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.swatch,
-    this.loading = false,
   });
   final String label;
   final bool selected;
   final VoidCallback? onTap;
-  final Color? swatch;
-  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -969,26 +965,6 @@ class _Choice extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                if (loading)
-                  const Padding(
-                    padding: EdgeInsets.only(right: 6),
-                    child: SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 1.6),
-                    ),
-                  )
-                else if (swatch != null)
-                  Container(
-                    width: 18,
-                    height: 18,
-                    margin: const EdgeInsets.only(right: 6),
-                    decoration: BoxDecoration(
-                      color: swatch,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: c.borderStrong),
-                    ),
-                  ),
                 Flexible(
                   child: FitText(
                     label,
@@ -999,6 +975,74 @@ class _Choice extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                       color: enabled ? c.text : c.muted,
                     ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A background colour: a round swatch with its name under it (round 10,
+/// P1-7). Original shows the photo's own background as a striped circle.
+class _Swatch extends StatelessWidget {
+  const _Swatch({required this.label, required this.color, required this.selected, required this.onTap, this.loading = false});
+  final String label;
+  final Color? color;
+  final bool selected;
+  final VoidCallback? onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      selected: selected,
+      enabled: enabled,
+      label: label,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+            child: Column(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: selected ? c.accent : Colors.transparent, width: 2.5),
+                  ),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: color ?? c.surface2,
+                      border: Border.all(color: c.borderStrong),
+                    ),
+                    child: loading
+                        ? const Padding(padding: EdgeInsets.all(9), child: CircularProgressIndicator(strokeWidth: 1.6))
+                        : color == null
+                        ? Center(child: AppIcon(AppIcons.portrait, size: 18, color: c.muted))
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FitText(
+                  label,
+                  maxLines: 2,
+                  style: context.text.labelSmall?.copyWith(
+                    fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+                    color: enabled ? c.text : c.muted,
                   ),
                 ),
               ],

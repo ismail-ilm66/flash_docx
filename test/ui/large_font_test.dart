@@ -636,8 +636,12 @@ void main() {
     await real(tester);
     expect(find.text(l.photoTopOfHead), findsOneWidget);
     expectNothingCutOff(tester, 'Passport photo crop');
-    // Background: Original · White · Dark blue, previewed on the stage.
-    expect(find.text(l.photoBackgroundDarkBlue), findsOneWidget);
+    // Round 10, P1-7: White · Off-white · Light blue · Sky blue · Dark
+    // blue · Original, previewed on the stage.
+    for (final name in [l.photoBackgroundOffWhite, l.photoBackgroundLightBlue, l.photoBackgroundSkyBlue, l.photoBackgroundDarkBlue]) {
+      expect(find.text(name), findsOneWidget);
+    }
+
     await tester.ensureVisible(find.text(l.photoBackgroundWhite));
     await tester.tap(find.text(l.photoBackgroundWhite));
     await real(tester);

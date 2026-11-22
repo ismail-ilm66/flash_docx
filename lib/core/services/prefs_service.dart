@@ -21,6 +21,7 @@ class PrefsService {
   static const _renderVersion = 'page_render_version';
   static const _shareMoreOpen = 'share_more_open';
   static const _exportFooter = 'export_footer';
+  static const _photoBackground = 'photo_background';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -54,6 +55,10 @@ class PrefsService {
 
   String? get signatureInk => _prefs.getString(_signatureInk);
   Future<void> setSignatureInk(String v) => _prefs.setString(_signatureInk, v);
+
+  /// The passport photo background last chosen (round 10, P1-7).
+  String? get photoBackground => _prefs.getString(_photoBackground);
+  Future<void> setPhotoBackground(String v) => _prefs.setString(_photoBackground, v);
 
   /// "Add Flash Dox footer to pages" (round 10, P1-6): on by default.
   bool get exportFooter => _prefs.getBool(_exportFooter) ?? true;

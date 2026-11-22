@@ -22,8 +22,33 @@ enum ActivityType {
 }
 
 /// Passport photo background. Stored by name in the page's edits JSON; an
-/// old "lightBlue" (first build) reads as dark blue.
-enum PhotoBackground { original, white, darkBlue }
+/// old "lightBlue" (first build) reads as dark blue. Round 10 (P1-7) added
+/// the usual light shades; the new "Light blue" is stored as `paleBlue` so
+/// those old photos keep their colour. [PhotoBackgrounds.shown] is the
+/// display order.
+enum PhotoBackground { original, white, darkBlue, offWhite, paleBlue, skyBlue }
+
+abstract final class PhotoBackgrounds {
+  /// White · Off-white · Light blue · Sky blue · Dark blue · Original.
+  static const List<PhotoBackground> shown = [
+    PhotoBackground.white,
+    PhotoBackground.offWhite,
+    PhotoBackground.paleBlue,
+    PhotoBackground.skyBlue,
+    PhotoBackground.darkBlue,
+    PhotoBackground.original,
+  ];
+
+  /// The colour as 0xAARRGGBB; null for the photo's own background.
+  static int? argb(PhotoBackground b) => switch (b) {
+    PhotoBackground.original => null,
+    PhotoBackground.white => 0xFFFFFFFF,
+    PhotoBackground.offWhite => 0xFFF2F2F2,
+    PhotoBackground.paleBlue => 0xFFCFE2F3,
+    PhotoBackground.skyBlue => 0xFF9CC3E6,
+    PhotoBackground.darkBlue => 0xFF1F4E8C,
+  };
+}
 
 /// Passport photo touch-up: light and colour fixed, skin softened (smooth
 /// more than natural), eyes and hair sharpened. Stored by name.
