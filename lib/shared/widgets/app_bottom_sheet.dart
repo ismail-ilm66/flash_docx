@@ -152,8 +152,8 @@ Future<T?> showChoiceSheet<T>(
   BuildContext context, {
   required String title,
   required List<T> values,
-  required T selected,
   required String Function(T) labelOf,
+  T? selected,
   Widget? Function(T)? badgeOf,
 }) {
   return AppBottomSheet.show<T>(

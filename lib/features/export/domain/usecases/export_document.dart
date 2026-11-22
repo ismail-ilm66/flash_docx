@@ -477,6 +477,48 @@ class ExportDocument {
     ];
   }
 
+  /// Round 10, P1-5: several documents in one share sheet, each exported
+  /// with [optionsFor] (its usual Share defaults).
+  Future<Either<Failure, Unit>> shareMany(
+    List<ScanDocument> docs,
+    ExportOptions Function(ScanDocument doc) optionsFor,
+  ) async {
+    final dir = Directory(_files.exportPath('out_many_${DateTime.now().microsecondsSinceEpoch}'));
+    final staged = <String>[];
+    try {
+      await dir.create(recursive: true);
+      final files = <File>[];
+      final used = <String>{};
+      for (final doc in docs) {
+        final options = optionsFor(doc);
+        final r = await prepare(doc, options);
+        final prepared = r.fold((f) => throw _ShareManyFailed(f), (p) => p.files);
+        staged.addAll(prepared.map((f) => f.path));
+        for (final (i, name) in finalNames(doc, options, prepared.length).indexed) {
+          // Two documents with the same title get "(2)", not one file.
+          var unique = name;
+          for (var n = 2; !used.add(unique); n++) {
+            unique = '${p.basenameWithoutExtension(name)} ($n)${p.extension(name)}';
+          }
+          files.add(await prepared[i].copy(p.join(dir.path, unique)));
+        }
+      }
+      final result = await _share.shareFiles(files);
+      if (result.isRight()) {
+        for (final doc in docs) {
+          await _repo.logActivity(doc.id, optionsFor(doc).isImage ? ActivityType.sharedImages : ActivityType.sharedPdf);
+        }
+      }
+      return result;
+    } on _ShareManyFailed catch (e) {
+      return Left(e.failure);
+    } catch (e) {
+      return Left(StorageFailure(e.toString()));
+    } finally {
+      await _files.discardExportFiles([...staged, p.join(dir.path, 'x')]);
+    }
+  }
+
   Future<Either<Failure, Unit>> deliver(
     ScanDocument doc,
     List<File> prepared,
@@ -527,4 +569,9 @@ class ExportDocument {
       return const Right(unit);
     });
   }
+}
+
+class _ShareManyFailed implements Exception {
+  const _ShareManyFailed(this.failure);
+  final Failure failure;
 }

@@ -487,6 +487,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonDelete => 'Delete';
 
   @override
+  String get commonUndo => 'Undo';
+
+  @override
+  String homeSelectedCount(int count) {
+    return '$count selected';
+  }
+
+  @override
+  String get homeSelectAll => 'Select all';
+
+  @override
+  String homeDeleteManyTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count documents?',
+      one: 'Delete 1 document?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get homeDeleteManyBody => 'This can\'t be undone from the app.';
+
+  @override
+  String homeDeletedMany(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count documents deleted',
+      one: '1 document deleted',
+    );
+    return '$_temp0';
+  }
+
+  @override
   String get commonSave => 'Save';
 
   @override

@@ -1000,6 +1000,42 @@ abstract class AppLocalizations {
   /// **'Delete'**
   String get commonDelete;
 
+  /// No description provided for @commonUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get commonUndo;
+
+  /// No description provided for @homeSelectedCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} selected'**
+  String homeSelectedCount(int count);
+
+  /// No description provided for @homeSelectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Select all'**
+  String get homeSelectAll;
+
+  /// No description provided for @homeDeleteManyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 document?} other{Delete {count} documents?}}'**
+  String homeDeleteManyTitle(int count);
+
+  /// No description provided for @homeDeleteManyBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This can\'t be undone from the app.'**
+  String get homeDeleteManyBody;
+
+  /// No description provided for @homeDeletedMany.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 document deleted} other{{count} documents deleted}}'**
+  String homeDeletedMany(int count);
+
   /// No description provided for @commonSave.
   ///
   /// In en, this message translates to:

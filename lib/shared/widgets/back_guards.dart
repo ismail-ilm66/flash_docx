@@ -9,12 +9,18 @@ class LeaveAppGuard extends StatelessWidget {
 
   final Widget child;
 
+  /// Set while a screen in the shell has its own use for Back (Home's
+  /// selection mode, round 10 P1-5): Back calls it instead of asking.
+  static VoidCallback? interceptor;
+
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
+        final intercept = interceptor;
+        if (intercept != null) return intercept();
         final l = context.l10n;
         final leave = await AppDialog.confirm(
           context,

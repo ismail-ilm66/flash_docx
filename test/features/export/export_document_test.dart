@@ -53,6 +53,7 @@ void main() {
   late _Render render;
   late _Pdf pdf;
   late _Share share;
+  late _Repo repo;
   late ExportDocument export;
   late ScanDocument doc;
   late _Proc proc;
@@ -81,7 +82,7 @@ void main() {
     render = _Render();
     pdf = _Pdf();
     share = _Share();
-    final repo = _Repo();
+    repo = _Repo();
     export = ExportDocument(
       render,
       pdf,
@@ -231,6 +232,16 @@ void main() {
       ExportDocument.estimatePageBytes(const ExportOptions(quality: ExportQuality.high)),
       greaterThan(2 * ExportDocument.estimatePageBytes(const ExportOptions())),
     );
+  });
+
+  test('round 10, P1-5: several documents share in one sheet, same titles kept apart', () async {
+    final other = doc.copyWith(id: 'd2');
+    final r = await export.shareMany([doc, other], (_) => const ExportOptions());
+    expect(r.isRight(), isTrue);
+    final shared = verify(() => share.shareFiles(captureAny(), subject: any(named: 'subject'))).captured.single as List<File>;
+    expect(shared.map((f) => p.basename(f.path)), ['Lease.pdf', 'Lease (2).pdf']);
+    verify(() => repo.logActivity('d', ActivityType.sharedPdf)).called(1);
+    verify(() => repo.logActivity('d2', ActivityType.sharedPdf)).called(1);
   });
 
   test('a cancelled job stops before the next page', () async {

@@ -19,7 +19,17 @@ class HomeState extends Equatable {
     this.sort = HomeSort.latest,
     this.folder,
     this.failure,
+    this.selecting = false,
+    this.selected = const {},
+    this.hidden = const {},
   });
+
+  /// Round 10, P1-5: long-press selection.
+  final bool selecting;
+  final Set<String> selected;
+
+  /// Deleted, waiting for the Undo snackbar to close: not listed.
+  final Set<String> hidden;
 
   /// Every document matching [search], in [sort] order.
   final List<ScanDocument> all;
@@ -32,7 +42,10 @@ class HomeState extends Equatable {
   final Failure? failure;
 
   /// What the Recent activity list shows.
-  List<ScanDocument> get documents => folder == null ? all : all.where((d) => d.folder == folder).toList();
+  List<ScanDocument> get documents =>
+      all.where((d) => !hidden.contains(d.id) && (folder == null || d.folder == folder)).toList();
+
+  List<ScanDocument> get selectedDocuments => documents.where((d) => selected.contains(d.id)).toList();
 
   /// Documents per folder, for the chips.
   Map<DocFolder, int> get counts => {
@@ -46,6 +59,9 @@ class HomeState extends Equatable {
     HomeSort? sort,
     DocFolder? Function()? folder,
     Failure? failure,
+    bool? selecting,
+    Set<String>? selected,
+    Set<String>? hidden,
   }) =>
       HomeState(
         all: all ?? this.all,
@@ -54,10 +70,13 @@ class HomeState extends Equatable {
         sort: sort ?? this.sort,
         folder: folder == null ? this.folder : folder(),
         failure: failure,
+        selecting: selecting ?? this.selecting,
+        selected: selected ?? this.selected,
+        hidden: hidden ?? this.hidden,
       );
 
   @override
-  List<Object?> get props => [all, loading, search, sort, folder, failure];
+  List<Object?> get props => [all, loading, search, sort, folder, failure, selecting, selected, hidden];
 }
 
 List<ScanDocument> sortDocuments(List<ScanDocument> docs, HomeSort sort) {
@@ -115,6 +134,52 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<Failure?> rename(String id, String title) async =>
       (await _rename(id, title)).fold((f) => f, (_) => null);
+
+  // ---- round 10, P1-5: select several ----
+
+  void startSelection(String id) => emit(state.copyWith(selecting: true, selected: {id}));
+
+  void toggleSelected(String id) {
+    final sel = {...state.selected};
+    if (!sel.remove(id)) sel.add(id);
+    emit(state.copyWith(selected: sel, selecting: sel.isNotEmpty));
+  }
+
+  void selectAll() => emit(state.copyWith(selected: {for (final d in state.documents) d.id}));
+
+  void clearSelection() => emit(state.copyWith(selecting: false, selected: const {}));
+
+  /// Delete, step 1: the selected documents leave the list (and selection
+  /// mode ends); returns their ids. [undoDelete] brings them back,
+  /// [commitDelete] deletes them once the Undo snackbar has closed.
+  Set<String> hideSelected() {
+    final ids = {...state.selected};
+    emit(state.copyWith(selecting: false, selected: const {}, hidden: {...state.hidden, ...ids}));
+    return ids;
+  }
+
+  void undoDelete(Set<String> ids) {
+    if (isClosed) return;
+    emit(state.copyWith(hidden: {...state.hidden}..removeAll(ids)));
+  }
+
+  Future<void> commitDelete(Set<String> ids) async {
+    for (final id in ids) {
+      await _delete(id);
+    }
+    if (!isClosed) emit(state.copyWith(hidden: {...state.hidden}..removeAll(ids)));
+  }
+
+  /// Moves the selected documents to [folder] and ends selection mode.
+  Future<Failure?> moveSelected(DocFolder folder) async {
+    final ids = {...state.selected};
+    clearSelection();
+    Failure? first;
+    for (final id in ids) {
+      first ??= await moveTo(id, folder);
+    }
+    return first;
+  }
 
   @override
   Future<void> close() {

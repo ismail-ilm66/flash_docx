@@ -295,6 +295,43 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('round 10, P1-5: long-press, select all, delete, undo; Back leaves selection mode', (tester) async {
+    final router = await pumpApp(tester);
+    router.go(Routes.home);
+    await settle(tester);
+    final list = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(find.text('Lease'), 200, scrollable: list);
+    await tester.longPress(find.text('Lease'));
+    await settle(tester);
+    expect(find.text(l.homeSelectedCount(1)), findsOneWidget);
+    expectNothingCutOff(tester, 'Home, selecting');
+
+    // Back ends selection mode, no "Leave Flash Dox?".
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.text(l.homeSelectedCount(1)), findsNothing);
+    expect(find.text(l.backLeaveTitle), findsNothing);
+
+    await tester.longPress(find.text('Lease'));
+    await settle(tester);
+    await tester.tap(find.text(l.homeSelectAll));
+    await settle(tester);
+    final all = tester.widgetList(find.byType(DocumentTile)).length;
+    expect(find.text(l.homeSelectedCount(1)), findsNothing);
+    await tester.tap(find.text(l.commonDelete).last);
+    await settle(tester);
+    expect(find.textContaining(l.homeDeleteManyBody), findsOneWidget);
+    await tester.tap(find.text(l.commonDelete).last);
+    await settle(tester);
+    expect(find.byType(DocumentTile), findsNothing, reason: 'hidden while Undo is offered');
+    await tester.tap(find.text(l.commonUndo));
+    await settle(tester);
+    expect(tester.widgetList(find.byType(DocumentTile)).length, all);
+    final docs = await tester.runAsync(() => getIt<DocumentRepository>().watchAll().first);
+    expect(docs, isNotEmpty, reason: 'nothing was deleted');
+    await close(tester);
+  });
+
   testWidgets('Home › Tools › Pick a document', (tester) async {
     final router = await pumpApp(tester);
     router.go(Routes.home);

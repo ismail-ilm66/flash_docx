@@ -203,6 +203,33 @@
   },
   "commonCancel": "Cancel",
   "commonDelete": "Delete",
+  "commonUndo": "Undo",
+  "homeSelectedCount": "{count} selected",
+  "@homeSelectedCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeSelectAll": "Select all",
+  "homeDeleteManyTitle": "{count, plural, =1{Delete 1 document?} other{Delete {count} documents?}}",
+  "@homeDeleteManyTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "homeDeleteManyBody": "This can't be undone from the app.",
+  "homeDeletedMany": "{count, plural, =1{1 document deleted} other{{count} documents deleted}}",
+  "@homeDeletedMany": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "commonSave": "Save",
   "commonDone": "Done",
   "commonRetry": "Retry",

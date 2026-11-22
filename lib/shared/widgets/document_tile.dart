@@ -18,12 +18,21 @@ class DocumentTile extends StatelessWidget {
     super.key,
     this.onMore,
     this.compact = false,
+    this.onLongPress,
+    this.selecting = false,
+    this.selected = false,
   });
 
   final ScanDocument document;
   final VoidCallback onTap;
   final VoidCallback? onMore;
   final bool compact;
+
+  /// Round 10, P1-5: long-press starts selecting; while [selecting], a
+  /// checkbox replaces ⋮.
+  final VoidCallback? onLongPress;
+  final bool selecting;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +50,7 @@ class DocumentTile extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
+      onLongPress: onLongPress,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
@@ -108,7 +118,17 @@ class DocumentTile extends StatelessWidget {
                 ],
               ),
             ),
-            if (onMore != null)
+            if (selecting)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                child: Checkbox(
+                  value: selected,
+                  onChanged: (_) => onTap(),
+                  activeColor: c.accent,
+                  checkColor: c.onAccent,
+                ),
+              )
+            else if (onMore != null)
               IconButton(
                 onPressed: onMore,
                 icon: AppIcon(AppIcons.more, size: 20, color: c.muted),

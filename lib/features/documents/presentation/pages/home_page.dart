@@ -5,6 +5,7 @@ import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/services/share_in_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/home_cubit.dart';
@@ -15,6 +16,8 @@ import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.d
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/tools_row.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
+import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
@@ -61,6 +64,7 @@ class _HomeViewState extends State<_HomeView> {
 
   @override
   void dispose() {
+    LeaveAppGuard.interceptor = null;
     _shareSub?.cancel();
     _searchCtrl.dispose();
     super.dispose();
@@ -197,11 +201,79 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
+  // ---- round 10, P1-5: several documents at once ----
+
+  Future<void> _deleteSelected(BuildContext context) async {
+    final l = context.l10n;
+    final cubit = context.read<HomeCubit>();
+    final n = cubit.state.selected.length;
+    final ok = await AppDialog.confirm(
+      context,
+      title: l.homeDeleteManyTitle(n),
+      body: l.homeDeleteManyBody,
+      confirmLabel: l.commonDelete,
+      destructive: true,
+    );
+    if (!ok || !context.mounted) return;
+    final ids = cubit.hideSelected();
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final reason = await messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(l.homeDeletedMany(ids.length)),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(label: l.commonUndo, onPressed: () {}),
+          ),
+        )
+        .closed;
+    // The files go only once Undo is no longer possible.
+    if (reason == SnackBarClosedReason.action) {
+      cubit.undoDelete(ids);
+    } else {
+      await cubit.commitDelete(ids);
+    }
+  }
+
+  Future<void> _shareSelected(BuildContext context) async {
+    final cubit = context.read<HomeCubit>();
+    final docs = cubit.state.selectedDocuments;
+    cubit.clearSelection();
+    setState(() => _importing = true);
+    final prefs = getIt<PrefsService>();
+    final r = await getIt<ExportDocument>().shareMany(docs, (d) => ExportBloc.defaultsFor(prefs, d));
+    if (!mounted) return;
+    setState(() => _importing = false);
+    r.fold(
+      (f) {
+        if (f is! CancelledFailure && context.mounted) context.showSnack(failureMessage(context, f), error: true);
+      },
+      (_) {},
+    );
+  }
+
+  Future<void> _moveSelected(BuildContext context) async {
+    final l = context.l10n;
+    final cubit = context.read<HomeCubit>();
+    final picked = await showChoiceSheet<DocFolder>(
+      context,
+      title: l.menuMoveToFolder,
+      values: FolderChips.order,
+      labelOf: (f) => folderLabel(context, f),
+    );
+    if (picked == null || !context.mounted) return;
+    final err = await cubit.moveSelected(picked);
+    if (!context.mounted) return;
+    context.showSnack(err != null ? l.errorGeneric : l.movedToFolder(folderLabel(context, picked)), error: err != null);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
-    return BlocBuilder<HomeCubit, HomeState>(
+    return BlocConsumer<HomeCubit, HomeState>(
+      listenWhen: (a, b) => a.selecting != b.selecting,
+      // Back leaves selection mode, not the app.
+      listener: (context, s) => LeaveAppGuard.interceptor = s.selecting ? context.read<HomeCubit>().clearSelection : null,
       builder: (context, s) {
         final showEmpty = !s.loading && s.documents.isEmpty && s.search.isEmpty;
         return AppScaffold(
@@ -211,7 +283,14 @@ class _HomeViewState extends State<_HomeView> {
               children: [
                 Column(
                   children: [
-                    _Header(searching: _searching, onSearch: () => _toggleSearch(context)),
+                    if (s.selecting)
+                      _SelectionBar(
+                        count: s.selected.length,
+                        onClose: context.read<HomeCubit>().clearSelection,
+                        onSelectAll: context.read<HomeCubit>().selectAll,
+                      )
+                    else
+                      _Header(searching: _searching, onSearch: () => _toggleSearch(context)),
                     AnimatedSize(
                       duration: Motion.normal,
                       curve: Curves.easeOutCubic,
@@ -323,14 +402,19 @@ class _HomeViewState extends State<_HomeView> {
                             )
                           else
                             SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x2, Space.x6),
+                              // Room for the selection bar over the last row.
+                              padding: EdgeInsets.fromLTRB(Space.x5, 0, Space.x2, s.selecting ? 80 : Space.x6),
                               sliver: SliverList.builder(
                                 itemCount: s.documents.length,
                                 itemBuilder: (context, i) {
                                   final d = s.documents[i];
+                                  final cubit = context.read<HomeCubit>();
                                   return DocumentTile(
                                     document: d,
-                                    onTap: () => context.push(Routes.viewer(d.id)),
+                                    selecting: s.selecting,
+                                    selected: s.selected.contains(d.id),
+                                    onTap: s.selecting ? () => cubit.toggleSelected(d.id) : () => context.push(Routes.viewer(d.id)),
+                                    onLongPress: s.selecting ? null : () => cubit.startSelection(d.id),
                                     onMore: () => _onMore(context, d),
                                   );
                                 },
@@ -341,6 +425,18 @@ class _HomeViewState extends State<_HomeView> {
                     ),
                   ],
                 ),
+                if (s.selecting)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    child: _SelectionActions(
+                      enabled: s.selected.isNotEmpty,
+                      onDelete: () => _deleteSelected(context),
+                      onShare: () => _shareSelected(context),
+                      onMove: () => _moveSelected(context),
+                    ),
+                  ),
                 if (_importing) ProgressOverlay(label: l.sharePreparing),
               ],
             ),
@@ -391,6 +487,88 @@ class _Header extends StatelessWidget {
             onPressed: onSearch,
             icon: AppIcon(searching ? AppIcons.close : AppIcons.search, size: 22, color: c.text),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Selection mode's top bar (round 10, P1-5): ✕ · "3 selected" · Select all.
+class _SelectionBar extends StatelessWidget {
+  const _SelectionBar({required this.count, required this.onClose, required this.onSelectAll});
+  final int count;
+  final VoidCallback onClose;
+  final VoidCallback onSelectAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.x2, Space.x4, Space.x3, Space.x2),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: l.commonClose,
+            onPressed: onClose,
+            icon: AppIcon(AppIcons.close, size: 22, color: c.text),
+          ),
+          const SizedBox(width: Space.x1),
+          Expanded(
+            child: Text(
+              l.homeSelectedCount(count),
+              style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+          TextButton(onPressed: onSelectAll, child: Text(l.homeSelectAll)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Selection mode's bottom bar: Delete · Share · Move to folder.
+class _SelectionActions extends StatelessWidget {
+  const _SelectionActions({required this.enabled, required this.onDelete, required this.onShare, required this.onMove});
+  final bool enabled;
+  final VoidCallback onDelete;
+  final VoidCallback onShare;
+  final VoidCallback onMove;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    Widget action(AppIcons icon, String label, VoidCallback onTap, {bool danger = false}) => Expanded(
+          child: InkWell(
+            onTap: enabled ? onTap : null,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 60),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  AppIcon(icon, size: 22, color: !enabled ? c.muted : danger ? c.danger : c.text),
+                  const SizedBox(height: 4),
+                  FitText(
+                    label,
+                    maxLines: 1,
+                    style: context.text.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: !enabled ? c.muted : danger ? c.danger : c.text,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+    return DecoratedBox(
+      decoration: BoxDecoration(color: c.surface, border: Border(top: BorderSide(color: c.border))),
+      child: Row(
+        children: [
+          action(AppIcons.delete, l.commonDelete, onDelete, danger: true),
+          action(AppIcons.share, l.viewerShare, onShare),
+          action(AppIcons.files, l.menuMoveToFolder, onMove),
         ],
       ),
     );

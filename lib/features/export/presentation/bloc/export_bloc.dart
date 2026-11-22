@@ -169,7 +169,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
     this._prefs,
     @factoryParam ScanDocument document,
   ) : super(
-        ExportState(document: document, options: _defaults(_prefs, document)),
+        ExportState(document: document, options: defaultsFor(_prefs, document)),
       ) {
     on<ExportSheetOpened>((e, emit) => _startPrep(emit));
     on<ExportOptionsChanged>((e, emit) {
@@ -222,7 +222,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
   /// Round 10, P1-2: the format and layout last shared for this kind of
   /// scan; else ID cards as one image (front + back), documents in the
   /// Settings format.
-  static ExportOptions _defaults(PrefsService p, ScanDocument doc) {
+  static ExportOptions defaultsFor(PrefsService p, ScanDocument doc) {
     final mode = doc.mode.name;
     T? named<T extends Enum>(List<T> values, String? name) => values.where((v) => v.name == name).firstOrNull;
     final remembered = named(ExportFormat.values, p.lastShareFormat(mode));
