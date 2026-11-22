@@ -272,12 +272,26 @@ abstract final class PhotoSheetCalculator {
     return c.cols * c.rows;
   }
 
-  /// Copies offered: 4 · 8 · 12 · 16, those that fit; on smaller paper
-  /// the most that fits too (6 on 4 × 6 in). No "full sheet" choice.
+  /// Copies offered: 4 · 8 · 12 · 16 · 25 (5 × 5 of 35 × 45 mm on A4,
+  /// round 10 P1-8), those that fit; on smaller paper the most that fits
+  /// too (6 on 4 × 6 in). No other "full sheet" choice.
   static List<int> counts(double w, double h, PhotoPaper paper) {
     final max = full(w, h, paper);
-    final fits = const [4, 8, 12, 16].where((n) => n <= max).toList();
+    final fits = const [4, 8, 12, 16, 25].where((n) => n <= max).toList();
     return [...fits, if (max < 16 && max > 0 && !fits.contains(max)) max];
+  }
+
+  /// Round 10, P1-8: which person's photo each of [count] places shows when
+  /// [people] share a sheet: as even as possible, in order (the first ones
+  /// get the extra copies), so each person's photos sit together.
+  static List<int> assignPeople(int count, int people) {
+    if (people <= 1) return List.filled(count, 0);
+    final per = count ~/ people;
+    final extra = count % people;
+    return [
+      for (var person = 0; person < people; person++)
+        for (var i = 0; i < per + (person < extra ? 1 : 0); i++) person,
+    ];
   }
 
   /// Items filled row by row from the top-left of a centred grid. A partly

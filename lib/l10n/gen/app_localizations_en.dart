@@ -1152,6 +1152,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get modePhoto => 'Passport photo';
 
   @override
+  String get photoSheetType => 'Photo sheet';
+
+  @override
   String get activityPhotoSheet => 'Photo sheet';
 
   @override
@@ -1194,6 +1197,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoSheetTitle => 'Print sheet';
 
   @override
+  String get photoSheetPdfHint => 'To print, exact size';
+
+  @override
+  String get photoSheetJpgHint => 'Photo shop · WhatsApp';
+
+  @override
   String get photoPaperA4 => 'A4';
 
   @override
@@ -1223,7 +1232,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String photoDefaultTitle(String date) {
-    return 'Passport photo - $date';
+    return 'Passport photo – $date';
   }
 
   @override
@@ -1264,7 +1273,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.';
 
   @override
-  String get photoMakeSheet => 'Make print sheet';
+  String get photoPreview => 'Preview';
 
   @override
   String photoUpTo(int count) {

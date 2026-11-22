@@ -229,6 +229,23 @@ class OpenCvImageProcessor implements ImageProcessor {
       _runner.run(exactInIsolate, (src, width, height, outputPath, jpegQuality), debugLabel: 'exactSize');
 
   @override
+  Future<String> renderPhotoSheet({
+    required List<String> photoPaths,
+    required List<int> photoOf,
+    required List<({double x, double y, double w, double h})> items,
+    required double paperWidthMm,
+    required double paperHeightMm,
+    required bool cutLines,
+    required String outputPath,
+    int dpi = 300,
+  }) => _runner.run(
+    photoSheetInIsolate,
+    (photoPaths, photoOf, items, paperWidthMm, paperHeightMm, cutLines, outputPath, dpi),
+    debugLabel: 'photoSheetJpg',
+    priority: JobPriority.interactive,
+  );
+
+  @override
   Future<String> stampFooter(
     String src, {
     required String footerPng,
@@ -788,6 +805,26 @@ String exactInIsolate((String, int, int, String, int) m) {
     return m.$4;
   } finally {
     out.dispose();
+  }
+}
+
+String photoSheetInIsolate(
+  (List<String>, List<int>, List<({double x, double y, double w, double h})>, double, double, bool, String, int) m,
+) {
+  final photos = [for (final path in m.$1) cv.imread(path)];
+  try {
+    final sheet = pipe.photoSheetImage(photos: photos, photoOf: m.$2, items: m.$3, paperW: m.$4, paperH: m.$5, cutLines: m.$6, dpi: m.$8);
+    try {
+      File(m.$7).parent.createSync(recursive: true);
+      pipe.writeJpeg(sheet, m.$7, quality: 92);
+      return m.$7;
+    } finally {
+      sheet.dispose();
+    }
+  } finally {
+    for (final ph in photos) {
+      ph.dispose();
+    }
   }
 }
 

@@ -2092,6 +2092,12 @@ abstract class AppLocalizations {
   /// **'Passport photo'**
   String get modePhoto;
 
+  /// No description provided for @photoSheetType.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo sheet'**
+  String get photoSheetType;
+
   /// No description provided for @activityPhotoSheet.
   ///
   /// In en, this message translates to:
@@ -2176,6 +2182,18 @@ abstract class AppLocalizations {
   /// **'Print sheet'**
   String get photoSheetTitle;
 
+  /// No description provided for @photoSheetPdfHint.
+  ///
+  /// In en, this message translates to:
+  /// **'To print, exact size'**
+  String get photoSheetPdfHint;
+
+  /// No description provided for @photoSheetJpgHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo shop · WhatsApp'**
+  String get photoSheetJpgHint;
+
   /// No description provided for @photoPaperA4.
   ///
   /// In en, this message translates to:
@@ -2233,7 +2251,7 @@ abstract class AppLocalizations {
   /// No description provided for @photoDefaultTitle.
   ///
   /// In en, this message translates to:
-  /// **'Passport photo - {date}'**
+  /// **'Passport photo – {date}'**
   String photoDefaultTitle(String date);
 
   /// No description provided for @photoStepCrop.
@@ -2302,11 +2320,11 @@ abstract class AppLocalizations {
   /// **'Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.'**
   String get photoEnhanceSmoothHint;
 
-  /// No description provided for @photoMakeSheet.
+  /// No description provided for @photoPreview.
   ///
   /// In en, this message translates to:
-  /// **'Make print sheet'**
-  String get photoMakeSheet;
+  /// **'Preview'**
+  String get photoPreview;
 
   /// No description provided for @photoUpTo.
   ///

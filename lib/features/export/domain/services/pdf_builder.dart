@@ -12,10 +12,13 @@ abstract interface class PdfBuilder {
     required String outputPath,
   });
 
-  /// Passport photos (feature 5): [photoPath] at each item's place and real
-  /// size on [paper], with dashed cut lines when [cutLines].
+  /// Passport photos (feature 5) at each item's place and real size on
+  /// [paper], with dashed cut lines when [cutLines]. [photoOf] says which
+  /// of [photoPaths] (one per person, round 10 P1-8) goes in each of
+  /// [items].
   Future<File> photoSheet({
-    required String photoPath,
+    required List<String> photoPaths,
+    required List<int> photoOf,
     required List<PlacedItem> items,
     required PhotoPaper paper,
     required bool cutLines,

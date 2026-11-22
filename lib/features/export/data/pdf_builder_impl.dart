@@ -39,7 +39,8 @@ class PdfBuilderImpl implements PdfBuilder {
 
   @override
   Future<File> photoSheet({
-    required String photoPath,
+    required List<String> photoPaths,
+    required List<int> photoOf,
     required List<PlacedItem> items,
     required PhotoPaper paper,
     required bool cutLines,
@@ -48,7 +49,7 @@ class PdfBuilderImpl implements PdfBuilder {
   }) async {
     final bytes = await _runner.run(
       _buildPhotoSheet,
-      _PhotoSheetMsg(photoPath, items, paper, cutLines, title),
+      _PhotoSheetMsg(photoPaths, photoOf, items, paper, cutLines, title),
       debugLabel: 'pdfPhotos',
       priority: JobPriority.interactive,
     );
@@ -279,13 +280,15 @@ Future<Uint8List> _buildSheet(PrintLayoutSpec spec) async {
 
 class _PhotoSheetMsg {
   const _PhotoSheetMsg(
-    this.photo,
+    this.photos,
+    this.photoOf,
     this.items,
     this.paper,
     this.cutLines,
     this.title,
   );
-  final String photo;
+  final List<String> photos;
+  final List<int> photoOf;
   final List<PlacedItem> items;
   final PhotoPaper paper;
   final bool cutLines;
@@ -295,7 +298,7 @@ class _PhotoSheetMsg {
 /// Passport photos at real size; dashed cut lines along every photo edge,
 /// run across the gaps so one straight cut serves a whole row or column.
 Future<Uint8List> _buildPhotoSheet(_PhotoSheetMsg m) async {
-  final photo = pw.MemoryImage(File(m.photo).readAsBytesSync());
+  final photos = [for (final path in m.photos) pw.MemoryImage(File(path).readAsBytesSync())];
   final w = m.paper.widthMm * _mm;
   final h = m.paper.heightMm * _mm;
   final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
@@ -310,12 +313,12 @@ Future<Uint8List> _buildPhotoSheet(_PhotoSheetMsg m) async {
       pageFormat: PdfPageFormat(w, h),
       build: (_) => pw.Stack(
         children: [
-          for (final it in m.items)
+          for (final (i, it) in m.items.indexed)
             pw.Positioned(
               left: it.x * _mm,
               top: it.y * _mm,
               child: pw.Image(
-                photo,
+                photos[i < m.photoOf.length ? m.photoOf[i].clamp(0, photos.length - 1) : 0],
                 fit: pw.BoxFit.fill,
                 width: it.w * _mm,
                 height: it.h * _mm,

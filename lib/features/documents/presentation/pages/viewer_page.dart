@@ -13,6 +13,7 @@ import 'package:flash_dox/features/documents/presentation/widgets/suggestion_ban
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/editor/presentation/widgets/page_strip.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
+import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/scanner/presentation/add_pages.dart';
 import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
@@ -187,6 +188,16 @@ class _ViewerViewState extends State<_ViewerView> {
                 ),
               );
         Future<void> addPages() async {
+          // Round 10, P1-8: "+ Add" on a passport photo puts another
+          // person's photo on the same sheet.
+          if (photo) {
+            final e = pages.firstOrNull?.edits;
+            return startPassportPhoto(
+              context,
+              addToDocumentId: doc.id,
+              size: e?.photoWidthMm != null && e?.photoHeightMm != null ? PhotoSize(e!.photoWidthMm!, e.photoHeightMm!) : null,
+            );
+          }
           final added = await collectNewPages(context, mode: doc.mode);
           if (added == null || added.isEmpty || !context.mounted) return;
           final err = await cubit.addPages(added);

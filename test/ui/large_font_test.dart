@@ -21,6 +21,7 @@ import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dar
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
 import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
+import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
@@ -657,24 +658,33 @@ void main() {
     await tester.tap(find.text(l.photoEnhanceNatural));
     await real(tester);
     // P1-3.5: both look and are enabled once the photo is placed.
-    expect(tester.widget<PrimaryButton>(find.widgetWithText(PrimaryButton, l.photoMakeSheet)).onPressed, isNotNull);
+    expect(tester.widget<PrimaryButton>(find.widgetWithText(PrimaryButton, l.viewerPrint)).onPressed, isNotNull);
+    expect(find.widgetWithText(SecondaryButton, l.photoPreview), findsOneWidget, reason: 'round 10, P1-8');
     expect(tester.widget<TopBarTextAction>(find.widgetWithText(TopBarTextAction, l.adjustNext)).onPressed, isNotNull);
 
     // Pan the photo; the frame stays covered.
     await tester.dragFrom(tester.getCenter(find.text(l.photoTopOfHead)) - const Offset(60, -40), const Offset(-40, -40));
     await tester.pump();
-    await tester.tap(find.text(l.photoMakeSheet));
+    await tester.tap(find.widgetWithText(PrimaryButton, l.viewerPrint));
     await real(tester);
     expect(find.text(l.photoStepSheet('35 × 45 mm')), findsOneWidget);
     expect(find.text(l.photoSheetCaption(l.photoPaperA4, 12)), findsOneWidget);
     expectNothingCutOff(tester, 'Print sheet');
 
+    // Round 10, P1-8: PDF to print or JPG for a photo shop; 25 on A4.
+    await tester.ensureVisible(find.text(l.photoSheetJpgHint));
+    expect(find.text(l.photoSheetPdfHint), findsOneWidget);
+    expect(find.text('25'), findsOneWidget);
+    await tester.ensureVisible(find.text(l.photoPaper4x6));
     await tester.tap(find.text(l.photoPaper4x6));
     await tester.pump();
+    await tester.ensureVisible(find.text(l.photoSheetCaption(l.photoPaper4x6, 6)));
     expect(find.text(l.photoSheetCaption(l.photoPaper4x6, 6)), findsOneWidget, reason: '12 does not fit: Full (6)');
     expectNothingCutOff(tester, 'Print sheet, 4 × 6');
 
     // One photo to upload: JPG / PNG, pixel size and max file size, no PDF.
+    await tester.ensureVisible(find.text(l.photoModeSingle));
+    await tester.pump();
     await tester.tap(find.text(l.photoModeSingle));
     await real(tester);
     expect(find.text(l.photoSingleCaption), findsOneWidget);
@@ -717,6 +727,39 @@ void main() {
     final crop = e.crop!;
     final px = ((crop.tr.x - crop.tl.x) * 3000) / ((crop.bl.y - crop.tl.y) * 4000);
     expect(px, closeTo(35 / 45, 1e-3), reason: 'the crop has the photo shape');
+    await close(tester);
+  });
+
+  testWidgets('round 10, P1-8: "+ Add" puts another person on the same sheet, at its size', (tester) async {
+    getIt
+      ..unregister<ImageProcessor>()
+      ..registerLazySingleton<ImageProcessor>(_PhotoProcessor.new)
+      ..unregister<BackgroundSegmenter>()
+      ..registerLazySingleton<BackgroundSegmenter>(() => _FakeSegmenter(available: false));
+    final files = getIt<FileStore>();
+    final first = files.newOriginalPath('first');
+    final second = files.newCapturePath('second');
+    final sheet = (await tester.runAsync(() async {
+      await File('test/fixtures/edges/box_colors_photo.jpg').copy(first);
+      await File('test/fixtures/edges/box_colors_photo.jpg').copy(second);
+      return getIt<CreateDocument>()(
+        mode: ScanMode.photo,
+        pages: [ScanPage(id: 'one', documentId: '', originalPath: first, edits: const PageEdits(photoWidthMm: 50.8, photoHeightMm: 50.8), order: 0)],
+        title: 'Passport photo',
+      );
+    }))!
+        .getOrElse((f) => throw StateError('$f'));
+    final router = await pumpApp(tester);
+    unawaited(router.push(Routes.photoCrop, extra: PhotoCropArgs(photoPath: second, addToDocumentId: sheet.id, size: PhotoSize.twoByTwo)));
+    await real(tester);
+    expect(find.text(l.photoSizeLabel), findsNothing, reason: "the sheet's size, not a choice");
+    expect(find.text(l.photoPreview), findsNothing);
+    expectNothingCutOff(tester, 'Passport photo, adding a person');
+    await tester.tap(find.widgetWithText(PrimaryButton, l.commonSave));
+    await real(tester);
+    final saved = (await tester.runAsync(() => getIt<DocumentRepository>().get(sheet.id)))!.getOrElse((f) => throw StateError('$f'));
+    expect(saved.pages, hasLength(2));
+    expect(saved.sortedPages.last.edits.photoWidthMm, 50.8);
     await close(tester);
   });
 

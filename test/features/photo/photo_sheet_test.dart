@@ -1,10 +1,12 @@
 import 'dart:ui';
 
+import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/export/presentation/image_size_sheet.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:opencv_dart/opencv.dart' as cv;
 
 void main() {
   group('photo sheet', () {
@@ -15,7 +17,7 @@ void main() {
     });
 
     test('counts: 4 · 8 · 12 · 16 that fit, no full sheet; the most on small paper', () {
-      expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.a4), [4, 8, 12, 16]);
+      expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.a4), [4, 8, 12, 16, 25], reason: 'round 10, P1-8: 5 × 5');
       expect(PhotoSheetCalculator.counts(35, 45, PhotoPaper.fourBySix), [4, 6]);
       expect(PhotoSheetCalculator.counts(50.8, 50.8, PhotoPaper.a4), [4, 8, 12, 15]);
     });
@@ -96,5 +98,50 @@ void main() {
       ]);
       expect(pixelSizePresets(50.8, 50.8).first, (width: 600, height: 600));
     });
+  });
+
+  test('round 10, P1-8: 25 on A4 is a 5 × 5 grid inside the margins', () {
+    final items = PhotoSheetCalculator.layout(const PrintItemSpec(widthMm: 35, heightMm: 45, count: 25));
+    expect(items, hasLength(25));
+    expect(items.map((i) => i.x).toSet(), hasLength(5));
+    expect(items.map((i) => i.y).toSet(), hasLength(5));
+    for (final i in items) {
+      expect(i.x, greaterThanOrEqualTo(0));
+      expect(i.x + i.w, lessThanOrEqualTo(210));
+      expect(i.y + i.h, lessThanOrEqualTo(297));
+    }
+  });
+
+  test('round 10, P1-8: people sharing a sheet get even, grouped shares', () {
+    expect(PhotoSheetCalculator.assignPeople(8, 1), List.filled(8, 0));
+    expect(PhotoSheetCalculator.assignPeople(8, 2), [0, 0, 0, 0, 1, 1, 1, 1]);
+    expect(PhotoSheetCalculator.assignPeople(25, 3), [...List.filled(9, 0), ...List.filled(8, 1), ...List.filled(8, 2)]);
+  });
+
+  test('round 10, P1-8: the sheet as a JPG: 300 DPI A4, each person in place, dashed cut lines', () {
+    final red = cv.Mat.fromScalar(531, 413, cv.MatType.CV_8UC3, cv.Scalar(0, 0, 255));
+    final blue = cv.Mat.fromScalar(531, 413, cv.MatType.CV_8UC3, cv.Scalar(255, 0, 0));
+    final items = PhotoSheetCalculator.layout(const PrintItemSpec(widthMm: 35, heightMm: 45, count: 8));
+    final sheet = pipe.photoSheetImage(
+      photos: [red, blue],
+      photoOf: PhotoSheetCalculator.assignPeople(8, 2),
+      items: [for (final it in items) (x: it.x, y: it.y, w: it.w, h: it.h)],
+      paperW: 210,
+      paperH: 297,
+      cutLines: true,
+    );
+    expect((sheet.cols, sheet.rows), (2480, 3508));
+    int px(double mm) => (mm / 25.4 * 300).round();
+    cv.Vec3b at(PlacedItem it) => sheet.at<cv.Vec3b>(px(it.y + it.h / 2), px(it.x + it.w / 2));
+    expect(at(items.first).val3, 255, reason: 'person 1 first');
+    expect(at(items.last).val1, 255, reason: 'person 2 last');
+    // A cut line runs through the gap between the first two photos, dashed.
+    final gapX = px(items[0].x + items[0].w);
+    final run = [for (var y = px(items[0].y); y < px(items[0].y + items[0].h); y++) sheet.at<cv.Vec3b>(y, gapX).val1];
+    expect(run.where((v) => v < 200), isNotEmpty);
+    expect(run.where((v) => v > 240), isNotEmpty, reason: 'dashes, not a solid line');
+    for (final m in [red, blue, sheet]) {
+      m.dispose();
+    }
   });
 }

@@ -28,16 +28,25 @@ import 'package:path/path.dart' as p;
 /// What the crop screen works on: a fresh photo, or a saved passport photo
 /// being re-cropped.
 class PhotoCropArgs {
-  const PhotoCropArgs({required this.photoPath, this.page});
+  const PhotoCropArgs({required this.photoPath, this.page, this.addToDocumentId, this.size});
 
   final String photoPath;
 
   /// Set when re-cropping a saved photo.
   final ScanPage? page;
+
+  /// Round 10, P1-8: "+ Add" another person's photo to this sheet. The
+  /// photo takes the sheet's [size].
+  final String? addToDocumentId;
+  final PhotoSize? size;
 }
 
-/// Tools › Passport photo: take or pick one photo, then crop it.
-Future<void> startPassportPhoto(BuildContext context) async {
+/// What happens after the crop of a new photo (round 10, P1-8).
+enum _After { preview, print }
+
+/// Tools › Passport photo: take or pick one photo, then crop it. With
+/// [addToDocumentId], another person's photo for that sheet, at [size].
+Future<void> startPassportPhoto(BuildContext context, {String? addToDocumentId, PhotoSize? size}) async {
   final l = context.l10n;
   final camera = await AppBottomSheet.show<bool>(
     context,
@@ -63,7 +72,10 @@ Future<void> startPassportPhoto(BuildContext context) async {
   if (camera == null || !context.mounted) return;
   final path = await _pickPhoto(context, camera: camera);
   if (path == null || !context.mounted) return;
-  await context.push(Routes.photoCrop, extra: PhotoCropArgs(photoPath: path));
+  await context.push(
+    Routes.photoCrop,
+    extra: PhotoCropArgs(photoPath: path, addToDocumentId: addToDocumentId, size: size),
+  );
 }
 
 Future<String?> _pickPhoto(BuildContext context, {required bool camera}) async {
@@ -140,6 +152,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
   Offset _startFocal = Offset.zero;
 
   PhotoSize _initialSize() {
+    if (widget.args.size != null) return widget.args.size!;
     final e = widget.args.page?.edits;
     if (e?.photoWidthMm != null && e?.photoHeightMm != null) {
       return PhotoSize(e!.photoWidthMm!, e.photoHeightMm!);
@@ -380,7 +393,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     if (picked != null && mounted) setState(() => _size = picked);
   }
 
-  Future<void> _next() async {
+  Future<void> _next([_After after = _After.preview]) async {
     final image = _image;
     final frame = _frame;
     final placement = _placement;
@@ -447,6 +460,24 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
       context.pop();
       return;
     }
+    final addTo = widget.args.addToDocumentId;
+    if (addTo != null) {
+      // Round 10, P1-8: another person on the same sheet.
+      final id = newId();
+      final page = ScanPage(
+        id: id,
+        documentId: addTo,
+        originalPath: _photo,
+        edits: edits.copyWith(backgroundMaskPath: mask == null ? null : await _adoptMask(addTo, id, mask)),
+        order: 1 << 20, // after the others
+      );
+      final r = await getIt<AddPages>()(addTo, [page]);
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (r.isLeft()) return context.showSnack(context.l10n.errorGeneric, error: true);
+      context.pop();
+      return;
+    }
     final r = await getIt<CreateDocument>()(
       mode: ScanMode.photo,
       pages: [
@@ -478,10 +509,15 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     }
     if (!mounted) return;
     setState(() => _saving = false);
+    // Round 10, P1-8: Preview opens the photo in the viewer; Print goes on
+    // to the print sheet (Back from it lands on the viewer).
     final router = GoRouter.of(context)..go(Routes.home);
     unawaited(router.push(Routes.viewer(doc.id)));
-    unawaited(router.push(Routes.photoSheet(doc.id)));
+    if (after == _After.print) unawaited(router.push(Routes.photoSheet(doc.id)));
   }
+
+  /// A brand-new photo (not a re-crop, not another person for a sheet).
+  bool get _isNew => widget.args.page == null && widget.args.addToDocumentId == null;
 
   @override
   Widget build(BuildContext context) {
@@ -495,8 +531,9 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
         title: l.photoTitle,
         subtitle: l.photoStepCrop,
         actions: [
+          // Next = Preview (round 10, P1-8).
           TopBarTextAction(
-            label: l.adjustNext,
+            label: _isNew ? l.adjustNext : l.commonSave,
             onPressed: _placement == null || _saving ? null : _next,
           ),
         ],
@@ -645,6 +682,8 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
+                            // Adding a person: the sheet's size, not a choice.
+                            if (widget.args.addToDocumentId == null) ...[
                             SectionLabel(
                               l.photoSizeLabel,
                               padding: const EdgeInsets.only(bottom: Space.x2),
@@ -674,6 +713,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                 ],
                               ],
                             ),
+                            ],
                             // White / Light blue only where segmentation works.
                             if (_segmentable ?? true) ...[
                               const SizedBox(height: Space.x3),
@@ -764,18 +804,26 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                                     onPressed: _saving ? null : _retake,
                                   ),
                                 ),
+                                // Round 10, P1-8: a new photo: Retake · Preview ·
+                                // Print; editing or adding one: Retake · Save.
+                                if (_isNew) ...[
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: SecondaryButton(
+                                      label: l.photoPreview,
+                                      dense: true,
+                                      onPressed: _placement == null || _saving ? null : _next,
+                                    ),
+                                  ),
+                                ],
                                 const SizedBox(width: 10),
                                 Expanded(
-                                  flex: 2,
+                                  flex: _isNew ? 1 : 2,
                                   child: PrimaryButton(
-                                    label: widget.args.page == null
-                                        ? l.photoMakeSheet
-                                        : l.commonSave,
+                                    label: _isNew ? l.viewerPrint : l.commonSave,
                                     dense: true,
                                     loading: _saving,
-                                    onPressed: _placement == null
-                                        ? null
-                                        : _next,
+                                    onPressed: _placement == null ? null : () => _next(_After.print),
                                   ),
                                 ),
                               ],

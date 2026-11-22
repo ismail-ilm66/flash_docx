@@ -159,7 +159,8 @@ String documentMeta(BuildContext context, ScanDocument d) {
   final folder = folderLabel(context, d.folder);
   if (d.mode != ScanMode.document) {
     final n = d.pages.length;
-    if (d.mode == ScanMode.photo) return '$folder · ${modeLabel(context, d.mode)}';
+    // Round 10, P1-8: passport photos are kept as a "Photo sheet".
+    if (d.mode == ScanMode.photo) return '$folder · ${l.photoSheetType}';
     return '$folder · ${modeLabel(context, d.mode)} · ${d.mode == ScanMode.idCard ? l.sidesCount(n) : l.pagesCount(n)}';
   }
   return [folder, l.pagesCount(d.pages.length), if (d.sizeBytes > 0) formatBytes(d.sizeBytes)].join(' · ');

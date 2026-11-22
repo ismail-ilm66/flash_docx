@@ -3435,3 +3435,61 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat footer, {required double artLogoPx, requi
   }
   return out;
 }
+
+/// Round 10, P1-8: a passport photo sheet as one picture (for a photo shop
+/// or WhatsApp) at [dpi]: white [paperW] × [paperH] mm paper, each of
+/// [items] (mm) showing `photos[photoOf[i]]`, and the same dashed cut lines
+/// as the PDF along every photo edge, across the gaps.
+cv.Mat photoSheetImage({
+  required List<cv.Mat> photos,
+  required List<int> photoOf,
+  required List<({double x, double y, double w, double h})> items,
+  required double paperW,
+  required double paperH,
+  required bool cutLines,
+  int dpi = 300,
+}) {
+  double px(double mm) => mm / 25.4 * dpi;
+  final sheet = cv.Mat.fromScalar(px(paperH).round(), px(paperW).round(), cv.MatType.CV_8UC3, cv.Scalar.all(255));
+  for (final (i, it) in items.indexed) {
+    final photo = photos[(i < photoOf.length ? photoOf[i] : 0).clamp(0, photos.length - 1)];
+    final x = px(it.x).round();
+    final y = px(it.y).round();
+    final w = math.min(px(it.w).round(), sheet.cols - x);
+    final h = math.min(px(it.h).round(), sheet.rows - y);
+    if (w <= 0 || h <= 0) continue;
+    final sized = cv.resize(photo, (w, h), interpolation: cv.INTER_AREA);
+    final roi = sheet.region(cv.Rect(x, y, w, h));
+    sized.copyTo(roi);
+    sized.dispose();
+    roi.dispose();
+  }
+  if (cutLines && items.isNotEmpty) {
+    final xs = {for (final it in items) ...[it.x, it.x + it.w]}.toList()..sort();
+    final ys = {for (final it in items) ...[it.y, it.y + it.h]}.toList()..sort();
+    // 8 pt past the outer photos, 3 pt dashes, 2 pt gaps, grey 500.
+    final over = px(8 * 25.4 / 72);
+    final dash = px(3 * 25.4 / 72);
+    final gap = px(2 * 25.4 / 72);
+    final grey = cv.Scalar.all(0x9E);
+    final t = math.max(1, px(0.4 * 25.4 / 72).round());
+    void dashed(double x1, double y1, double x2, double y2) {
+      final len = math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+      if (len == 0) return;
+      final dx = (x2 - x1) / len;
+      final dy = (y2 - y1) / len;
+      for (var d = 0.0; d < len; d += dash + gap) {
+        final e = math.min(d + dash, len);
+        cv.line(sheet, cv.Point((x1 + dx * d).round(), (y1 + dy * d).round()), cv.Point((x1 + dx * e).round(), (y1 + dy * e).round()), grey, thickness: t);
+      }
+    }
+
+    for (final x in xs) {
+      dashed(px(x), px(ys.first) - over, px(x), px(ys.last) + over);
+    }
+    for (final y in ys) {
+      dashed(px(xs.first) - over, px(y), px(xs.last) + over, px(y));
+    }
+  }
+  return sheet;
+}

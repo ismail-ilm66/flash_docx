@@ -621,6 +621,7 @@
   "settingsSignatureDelete": "Delete signature",
   "settingsSignatureDeleteBody": "Pages you already signed keep their signature.",
   "modePhoto": "Passport photo",
+  "photoSheetType": "Photo sheet",
   "activityPhotoSheet": "Photo sheet",
   "photoTitle": "Passport photo",
   "photoSize35x45": "35 × 45 mm",
@@ -635,6 +636,8 @@
   "photoTakePhoto": "Take a photo",
   "photoFromGallery": "Choose from gallery",
   "photoSheetTitle": "Print sheet",
+  "photoSheetPdfHint": "To print, exact size",
+  "photoSheetJpgHint": "Photo shop · WhatsApp",
   "photoPaperA4": "A4",
   "photoPaper4x6": "4 × 6 in photo paper",
   "photoCopies": "Photos on sheet",
@@ -644,7 +647,7 @@
   "photoModeSheet": "Print sheet",
   "photoModeSingle": "Single photo",
   "photoSingleCaption": "One photo to send or upload",
-  "photoDefaultTitle": "Passport photo - {date}",
+  "photoDefaultTitle": "Passport photo – {date}",
   "@photoDefaultTitle": {
     "placeholders": {
       "date": {
@@ -670,7 +673,7 @@
   "photoEnhanceOffHint": "The photo as taken.",
   "photoEnhanceNaturalHint": "Fixes light and colour, sharpens the eyes and softens skin a little.",
   "photoEnhanceSmoothHint": "Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.",
-  "photoMakeSheet": "Make print sheet",
+  "photoPreview": "Preview",
   "photoUpTo": "Up to {count} photos",
   "@photoUpTo": {
     "placeholders": {

@@ -130,6 +130,19 @@ abstract interface class ImageProcessor {
     required String outputPath,
   });
 
+  /// Round 10, P1-8: the passport photo sheet as a JPEG at [dpi] (see
+  /// `photoSheetImage` in the pipeline). [items] are in millimetres.
+  Future<String> renderPhotoSheet({
+    required List<String> photoPaths,
+    required List<int> photoOf,
+    required List<({double x, double y, double w, double h})> items,
+    required double paperWidthMm,
+    required double paperHeightMm,
+    required bool cutLines,
+    required String outputPath,
+    int dpi = 300,
+  });
+
   /// Turns a fresh camera photo upright in place (P0-1: EXIF, then what
   /// [capture] says; null for imports). Interactive lane. Returns the
   /// `[orient]` line.

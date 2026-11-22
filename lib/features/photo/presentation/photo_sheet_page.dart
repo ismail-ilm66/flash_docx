@@ -50,9 +50,15 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
   /// Single photo export; made the first time that mode opens.
   ExportBloc? _exportBloc;
 
-  /// The photo rendered at print size; also the preview.
-  String? _photo;
+  /// Each person's photo rendered at print size (round 10, P1-8: several
+  /// people can share a sheet); also the preview. [_photo] is the first.
+  List<String>? _photos;
+  String? get _photo => _photos?.firstOrNull;
   bool _working = false;
+
+  /// Round 10, P1-8: the sheet as a PDF (to print, exact size at 100 %) or
+  /// a JPG at 300 DPI (photo shop / WhatsApp).
+  bool _jpg = false;
 
   @override
   void initState() {
@@ -89,22 +95,28 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
     final doc = (await getIt<GetDocument>()(widget.documentId)).toNullable();
     if (!mounted || doc == null || doc.cover == null) return;
     setState(() => _doc = doc);
-    final page = doc.cover!;
-    final out = getIt<FileStore>().exportPath(
-      'photo_${page.id}_${Object.hash(page.originalPath, page.edits)}.jpg',
-    );
-    if (!File(out).existsSync()) {
-      await getIt<ImageProcessor>().renderPhoto(
-        page.originalPath,
-        page.edits,
-        widthMm: _size.widthMm,
-        heightMm: _size.heightMm,
-        dpi: _dpi,
-        outputPath: out,
+    final photos = <String>[];
+    for (final page in doc.sortedPages) {
+      final out = getIt<FileStore>().exportPath(
+        'photo_${page.id}_${Object.hash(page.originalPath, page.edits)}.jpg',
       );
+      if (!File(out).existsSync()) {
+        await getIt<ImageProcessor>().renderPhoto(
+          page.originalPath,
+          page.edits,
+          widthMm: _size.widthMm,
+          heightMm: _size.heightMm,
+          dpi: _dpi,
+          outputPath: out,
+        );
+      }
+      photos.add(out);
     }
-    if (mounted) setState(() => _photo = out);
+    if (mounted) setState(() => _photos = photos);
   }
+
+  /// Which person's photo each place on the sheet shows.
+  List<int> _photoOf(int places) => PhotoSheetCalculator.assignPeople(places, _photos?.length ?? 1);
 
   List<int> get _counts =>
       PhotoSheetCalculator.counts(_size.widthMm, _size.heightMm, _paper);
@@ -137,22 +149,41 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
 
   Future<void> _export({required bool share}) async {
     final doc = _doc;
-    final photo = _photo;
-    if (doc == null || photo == null) return;
+    final photos = _photos;
+    if (doc == null || photos == null) return;
     setState(() => _working = true);
     final l = context.l10n;
     try {
-      final pdf = await getIt<PdfBuilder>().photoSheet(
-        photoPath: photo,
-        items: PhotoSheetCalculator.layout(_spec),
-        paper: _paper,
-        cutLines: _cutLines,
-        title: doc.title,
-        outputPath: getIt<FileStore>().exportPath('${doc.title.fileSafe}.pdf'),
-      );
+      final items = PhotoSheetCalculator.layout(_spec);
+      final File file;
+      if (_jpg) {
+        file = File(
+          await getIt<ImageProcessor>().renderPhotoSheet(
+            photoPaths: photos,
+            photoOf: _photoOf(items.length),
+            items: [for (final it in items) (x: it.x, y: it.y, w: it.w, h: it.h)],
+            paperWidthMm: _paper.widthMm,
+            paperHeightMm: _paper.heightMm,
+            cutLines: _cutLines,
+            outputPath: getIt<FileStore>().exportPath('${doc.title.fileSafe}.jpg'),
+          ),
+        );
+      } else {
+        file = await getIt<PdfBuilder>().photoSheet(
+          photoPaths: photos,
+          photoOf: _photoOf(items.length),
+          items: items,
+          paper: _paper,
+          cutLines: _cutLines,
+          title: doc.title,
+          outputPath: getIt<FileStore>().exportPath('${doc.title.fileSafe}.pdf'),
+        );
+      }
       final Either<Object, Object?> r = share
-          ? await getIt<ShareService>().shareFiles([pdf], subject: doc.title)
-          : await getIt<SaveService>().saveFileWithDialog(pdf);
+          ? await getIt<ShareService>().shareFiles([file], subject: doc.title)
+          : _jpg
+          ? await getIt<SaveService>().saveImages([file])
+          : await getIt<SaveService>().saveFileWithDialog(file);
       if (!mounted) return;
       r.fold(
         (f) {
@@ -320,7 +351,7 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                                             )
                                           : Stack(
                                               children: [
-                                                for (final it in items)
+                                                for (final (i, it) in items.indexed)
                                                   Positioned(
                                                     left: it.x * k,
                                                     top: it.y * k,
@@ -342,7 +373,7 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                                                             : null,
                                                       ),
                                                       child: Image.file(
-                                                        File(_photo!),
+                                                        File(_photos![_photoOf(items.length)[i]]),
                                                         fit: BoxFit.fill,
                                                         cacheWidth: 240,
                                                         gaplessPlayback: true,
@@ -488,6 +519,26 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                               ],
                             ),
                           ),
+                          // Round 10, P1-8: PDF to print, or a picture for a
+                          // photo shop.
+                          SectionLabel(l.shareFormat, padding: const EdgeInsets.only(bottom: Space.x2)),
+                          Row(
+                            children: [
+                              for (final (i, jpg) in const [false, true].indexed) ...[
+                                if (i > 0) const SizedBox(width: Space.x2),
+                                Expanded(
+                                  child: OptionCard(
+                                    height: 56,
+                                    title: jpg ? l.shareJpg : l.sharePdf,
+                                    subtitle: jpg ? l.photoSheetJpgHint : l.photoSheetPdfHint,
+                                    selected: _jpg == jpg,
+                                    onTap: () => setState(() => _jpg = jpg),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: Space.x3),
                           Row(
                             children: [
                               Expanded(
@@ -503,7 +554,7 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: PrimaryButton(
-                                  label: l.photoSharePdf,
+                                  label: _jpg ? l.shareButtonFormat(l.shareJpg) : l.photoSharePdf,
                                   icon: AppIcons.share,
                                   dense: true,
                                   loading: _working,

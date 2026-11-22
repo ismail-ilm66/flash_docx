@@ -48,7 +48,8 @@ void main() {
     img.dispose();
     final runner = IsolateRunner();
     final pdf = await PdfBuilderImpl(runner).photoSheet(
-      photoPath: rendered,
+      photoPaths: [rendered],
+      photoOf: List.filled(12, 0),
       items: PhotoSheetCalculator.layout(const PrintItemSpec(widthMm: 35, heightMm: 45, count: 12)),
       paper: PhotoPaper.a4,
       cutLines: true,
