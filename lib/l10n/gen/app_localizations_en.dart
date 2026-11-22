@@ -746,7 +746,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get printCutGuides => 'Cut guides';
 
   @override
-  String get printSwapSides => 'Swap front/back';
+  String get printSwapSides => 'Swap front & back';
+
+  @override
+  String get printSwapHint =>
+      'Use this if the back prints behind the wrong card.';
+
+  @override
+  String printSheetTitleFronts(int n, int total) {
+    return 'Sheet $n of $total · Fronts · print first';
+  }
+
+  @override
+  String printSheetTitleBacks(int n, int total, int front) {
+    return 'Sheet $n of $total · Backs · print on the back of sheet $front';
+  }
 
   @override
   String printSheetOf(int n, int total) {
@@ -794,12 +808,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsMagneticEdges => 'Magnetic edges';
-
-  @override
-  String get printQualityStandard => 'Standard · 300 DPI';
-
-  @override
-  String get printQualityHigh => 'High · 600 DPI';
 
   @override
   String get cameraHintDocument => 'Hold the phone flat over the page';
@@ -1252,11 +1260,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get photoLoadFailed => 'Couldn\'t open this photo. Take it again.';
 
   @override
-  String printSheetN(int n) {
-    return 'Sheet $n';
-  }
-
-  @override
   String printImageCaption(String w, String h) {
     return 'Image $w × $h mm · cards at real size';
   }
@@ -1294,16 +1297,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraTimerOff => '3 second timer off';
-
-  @override
-  String printSheetFronts(int n) {
-    return 'Sheet $n · Fronts';
-  }
-
-  @override
-  String printSheetBacks(int n) {
-    return 'Sheet $n · Backs';
-  }
 
   @override
   String get maxSizeNotePhoto200kb => 'Most online forms';

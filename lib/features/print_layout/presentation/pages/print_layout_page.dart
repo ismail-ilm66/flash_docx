@@ -39,7 +39,10 @@ class _PrintView extends StatefulWidget {
 class _PrintViewState extends State<_PrintView> {
   /// Which sheet of the layout is previewed (duplex: fronts, backs).
   int _sheet = 0;
-  final PageController _pageCtrl = PageController();
+
+  /// Round 10, P1-3: how much of the width one sheet takes.
+  static const _peek = 0.85;
+  final PageController _pageCtrl = PageController(viewportFraction: _peek);
 
   void _goSheet(int i) {
     setState(() => _sheet = i);
@@ -66,19 +69,6 @@ class _PrintViewState extends State<_PrintView> {
       cubit.unlockMoreCopies();
     }
     cubit.setCopies(n);
-  }
-
-  Future<void> _pickHighQuality(BuildContext context) async {
-    final cubit = context.read<PrintLayoutCubit>();
-    if (cubit.state.qualityGated) {
-      final ok = await showUnlockDialog(
-        context,
-        PremiumFeature.highQualityExport,
-      );
-      if (!ok) return;
-      cubit.unlockHighQuality();
-    }
-    cubit.setQuality(ExportQuality.high);
   }
 
   static String _mm(double v) =>
@@ -143,261 +133,190 @@ class _PrintViewState extends State<_PrintView> {
         final scale = l.printTipScale;
         final flip = l.printTipFlip;
 
+        Widget sheetAt(int i) => AspectRatio(
+          aspectRatio: page.w / page.h,
+          child: _SheetPreview(
+            pageWidth: page.w,
+            items: layout.pages[i],
+            cutGuides: s.cutGuides && s.output != PrintOutput.image,
+            // The real cards, rendered as they print.
+            frontPath: s.previews[frontPage.id],
+            backPath: backPage == null ? null : s.previews[backPage.id],
+          ),
+        );
+        // Round 10, P1-3: a title, not buttons: which sheet, what's on it and
+        // when to print it.
+        final title = sheets <= 1
+            ? null
+            : duplex
+            ? (sheet.isEven ? l.printSheetTitleFronts(sheet + 1, sheets) : l.printSheetTitleBacks(sheet + 1, sheets, sheet))
+            : l.printSheetOf(sheet + 1, sheets);
+        // Each sheet 85 % of the full width (24 dp margins), so the next one
+        // peeks in.
+        final previewWidth = MediaQuery.sizeOf(context).width - 2 * Space.x6;
+        final previewHeight = previewWidth * _peek * page.h / page.w;
+
         return AppScaffold(
           topBar: AppTopBar(title: l.printTitle, subtitle: doc.title),
           body: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
-                child: _PreviewAndControls(
-                  large: MediaQuery.textScalerOf(context).scale(10) > 13,
-                  top: [
-                    if (s.allowedOutputs.length > 1)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Space.x4,
-                        ),
-                        child: SegmentedPills<PrintOutput>(
-                          values: s.allowedOutputs,
-                          selected: s.output,
-                          height: 44,
-                          labelSize: 12,
-                          labelOf: (o) => switch (o) {
-                            PrintOutput.image => l.printOutputImage,
-                            PrintOutput.pdfDoubleSided =>
-                              l.printOutputDoubleSided,
-                            PrintOutput.pdfOnePage => l.printOutputOnePage,
-                          },
-                          onChanged: cubit.setOutput,
-                        ),
-                      ),
-                  ],
-                  preview: Container(
-                    margin: const EdgeInsets.only(top: Space.x3),
-                    color: c.stage,
-                    padding: const EdgeInsets.symmetric(vertical: Space.x3),
-                    child: Column(
-                      children: [
-                        // P1-6: one compact pill for every multi-sheet preview.
-                        if (sheets > 1)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: Space.x4,
-                            ),
-                            child: Wrap(
-                              alignment: WrapAlignment.center,
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (var i = 0; i < sheets; i++)
-                                  _SheetChip(
-                                    label: duplex
-                                        ? (i.isEven ? l.printSheetFronts(i + 1) : l.printSheetBacks(i + 1))
-                                        : l.printSheetN(i + 1),
-                                    selected: i == sheet,
-                                    onTap: () => _goSheet(i),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        // The same large, pinch-zoomable viewer for all three
-                        // outputs (P1-6), like the document viewer.
-                        Expanded(
-                          child: ZoomablePages(
-                            controller: _pageCtrl,
-                            itemCount: sheets,
-                            onPageChanged: (i) => setState(() => _sheet = i),
-                            itemBuilder: (context, i) => Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: Space.x3,
-                                vertical: Space.x3,
-                              ),
-                              child: Center(
-                                child: AspectRatio(
-                                  aspectRatio: page.w / page.h,
-                                  child: _SheetPreview(
-                                    pageWidth: page.w,
-                                    items: layout.pages[i],
-                                    cutGuides:
-                                        s.cutGuides &&
-                                        s.output != PrintOutput.image,
-                                    // The real cards, rendered as they print.
-                                    frontPath: s.previews[frontPage.id],
-                                    backPath: backPage == null ? null : s.previews[backPage.id],
-                                  ),
-                                ),
-                              ),
-                            ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (s.allowedOutputs.length > 1)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+                          child: SegmentedPills<PrintOutput>(
+                            values: s.allowedOutputs,
+                            selected: s.output,
+                            height: 44,
+                            labelSize: 12,
+                            labelOf: (o) => switch (o) {
+                              PrintOutput.image => l.printOutputImage,
+                              PrintOutput.pdfDoubleSided => l.printOutputDoubleSided,
+                              PrintOutput.pdfOnePage => l.printOutputOnePage,
+                            },
+                            onChanged: cubit.setOutput,
                           ),
                         ),
-                        Text(
-                          s.output == PrintOutput.image
-                              ? l.printImageCaption(_mm(page.w), _mm(page.h))
-                              : l.printSheetCaption(_mm(card.w), _mm(card.h)),
-                          style: context.text.labelSmall?.copyWith(
-                            color: c.muted,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  controls: Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.x4,
-                      14,
-                      Space.x4,
-                      0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (s.output != PrintOutput.image) ...[
-                          SectionLabel(
-                            l.printCopies,
-                            padding: const EdgeInsets.only(bottom: Space.x2),
-                          ),
-                          Row(
-                            children: [
-                              for (final (i, n) in s.allowedCopies.indexed) ...[
-                                if (i > 0) const SizedBox(width: Space.x2),
-                                Expanded(
-                                  child: _ChoiceButton(
-                                    label: '$n',
-                                    selected: s.copies == n,
-                                    locked: s.copiesGated(n),
-                                    onTap: () => _pickCopies(context, n),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          const SizedBox(height: Space.x3),
-                        ],
-                        // P1-9: quality under the copies; High needs a video,
-                        // like High quality on the Share sheet.
-                        SectionLabel(
-                          l.shareQuality,
-                          padding: const EdgeInsets.only(bottom: Space.x2),
-                        ),
-                        // One row of two equal buttons, like the copies.
-                        Row(
+                      Container(
+                        margin: const EdgeInsets.only(top: Space.x3),
+                        color: c.stage,
+                        padding: const EdgeInsets.symmetric(vertical: Space.x3),
+                        child: Column(
                           children: [
-                            Expanded(
-                              child: _ChoiceButton(
-                                label: l.printQualityStandard,
-                                selected: s.quality == ExportQuality.standard,
-                                locked: false,
-                                onTap: () => cubit.setQuality(ExportQuality.standard),
+                            if (title != null)
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(Space.x6, 0, Space.x6, Space.x2),
+                                child: Text(
+                                  title,
+                                  textAlign: TextAlign.center,
+                                  style: context.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: Space.x6),
+                              child: SizedBox(
+                                height: previewHeight + 2 * Space.x2,
+                                child: PageView.builder(
+                                  controller: _pageCtrl,
+                                  itemCount: sheets,
+                                  onPageChanged: (i) => setState(() => _sheet = i),
+                                  itemBuilder: (context, i) => Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: Space.x1, vertical: Space.x2),
+                                    child: Center(
+                                      // Tap: full screen, pinch to zoom.
+                                      child: GestureDetector(
+                                        onTap: () => _openFullScreen(context, sheets, i, sheetAt),
+                                        child: sheetAt(i),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                            const SizedBox(width: Space.x2),
-                            Expanded(
-                              child: _ChoiceButton(
-                                label: l.printQualityHigh,
-                                selected: s.quality == ExportQuality.high,
-                                locked: s.qualityGated,
-                                onTap: () => _pickHighQuality(context),
-                              ),
+                            if (sheets > 1) ...[
+                              const SizedBox(height: Space.x2),
+                              _Dots(count: sheets, index: sheet, onTap: _goSheet),
+                            ],
+                            const SizedBox(height: Space.x2),
+                            Text(
+                              s.output == PrintOutput.image
+                                  ? l.printImageCaption(_mm(page.w), _mm(page.h))
+                                  : l.printSheetCaption(_mm(card.w), _mm(card.h)),
+                              style: context.text.labelSmall?.copyWith(color: c.muted, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
-                        const SizedBox(height: Space.x3),
-                        // A Wrap, so Swap sides moves under the switch when large
-                        // fonts make the row too wide.
-                        Wrap(
-                          alignment: WrapAlignment.spaceBetween,
-                          crossAxisAlignment: WrapCrossAlignment.center,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            if (s.output != PrintOutput.image)
+                            if (s.output != PrintOutput.image) ...[
+                              SectionLabel(l.printCopies, padding: const EdgeInsets.only(bottom: Space.x2)),
                               Row(
-                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Switch.adaptive(
-                                    value: s.cutGuides,
-                                    onChanged: cubit.setCutGuides,
-                                  ),
+                                  for (final (i, n) in s.allowedCopies.indexed) ...[
+                                    if (i > 0) const SizedBox(width: Space.x2),
+                                    Expanded(
+                                      child: _ChoiceButton(
+                                        label: '$n',
+                                        selected: s.copies == n,
+                                        locked: s.copiesGated(n),
+                                        onTap: () => _pickCopies(context, n),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              const SizedBox(height: Space.x3),
+                              Row(
+                                children: [
+                                  Switch.adaptive(value: s.cutGuides, onChanged: cubit.setCutGuides),
                                   const SizedBox(width: Space.x1),
-                                  Flexible(
-                                    child: Text(
-                                      l.printCutGuides,
-                                      style: context.text.labelMedium,
+                                  Flexible(child: Text(l.printCutGuides, style: context.text.labelMedium)),
+                                ],
+                              ),
+                            ],
+                            // Round 10, P1-4: a real button on its own row (it
+                            // doesn't fit beside Cut guides at 360 dp).
+                            if (s.hasBack) ...[
+                              const SizedBox(height: Space.x2),
+                              _SwapButton(label: l.printSwapSides, onTap: cubit.toggleSwapSides),
+                              const SizedBox(height: Space.x1),
+                              Text(l.printSwapHint, style: context.text.labelSmall?.copyWith(color: c.muted)),
+                            ],
+                            const SizedBox(height: Space.x3),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: Space.x3, vertical: 10),
+                              decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(12)),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 1),
+                                    child: AppIcon(AppIcons.print, size: 20, color: c.accentText),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _BoldParts(
+                                      text: s.output == PrintOutput.pdfDoubleSided ? l.printTipDuplex(flip, scale) : l.printTipSingle(scale),
+                                      bold: [flip, scale],
                                     ),
                                   ),
                                 ],
                               ),
-                            if (s.hasBack)
-                              TextButton.icon(
-                                onPressed: cubit.toggleSwapSides,
-                                icon: const AppIcon(AppIcons.reorder, size: 18),
-                                label: Text(l.printSwapSides),
-                              ),
+                            ),
+                            const SizedBox(height: Space.x3),
                           ],
                         ),
-                        const SizedBox(height: Space.x2),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: Space.x3,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: c.accentSoft,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(top: 1),
-                                child: AppIcon(
-                                  AppIcons.print,
-                                  size: 20,
-                                  color: c.accentText,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: _BoldParts(
-                                  text: s.output == PrintOutput.pdfDoubleSided
-                                      ? l.printTipDuplex(flip, scale)
-                                      : l.printTipSingle(scale),
-                                  bold: [flip, scale],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
               SafeArea(
                 top: false,
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Space.x4,
-                    14,
-                    Space.x4,
-                    18,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(Space.x4, 14, Space.x4, 18),
                   child: Row(
                     children: [
                       Expanded(
                         child: SecondaryButton(
                           label: l.shareSaveToPhone,
                           dense: true,
-                          onPressed: working
-                              ? null
-                              : () => cubit.run(ExportTarget.saveToPhone),
+                          onPressed: working ? null : () => cubit.run(ExportTarget.saveToPhone),
                         ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
                         child: PrimaryButton(
-                          label: s.output == PrintOutput.image
-                              ? l.printShareImage
-                              : l.shareButtonFormat(l.sharePdf),
+                          label: s.output == PrintOutput.image ? l.printShareImage : l.shareButtonFormat(l.sharePdf),
                           loading: working,
                           onPressed: () => cubit.run(ExportTarget.share),
                         ),
@@ -412,44 +331,83 @@ class _PrintViewState extends State<_PrintView> {
       },
     );
   }
+
+  /// Round 10, P1-3: a sheet full screen, pinch to zoom, swipe between
+  /// sheets.
+  void _openFullScreen(BuildContext context, int count, int index, Widget Function(int) sheetAt) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (context) => AppScaffold(
+          backgroundColor: context.colors.stage,
+          topBar: AppTopBar(title: context.l10n.printTitle, leading: TopBarLeading.close),
+          body: ZoomablePages(
+            controller: PageController(initialPage: index),
+            itemCount: count,
+            itemBuilder: (context, i) => Padding(
+              padding: const EdgeInsets.all(Space.x4),
+              child: Center(child: sheetAt(i)),
+            ),
+          ),
+        ),
+      ),
+    ).ignore();
+  }
 }
 
-/// Normal fonts: the sheet preview fills the space the controls leave.
-/// Large fonts (P1-5): the controls need most of a small screen, so the page
-/// scrolls and the preview gets a fixed height.
-class _PreviewAndControls extends StatelessWidget {
-  const _PreviewAndControls({
-    required this.large,
-    required this.top,
-    required this.preview,
-    required this.controls,
-  });
-
-  final bool large;
-  final List<Widget> top;
-  final Widget preview;
-  final Widget controls;
+/// Page dots under the sheets: the shown one is a wide amber pill.
+class _Dots extends StatelessWidget {
+  const _Dots({required this.count, required this.index, required this.onTap});
+  final int count;
+  final int index;
+  final ValueChanged<int> onTap;
 
   @override
   Widget build(BuildContext context) {
-    if (!large) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ...top,
-          Expanded(child: preview),
-          controls,
-        ],
-      );
-    }
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          ...top,
-          SizedBox(height: 340, child: preview),
-          controls,
-        ],
+    final c = context.colors;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          GestureDetector(
+            onTap: () => onTap(i),
+            child: AnimatedContainer(
+              duration: Motion.fast,
+              margin: const EdgeInsets.symmetric(horizontal: 3),
+              width: i == index ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(color: i == index ? c.accent : c.border, borderRadius: Radii.pillR),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// "⇅ Swap front & back" (round 10, P1-4): outlined in amber, dark text in
+/// the light theme, light text in the dark theme.
+class _SwapButton extends StatelessWidget {
+  const _SwapButton({required this.label, required this.onTap});
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final ink = Theme.of(context).brightness == Brightness.dark ? const Color(0xFFF3F3F1) : const Color(0xFF1B1B1B);
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: AppIcon(AppIcons.reorder, size: 18, color: ink),
+        label: Text(label, style: context.text.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: ink)),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: ink,
+          side: BorderSide(color: c.accent, width: 1.5),
+          minimumSize: const Size(0, Sizes.tap),
+          padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       ),
     );
   }
@@ -645,43 +603,6 @@ class _CropMarksPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CropMarksPainter old) =>
       old.items != items || old.k != k;
-}
-
-/// "Sheet 1 · Fronts" (artboard *Print layout*): filled when shown.
-class _SheetChip extends StatelessWidget {
-  const _SheetChip({required this.label, required this.selected, required this.onTap});
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Semantics(
-      button: true,
-      selected: selected,
-      child: Material(
-        color: selected ? c.text : Colors.transparent,
-        shape: StadiumBorder(side: selected ? BorderSide.none : BorderSide(color: c.border)),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            child: Text(
-              label,
-              style: context.text.labelMedium?.copyWith(
-                fontSize: 12,
-                fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
-                color: selected ? c.bg : c.text,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 /// One card on the preview sheet: the rendered card, or a quiet loading

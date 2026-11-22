@@ -369,7 +369,33 @@
   "settingsShutterSound": "Shutter sound",
   "settingsDefaultQuality": "Default quality",
   "printCutGuides": "Cut guides",
-  "printSwapSides": "Swap front/back",
+  "printSwapSides": "Swap front & back",
+  "printSwapHint": "Use this if the back prints behind the wrong card.",
+  "printSheetTitleFronts": "Sheet {n} of {total} · Fronts · print first",
+  "@printSheetTitleFronts": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "printSheetTitleBacks": "Sheet {n} of {total} · Backs · print on the back of sheet {front}",
+  "@printSheetTitleBacks": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      },
+      "front": {
+        "type": "int"
+      }
+    }
+  },
   "printSheetOf": "Sheet {n} of {total}",
   "@printSheetOf": {
     "placeholders": {
@@ -403,8 +429,6 @@
     }
   },
   "settingsMagneticEdges": "Magnetic edges",
-  "printQualityStandard": "Standard · 300 DPI",
-  "printQualityHigh": "High · 600 DPI",
   "cameraHintDocument": "Hold the phone flat over the page",
   "cameraHoldStill": "Hold still…",
   "cameraLowLight": "Low light: turn on flash",
@@ -645,14 +669,6 @@
   "cameraHintSignature": "Sign on white paper · fill the frame",
   "cameraHintExtractText": "Hold flat · text should fill the frame",
   "photoLoadFailed": "Couldn't open this photo. Take it again.",
-  "printSheetN": "Sheet {n}",
-  "@printSheetN": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "printImageCaption": "Image {w} × {h} mm · cards at real size",
   "@printImageCaption": {
     "placeholders": {
@@ -675,22 +691,6 @@
   "cameraFlip": "Switch camera",
   "cameraTimerOn": "3 second timer on",
   "cameraTimerOff": "3 second timer off",
-  "printSheetFronts": "Sheet {n} · Fronts",
-  "@printSheetFronts": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
-  "printSheetBacks": "Sheet {n} · Backs",
-  "@printSheetBacks": {
-    "placeholders": {
-      "n": {
-        "type": "int"
-      }
-    }
-  },
   "maxSizeNotePhoto200kb": "Most online forms",
   "maxSizeNotePhoto100kb": "Common photo limit",
   "maxSizeNotePhoto50kb": "Strict upload limits",

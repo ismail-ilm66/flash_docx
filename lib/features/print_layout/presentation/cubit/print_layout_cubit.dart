@@ -76,11 +76,10 @@ class PrintLayoutState extends Equatable {
   /// Which sheet the preview shows (double-sided PDFs have two).
   final int sheet;
 
-  /// P1-9: Standard = 300 DPI, High = 600 DPI (video unlock, like Share).
+  /// Always Standard (300 DPI) since round 10, P1-3: the card crop isn't
+  /// sharp enough for 600 DPI to show.
   final ExportQuality quality;
   final bool highQualityUnlocked;
-
-  bool get qualityGated => !highQualityUnlocked;
 
   PrintKind? get kind => switch (document?.mode) {
     ScanMode.idCard => PrintKind.idCard,
@@ -92,9 +91,26 @@ class PrintLayoutState extends Equatable {
       ? const [1]
       : PrintLayoutCalculator.allowedCopies(kind!, output);
 
+  /// Round 10, P1-3: PDF double-sided first (the default), then one page,
+  /// then the image.
   List<PrintOutput> get allowedOutputs => document?.mode == ScanMode.passport
       ? const [PrintOutput.image, PrintOutput.pdfDoubleSided]
-      : PrintOutput.values;
+      : const [PrintOutput.pdfDoubleSided, PrintOutput.pdfOnePage, PrintOutput.image];
+
+  /// Round 10, P1-3: 8 copies double-sided, 4 on one page (a full A4), or
+  /// the most that isn't locked.
+  int defaultCopies(PrintOutput o) {
+    final allowed = kind == null ? const [1] : PrintLayoutCalculator.allowedCopies(kind!, o);
+    final want = kind == PrintKind.idCard
+        ? switch (o) {
+            PrintOutput.pdfDoubleSided => 8,
+            PrintOutput.pdfOnePage => 4,
+            PrintOutput.image => 1,
+          }
+        : allowed.first;
+    final open = allowed.where((n) => n <= want && !copiesGated(n));
+    return open.isEmpty ? allowed.first : open.last;
+  }
 
   bool copiesGated(int n) => n > 2 && !moreCopiesUnlocked;
 
@@ -187,40 +203,27 @@ class PrintLayoutCubit extends Cubit<PrintLayoutState> {
     r.fold(
       (f) => emit(state.copyWith(failure: f)),
       (doc) {
-        emit(
-          state.copyWith(
-            document: doc,
-            output: doc.mode == ScanMode.passport ? PrintOutput.image : PrintOutput.pdfDoubleSided,
-          ),
-        );
+        final output = doc.mode == ScanMode.passport ? PrintOutput.image : PrintOutput.pdfDoubleSided;
+        final loaded = state.copyWith(document: doc, output: output);
+        emit(loaded.copyWith(copies: loaded.defaultCopies(output)));
         unawaited(_renderPreviews(doc));
       },
     );
   }
 
-  void setOutput(PrintOutput o) {
-    final allowed = state.kind == null
-        ? const [1]
-        : PrintLayoutCalculator.allowedCopies(state.kind!, o);
-    emit(
-      state.copyWith(
-        output: o,
-        copies: allowed.contains(state.copies) ? state.copies : allowed.first,
-        status: const PrintIdle(),
-        sheet: 0,
-      ),
-    );
-  }
+  void setOutput(PrintOutput o) => emit(
+    state.copyWith(
+      output: o,
+      copies: state.defaultCopies(o),
+      status: const PrintIdle(),
+      sheet: 0,
+    ),
+  );
 
   void setCopies(int n) =>
       emit(state.copyWith(copies: n, status: const PrintIdle()));
 
   void setCutGuides(bool on) => emit(state.copyWith(cutGuides: on));
-
-  void setQuality(ExportQuality q) =>
-      emit(state.copyWith(quality: q, status: const PrintIdle()));
-
-  void unlockHighQuality() => emit(state.copyWith(highQualityUnlocked: true));
 
   void toggleSwapSides() => emit(state.copyWith(swapSides: !state.swapSides));
 

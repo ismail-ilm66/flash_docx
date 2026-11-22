@@ -22,6 +22,7 @@ import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
 import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
+import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
@@ -437,13 +438,26 @@ void main() {
     router.go(Routes.print(card.id));
     await settle(tester);
     expectNothingCutOff(tester, 'Print');
-    // P1-6: each output in the same zoomable viewer; sheets in a pill.
-    for (final output in [l.printOutputDoubleSided, l.printOutputOnePage, l.printOutputImage]) {
+    // Round 10, P1-3: PDF double-sided, 8 copies, by default; the sheet
+    // title says what to print when.
+    final double = tester.widget<SegmentedPills<PrintOutput>>(find.byType(SegmentedPills<PrintOutput>));
+    expect(double.values.first, PrintOutput.pdfDoubleSided);
+    expect(double.selected, PrintOutput.pdfDoubleSided);
+    expect(find.text(l.printSheetTitleFronts(1, 2)), findsOneWidget);
+    expect(find.text(l.printSwapSides), findsOneWidget, reason: 'round 10, P1-4');
+    await tester.drag(find.byType(PageView), const Offset(-300, 0));
+    await settle(tester);
+    expect(find.text(l.printSheetTitleBacks(2, 2, 1)), findsOneWidget);
+    // Tap a sheet: full screen, pinch to zoom.
+    await tester.tap(find.byType(PageView));
+    await settle(tester);
+    expect(find.byType(ZoomablePages), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    for (final output in [l.printOutputOnePage, l.printOutputImage]) {
       await tester.tap(find.text(output));
       await settle(tester);
-      expect(find.byType(ZoomablePages), findsOneWidget, reason: output);
       expectNothingCutOff(tester, 'Print, $output');
-      if (output == l.printOutputDoubleSided) expect(find.text(l.printSheetBacks(2)), findsOneWidget);
     }
     expect(find.text(l.printImageCaption('93.6', '120')), findsOneWidget, reason: 'tight image, not A4');
     await close(tester);

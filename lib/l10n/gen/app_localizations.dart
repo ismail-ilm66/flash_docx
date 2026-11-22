@@ -1423,8 +1423,26 @@ abstract class AppLocalizations {
   /// No description provided for @printSwapSides.
   ///
   /// In en, this message translates to:
-  /// **'Swap front/back'**
+  /// **'Swap front & back'**
   String get printSwapSides;
+
+  /// No description provided for @printSwapHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this if the back prints behind the wrong card.'**
+  String get printSwapHint;
+
+  /// No description provided for @printSheetTitleFronts.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} of {total} · Fronts · print first'**
+  String printSheetTitleFronts(int n, int total);
+
+  /// No description provided for @printSheetTitleBacks.
+  ///
+  /// In en, this message translates to:
+  /// **'Sheet {n} of {total} · Backs · print on the back of sheet {front}'**
+  String printSheetTitleBacks(int n, int total, int front);
 
   /// No description provided for @printSheetOf.
   ///
@@ -1503,18 +1521,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Magnetic edges'**
   String get settingsMagneticEdges;
-
-  /// No description provided for @printQualityStandard.
-  ///
-  /// In en, this message translates to:
-  /// **'Standard · 300 DPI'**
-  String get printQualityStandard;
-
-  /// No description provided for @printQualityHigh.
-  ///
-  /// In en, this message translates to:
-  /// **'High · 600 DPI'**
-  String get printQualityHigh;
 
   /// No description provided for @cameraHintDocument.
   ///
@@ -2314,12 +2320,6 @@ abstract class AppLocalizations {
   /// **'Couldn\'t open this photo. Take it again.'**
   String get photoLoadFailed;
 
-  /// No description provided for @printSheetN.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheet {n}'**
-  String printSheetN(int n);
-
   /// No description provided for @printImageCaption.
   ///
   /// In en, this message translates to:
@@ -2391,18 +2391,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'3 second timer off'**
   String get cameraTimerOff;
-
-  /// No description provided for @printSheetFronts.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheet {n} · Fronts'**
-  String printSheetFronts(int n);
-
-  /// No description provided for @printSheetBacks.
-  ///
-  /// In en, this message translates to:
-  /// **'Sheet {n} · Backs'**
-  String printSheetBacks(int n);
 
   /// No description provided for @maxSizeNotePhoto200kb.
   ///
