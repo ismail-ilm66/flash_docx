@@ -12,6 +12,7 @@ import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
+import 'package:flash_dox/features/scanner/data/camera_list.dart';
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/data/motion_monitor.dart';
@@ -138,7 +139,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// The photo is being saved after the tap: "Hold still…" on the preview.
   bool _saving = false;
 
-  /// Portrait aspect (width / height) of the capture, or 3:4 until known.
+  /// Portrait aspect (width / height) of the capture, or 9:16 until known.
   double get _photoAspect {
     final c = _controller;
     if (c == null || !c.value.isInitialized) {
@@ -204,7 +205,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   Future<void> _init({CameraLensDirection lens = CameraLensDirection.back}) async {
     try {
-      final cams = await availableCameras();
+      final cams = await CameraList.get();
       if (cams.isEmpty) {
         setState(() => _initializing = false);
         return;
@@ -381,15 +382,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     final c = _controller;
-    if (state == AppLifecycleState.inactive) {
+    // Round 10, P0-2: released when the app is really in the background
+    // (paused), not on every brief "inactive" (the notification shade, a
+    // system dialog), which restarted the camera.
+    if (state == AppLifecycleState.paused) {
       if (c == null) return;
-      c.dispose();
-      _controller = null;
-    } else if (state == AppLifecycleState.resumed) {
+      setState(() => _controller = null);
+      unawaited(c.dispose());
+    } else if (state == AppLifecycleState.resumed && _controller == null && !_permissionDenied) {
       setState(() => _initializing = true);
       unawaited(_init(lens: _lens));
     }
   }
+
+  /// The preview is live: shutter enabled, hints shown.
+  bool get _ready => !_initializing && (_controller?.value.isInitialized ?? false);
 
   @override
   void dispose() {
@@ -608,6 +615,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   showModes: _showModes,
                   photoAspect: _photoAspect,
                   saving: _saving,
+                  ready: _ready,
                   capturing:
                       _capturing ||
                       s.status == SessionStatus.preparing ||
@@ -660,7 +668,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   String _guideText(AppLocalizations l, ScanSessionState s) {
     // Round 7, P0-1: while the phone moves (a hint, never a wait); round 6:
     // after a dark shot until the flash is on or a shot is bright enough.
-    if (_moving) return l.cameraHoldStill;
+    if (_moving && _ready) return l.cameraHoldStill;
     if (s.lowLight) return l.cameraLowLight;
     final hint = widget.args.hint ??
         switch (s.guide) {
@@ -674,10 +682,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   Widget _preview(BuildContext context) {
     final c = _controller;
     final l = context.l10n;
-    if (_initializing) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_permissionDenied || c == null) {
+    // Round 10, P0-2: while the camera starts, the box is plain black (no
+    // spinner) and the preview fades in when it's live.
+    if (_permissionDenied || (c == null && !_initializing)) {
       return EmptyState(
         icon: AppIcons.camera,
         title: l.cameraPermissionTitle,
@@ -692,11 +699,20 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     }
     // Round 7, P0-2: the whole preview in a box of its own shape, never
     // cover-cropped: the photo shows exactly what's on screen.
-    return FittedBox(
-      child: SizedBox(
-        width: 1000,
-        height: 1000 / _photoAspect,
-        child: CameraPreview(c),
+    return ColoredBox(
+      color: Colors.black,
+      child: AnimatedOpacity(
+        opacity: _ready ? 1 : 0,
+        duration: const Duration(milliseconds: 150),
+        child: !_ready || c == null
+            ? const SizedBox.expand()
+            : FittedBox(
+                child: SizedBox(
+                  width: 1000,
+                  height: 1000 / _photoAspect,
+                  child: CameraPreview(c),
+                ),
+              ),
       ),
     );
   }

@@ -43,7 +43,12 @@ class CameraOverlay extends StatelessWidget {
     this.countdown,
     this.photoAspect = PreviewGeometry.defaultPhotoAspect,
     this.saving = false,
+    this.ready = true,
   });
+
+  /// The camera is live (round 10, P0-2). Until then the shutter is dimmed
+  /// and can't be pressed, so a tap is never lost.
+  final bool ready;
 
   /// Portrait aspect (width / height) of the photo: the preview box's shape.
   final double photoAspect;
@@ -261,7 +266,11 @@ class CameraOverlay extends StatelessWidget {
                   height: 56,
                   child: onGallery == null ? null : _ImportButton(onTap: onGallery!),
                 ),
-                _Shutter(onTap: capturing ? null : onShutter, busy: capturing),
+                AnimatedOpacity(
+                  opacity: ready ? 1 : 0.6,
+                  duration: Motion.fast,
+                  child: _Shutter(onTap: capturing || !ready ? null : onShutter, busy: capturing && ready),
+                ),
                 SizedBox(
                   width: 56,
                   height: 64,

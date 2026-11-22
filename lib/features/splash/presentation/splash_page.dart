@@ -10,6 +10,7 @@ import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
+import 'package:flash_dox/features/scanner/data/camera_list.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
@@ -87,6 +88,8 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
   }
 
   Future<void> _start() async {
+    // Round 10, P0-2: the camera list is ready before the first scan.
+    CameraList.preload();
     final minimum = Future<void>.delayed(_hold);
     // Housekeeping (round 6, P0-3): export and capture temp files from the
     // previous run. Export page renders live with their documents now.

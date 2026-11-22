@@ -130,10 +130,12 @@ class _CameraViewportState extends State<CameraViewport> with TickerProviderStat
                   child: AnimatedOpacity(
                     opacity: widget.saving ? 1 : 0,
                     duration: widget.saving ? Duration.zero : Motion.fast,
-                    child: ColoredBox(
-                      color: const Color(0x73000000),
-                      child: Center(child: _HoldStill(label: context.l10n.cameraHoldStill)),
-                    ),
+                    child: !widget.saving
+                        ? const SizedBox.expand()
+                        : ColoredBox(
+                            color: const Color(0x73000000),
+                            child: Center(child: _HoldStill(label: context.l10n.cameraHoldStill)),
+                          ),
                   ),
                 ),
                 FadeTransition(

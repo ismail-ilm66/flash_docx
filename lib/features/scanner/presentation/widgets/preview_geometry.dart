@@ -14,8 +14,10 @@ import 'package:flutter/painting.dart' show EdgeInsets;
 /// viewport of another shape (cover fit) for safety.
 abstract final class PreviewGeometry {
   /// Portrait aspect (width / height) of a capture until the camera reports
-  /// its own.
-  static const double defaultPhotoAspect = 3 / 4;
+  /// its own: 9:16, the `ultraHigh` photo (round 7). The layout uses it from
+  /// the first frame, so nothing moves when the camera is ready (round 10,
+  /// P0-2).
+  static const double defaultPhotoAspect = 9 / 16;
 
   /// The guide frame as fractions of the [viewport]: a constant shape on
   /// screen (P1-4), 84 % of the width, or 72 % of the height of [area] if
