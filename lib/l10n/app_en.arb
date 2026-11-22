@@ -399,6 +399,7 @@
   "adjustBlurry": "This page looks blurry",
   "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
   "enhanceAdjust": "Adjust",
+  "enhanceEdges": "Edges",
   "enhanceAllPages": "{count, plural, =1{1 page} other{All {count} pages}}",
   "@enhanceAllPages": {
     "placeholders": {

@@ -1522,6 +1522,12 @@ abstract class AppLocalizations {
   /// **'Adjust'**
   String get enhanceAdjust;
 
+  /// No description provided for @enhanceEdges.
+  ///
+  /// In en, this message translates to:
+  /// **'Edges'**
+  String get enhanceEdges;
+
   /// No description provided for @enhanceAllPages.
   ///
   /// In en, this message translates to:

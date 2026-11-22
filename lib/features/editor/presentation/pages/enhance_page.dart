@@ -195,15 +195,10 @@ class _EnhanceViewState extends State<_EnhanceView> {
           );
         }
 
-        return DiscardScanGuard(
-          guard: bloc.guardBack,
-          pageCount: s.pages.length,
-          onDiscard: () {
-            bloc.discardScan();
-            context
-              ..pop()
-              ..pop();
-          },
+        // Round 10, P0-1: Back goes to Adjust edges (same pages, same page
+        // open), never "Discard?". Only leaving the scan flow asks.
+        return PopScope(
+          canPop: !saving,
           child: AppScaffold(
             topBar: AppTopBar(
               title: l.enhanceTitle,
@@ -381,6 +376,17 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                         onTap: () => setState(
                                           () => _adjustOpen = !_adjustOpen,
                                         ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: Space.x2),
+                                    // Round 10, P0-1: back to Adjust edges on
+                                    // this page; Next returns here.
+                                    Expanded(
+                                      flex: 10,
+                                      child: _BarButton(
+                                        icon: AppIcons.autoEdges,
+                                        label: l.enhanceEdges,
+                                        onTap: saving ? null : () => context.pop(),
                                       ),
                                     ),
                                     const SizedBox(width: Space.x2),

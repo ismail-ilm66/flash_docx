@@ -461,6 +461,36 @@ void main() {
     });
   }
 
+  testWidgets('round 10, P0-1: Back and Edges on Enhance go to Adjust edges, never "Discard?"', (tester) async {
+    final router = await pumpApp(tester);
+    // A new scan: Adjust edges guards it, Enhance doesn't.
+    final args = EditorArgs(pages: doc.sortedPages, mode: doc.mode);
+    router.go(Routes.adjust, extra: args);
+    await settle(tester);
+    await tester.tap(find.text(l.adjustNext));
+    await settle(tester);
+    expect(find.text(l.enhanceEdges), findsOneWidget);
+
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.text(l.discardScanTitle(doc.sortedPages.length)), findsNothing);
+    expect(find.text(l.adjustRotateLeft), findsOneWidget, reason: 'back on Adjust edges');
+
+    await tester.tap(find.text(l.adjustNext));
+    await settle(tester);
+    await tester.tap(find.text(l.enhanceEdges));
+    await settle(tester);
+    expect(find.text(l.adjustRotateLeft), findsOneWidget);
+
+    // Leaving the scan flow from Adjust edges still asks.
+    await tester.binding.handlePopRoute();
+    await settle(tester);
+    expect(find.text(l.discardScanTitle(doc.sortedPages.length)), findsOneWidget);
+    await tester.tap(find.text(l.keepEditing));
+    await settle(tester);
+    await close(tester);
+  });
+
   testWidgets('Sign a document: add, move, save (feature 4)', (tester) async {
     final page = doc.sortedPages.first;
     await tester.runAsync(() async {

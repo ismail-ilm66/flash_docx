@@ -804,6 +804,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enhanceAdjust => 'Adjust';
 
   @override
+  String get enhanceEdges => 'Edges';
+
+  @override
   String enhanceAllPages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
