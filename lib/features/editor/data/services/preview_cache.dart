@@ -79,10 +79,4 @@ class PreviewCache {
       e.photoWidthMm == null &&
       e.photoBackground == PhotoBackground.original &&
       e.photoEnhance == PhotoEnhance.off;
-
-  /// [quick] if it already exists on disk, else null (no render started).
-  String? quickIfReady(ScanPage page) {
-    final path = _files.quickPath(page.id, page.originalPath, page.edits);
-    return File(path).existsSync() ? path : null;
-  }
 }

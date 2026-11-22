@@ -11,6 +11,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:injectable/injectable.dart';
 
+/// An image the viewer shows for a page; `blurred` for a stretched
+/// thumbnail standing in for the display image.
+typedef ViewerImage = ({String path, bool blurred});
+
 class ViewerState extends Equatable {
   const ViewerState({
     this.document,
@@ -28,20 +32,26 @@ class ViewerState extends Equatable {
   final Failure? failure;
   final bool deleted;
 
-  /// Placeholders while a page's processed preview is made (P0-4): the
-  /// editor's preview of that look, else the crop-only render.
+  /// Stand-ins while a page's display image is made: Enhance's image of
+  /// exactly that look (filtered, right after Done).
   final Map<String, String> quick;
 
   /// The [versionOf] each [quick] entry was made for. After an edit the old
   /// one (an older crop or filter) is never shown.
   final Map<String, int> quickVersions;
 
-  /// What page [p] shows: processed preview, else the placeholder made for
-  /// its current edits, else null (spinner). Never the original photo.
-  String? imageFor(ScanPage p) {
+  /// What page [p] shows (round 10, P0-3): its display image; else
+  /// Enhance's image of that look; else its thumbnail, stretched and
+  /// softened (`blurred`) until the display image is saved;
+  /// else null. Never the original or an unfiltered crop.
+  ViewerImage? imageFor(ScanPage p) {
     final processed = p.processedPath;
-    if (processed != null && File(processed).existsSync()) return processed;
-    return quickVersions[p.id] == versionOf(p) ? quick[p.id] : null;
+    if (processed != null && File(processed).existsSync()) return (path: processed, blurred: false);
+    final look = quickVersions[p.id] == versionOf(p) ? quick[p.id] : null;
+    if (look != null) return (path: look, blurred: false);
+    final thumb = p.thumbPath;
+    if (thumb != null && File(thumb).existsSync()) return (path: thumb, blurred: true);
+    return null;
   }
 
   static int versionOf(ScanPage p) => Object.hash(p.originalPath, p.edits);
@@ -109,13 +119,13 @@ class ViewerCubit extends Cubit<ViewerState> {
       emit(state.copyWith(loading: false, deleted: state.document != null));
       return;
     }
-    // Placeholders already on disk (the editor's previews right after Done)
-    // go in with the document, so an edited page never shows its old crop.
+    // Enhance's images, right after Done, stand in until the display images
+    // are saved, so an edited page never shows its old crop.
     final quick = {...state.quick};
     final versions = {...state.quickVersions};
     for (final p in doc.pages) {
       if (state.imageFor(p) != null) continue;
-      final ready = _previews.lookIfReady(p) ?? _previews.quickIfReady(p);
+      final ready = _previews.lookIfReady(p);
       if (ready == null) continue;
       quick[p.id] = ready;
       versions[p.id] = ViewerState.versionOf(p);
@@ -127,8 +137,7 @@ class ViewerCubit extends Cubit<ViewerState> {
       quick: quick,
       quickVersions: versions,
     ));
-    unawaited(_placeholders(doc));
-    unawaited(_render.ensureCaches(doc).catchError((Object e) => debugPrint('cache: $e')));
+    unawaited(_render.ensureCaches(doc, first: state.current?.id).catchError((Object e) => debugPrint('cache: $e')));
   }
 
   void select(int i) => emit(state.copyWith(index: i));
@@ -165,27 +174,5 @@ class ViewerCubit extends Cubit<ViewerState> {
   Future<void> close() {
     _sub?.cancel();
     return super.close();
-  }
-
-  /// Quick crop-only previews for pages whose processed preview isn't
-  /// ready, current page first (interactive lane).
-  Future<void> _placeholders(ScanDocument doc) async {
-    final sw = Stopwatch()..start();
-    final order = [...doc.sortedPages]..sort((a, b) => (a.id == state.current?.id ? 0 : 1).compareTo(b.id == state.current?.id ? 0 : 1));
-    for (final p in order) {
-      if (isClosed) return;
-      if (state.imageFor(p) != null) continue;
-      try {
-        final path = await _previews.quick(p);
-        if (isClosed) return;
-        emit(state.copyWith(
-          quick: {...state.quick, p.id: path},
-          quickVersions: {...state.quickVersions, p.id: ViewerState.versionOf(p)},
-        ));
-        if (p.id == state.current?.id) debugPrint('[perf] viewer first image in ${sw.elapsedMilliseconds} ms');
-      } catch (e) {
-        debugPrint('quick preview failed: $e');
-      }
-    }
   }
 }

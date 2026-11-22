@@ -32,12 +32,34 @@ class PageRenderService {
   /// ID / passport pages are cleaned at the ID colour strength.
   static bool isCard(ScanMode m) => m == ScanMode.idCard || m == ScanMode.passport;
 
-  Future<void> ensureCaches(ScanDocument doc) async {
-    for (final page in doc.pages) {
+  /// Every page's display image and thumbnail, [first] (the page on
+  /// screen) first, then the default Share pages.
+  Future<void> ensureCaches(ScanDocument doc, {String? first}) async {
+    final pages = [...doc.sortedPages]..sort((a, b) => (a.id == first ? 0 : 1).compareTo(b.id == first ? 0 : 1));
+    for (final page in pages) {
       await ensurePageCache(page, card: isCard(doc.mode));
     }
     await warmExportPages(doc);
   }
+
+  /// Round 10, P0-3: documents whose display images are missing (made
+  /// before this update, or after the cache was cleared) get them in the
+  /// background, most recent first, so opening one never waits.
+  Future<void> ensureAllCaches() async {
+    final docs = await _repo.watchAll().first;
+    for (final doc in docs) {
+      final missing = doc.pages.any((p) => !_hasCaches(p));
+      if (!missing) continue;
+      try {
+        await ensureCaches(doc);
+      } catch (e) {
+        debugPrint('[cache] ${doc.id}: $e');
+      }
+    }
+  }
+
+  static bool _hasCaches(ScanPage p) =>
+      p.processedPath != null && File(p.processedPath!).existsSync() && p.thumbPath != null && File(p.thumbPath!).existsSync();
 
   /// Warm-up renders queued or running, by output path.
   final _warming = <String, ({CancelToken cancel, Future<void> done})>{};
@@ -110,34 +132,32 @@ class PageRenderService {
 
   Future<ScanPage> ensurePageCache(ScanPage page, {bool card = false}) async {
     if (_inFlight.contains(page.id)) return page;
-    final hasProcessed =
-        page.processedPath != null && File(page.processedPath!).existsSync();
-    final hasThumb = page.thumbPath != null && File(page.thumbPath!).existsSync();
-    if (hasProcessed && hasThumb) return page;
+    if (_hasCaches(page)) return page;
     _inFlight.add(page.id);
     try {
       // Preview and thumbnail come from one decode, written under fresh file
       // names so the UI can't show a stale image and nothing needs evicting.
       final paths = _files.newCachePaths(page.documentId, page.id);
+      // Round 10, P0-3: the display image is the finished page at 1600 px.
+      // From the cleaned base when the editor already made it (only the
+      // filter runs), else Enhance's look (1200 px, already filtered), else
+      // a fresh base.
       final look = _files.lookPath(page.id, page.originalPath, page.edits);
-      if (PreviewCache.lookCovers(page.edits) && File(look).existsSync()) {
+      final covered = CleanBaseService.covers(page.edits);
+      final base = covered ? _bases.basePath(page, card: card) : null;
+      if (base != null && File(base).existsSync()) {
+        await _displayFrom(base, page, paths.processed);
+        await _thumbFrom(paths.processed, paths.thumb);
+      } else if (PreviewCache.lookCovers(page.edits) && File(look).existsSync()) {
         // Enhance already made this exact page at preview size: copy it and
         // shrink it for the thumbnail, instead of filtering the original
         // again (5 s on a Kirin 710).
         await File(paths.processed).parent.create(recursive: true);
         await File(look).copy(paths.processed);
         await _thumbFrom(paths.processed, paths.thumb);
-      } else if (CleanBaseService.covers(page.edits)) {
+      } else if (covered) {
         // From the cleaned base (made if this page has none yet).
-        final base = await _bases.ensure(page, card: card);
-        await _processor.renderFromClean(
-          base,
-          page.edits,
-          outputPath: paths.processed,
-          maxLongEdge: RenderPx.previewLongEdge,
-          jpegQuality: Limits.cacheJpegQuality,
-          priority: JobPriority.background,
-        );
+        await _displayFrom(await _bases.ensure(page, card: card), page, paths.processed);
         await _thumbFrom(paths.processed, paths.thumb);
       } else {
         await _processor.renderPageCaches(
@@ -156,13 +176,22 @@ class PageRenderService {
     }
   }
 
+  Future<void> _displayFrom(String base, ScanPage page, String out) => _processor.renderFromClean(
+    base,
+    page.edits,
+    outputPath: out,
+    maxLongEdge: RenderPx.displayLongEdge,
+    jpegQuality: Limits.displayJpegQuality,
+    priority: JobPriority.background,
+  );
+
   /// The thumbnail from an already filtered page image: just shrunk.
   Future<void> _thumbFrom(String processed, String thumb) => _processor.render(
     processed,
     const PageEdits(filter: FilterType.original),
     size: RenderSize.thumb,
     outputPath: thumb,
-    jpegQuality: 80,
+    jpegQuality: Limits.thumbJpegQuality,
   );
 
   /// An export page at [size] (round 6, P0-2): from the page's cleaned base,

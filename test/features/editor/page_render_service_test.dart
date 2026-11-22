@@ -293,4 +293,69 @@ void main() {
       expect(lowRam.longEdgeFor(high: true), 2000);
     });
   });
+
+  group('round 10, P0-3: display images', () {
+    test('1600 px, q85, from the cleaned base; thumbnail q80', () async {
+      await service.ensurePageCache(page);
+      verify(
+        () => proc.renderFromClean(
+          any(),
+          any(),
+          outputPath: any(named: 'outputPath'),
+          maxLongEdge: RenderPx.displayLongEdge,
+          jpegQuality: Limits.displayJpegQuality,
+          priority: any(named: 'priority'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).called(1);
+      verify(
+        () => proc.render(
+          any(),
+          any(),
+          size: RenderSize.thumb,
+          outputPath: any(named: 'outputPath'),
+          jpegQuality: Limits.thumbJpegQuality,
+          priority: any(named: 'priority'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).called(1);
+      expect(RenderPx.displayLongEdge, 1600);
+    });
+
+    test("a base the editor already made is used before Enhance's smaller look", () async {
+      _write(bases.basePath(page, card: false), [5]);
+      _write(files.lookPath(page.id, page.originalPath, page.edits), [7, 7]);
+      final updated = await service.ensurePageCache(page);
+      expect(File(updated.processedPath!).readAsBytesSync(), [2], reason: 'rendered from the base, not the 1200 px look');
+      expect(cleanJobs, 0);
+    });
+
+    test('the page on screen first', () async {
+      final order = <String>[];
+      when(
+        () => proc.renderCleanBase(
+          any(),
+          any(),
+          longEdge: any(named: 'longEdge'),
+          outputPath: any(named: 'outputPath'),
+          previewPath: any(named: 'previewPath'),
+          card: any(named: 'card'),
+          quick: any(named: 'quick'),
+          priority: any(named: 'priority'),
+          cancel: any(named: 'cancel'),
+        ),
+      ).thenAnswer((inv) async {
+        order.add(p.basename(inv.namedArguments[#outputPath] as String).split('_')[1]);
+        final out = inv.namedArguments[#outputPath] as String;
+        _write(out, [5]);
+        _write(inv.namedArguments[#previewPath] as String, [6]);
+        return out;
+      });
+      final second = page.copyWith(id: 'p2', order: 1);
+      final third = page.copyWith(id: 'p3', order: 2);
+      final d = doc().copyWith(mode: ScanMode.idCard, pages: [page, second, third]);
+      await service.ensureCaches(d, first: 'p3');
+      expect(order, ['p3', 'p1', 'p2']);
+    });
+  });
 }

@@ -1,9 +1,9 @@
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
-import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -51,6 +51,22 @@ class _ViewerViewState extends State<_ViewerView> {
   void dispose() {
     _pageCtrl.dispose();
     super.dispose();
+  }
+
+  /// Decode width for page images: the screen, in pixels (round 10, P0-3).
+  int _decodeWidth(BuildContext context) =>
+      (MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context)).round();
+
+  /// The pages either side of [i] are decoded ahead, so a swipe shows them
+  /// at once.
+  void _precacheAround(BuildContext context, ViewerState s, int i) {
+    final w = _decodeWidth(context);
+    for (final j in [i - 1, i + 1]) {
+      if (j < 0 || j >= s.pages.length) continue;
+      final img = s.imageFor(s.pages[j]);
+      if (img == null || img.blurred) continue;
+      precacheImage(ResizeImage(FileImage(File(img.path)), width: w), context).ignore();
+    }
   }
 
   void _jump(int i) {
@@ -216,9 +232,13 @@ class _ViewerViewState extends State<_ViewerView> {
                                 child: ZoomablePages(
                                   controller: _pageCtrl,
                                   itemCount: pages.length,
-                                  onPageChanged: cubit.select,
+                                  onPageChanged: (i) {
+                                    cubit.select(i);
+                                    _precacheAround(context, s, i);
+                                  },
                                   itemBuilder: (context, i) {
-                                    final path = s.imageFor(pages[i]);
+                                    final img = s.imageFor(pages[i]);
+                                    if (i == s.index) _precacheAround(context, s, i);
                                     return Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                         Space.x10,
@@ -245,22 +265,35 @@ class _ViewerViewState extends State<_ViewerView> {
                                             borderRadius: BorderRadius.circular(
                                               4,
                                             ),
-                                            child: path == null
+                                            child: img == null
+                                                // Made in the background;
+                                                // a blank page meanwhile.
                                                 ? const SizedBox(
                                                     width: 240,
-                                                    height: 320,
-                                                    child: Center(
-                                                      child:
-                                                          CircularProgressIndicator(),
+                                                    height: 340,
+                                                    child: ColoredBox(color: Colors.white),
+                                                  )
+                                                : img.blurred
+                                                // The thumbnail, stretched
+                                                // and softened, until the
+                                                // display image is saved.
+                                                ? ImageFiltered(
+                                                    imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
+                                                    child: Image.file(
+                                                      File(img.path),
+                                                      key: ValueKey(img.path),
+                                                      gaplessPlayback: true,
+                                                      width: 1000,
+                                                      height: 1000,
+                                                      fit: BoxFit.contain,
                                                     ),
                                                   )
                                                 : Image.file(
-                                                    File(path),
-                                                    key: ValueKey(path),
+                                                    File(img.path),
+                                                    key: ValueKey(img.path),
                                                     gaplessPlayback: true,
                                                     fit: BoxFit.contain,
-                                                    cacheWidth: RenderPx
-                                                        .previewLongEdge,
+                                                    cacheWidth: _decodeWidth(context),
                                                   ),
                                           ),
                                         ),

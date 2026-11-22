@@ -3370,14 +3370,16 @@ void renderPageCaches(
   required String thumbOut,
   required int previewLongEdge,
   required int thumbLongEdge,
+  int quality = 90,
+  int thumbQuality = 80,
 }) {
   final out = renderEdits(originalPath, edits, maxLongEdge: previewLongEdge);
   final thumb = fitLongEdge(out, thumbLongEdge);
   try {
     File(processedOut).parent.createSync(recursive: true);
-    writeJpeg(out, processedOut, quality: 90);
+    writeJpeg(out, processedOut, quality: quality);
     File(thumbOut).parent.createSync(recursive: true);
-    writeJpeg(thumb, thumbOut, quality: 80);
+    writeJpeg(thumb, thumbOut, quality: thumbQuality);
   } finally {
     disposeUnless(thumb, out);
     out.dispose();

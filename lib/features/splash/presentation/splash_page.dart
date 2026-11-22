@@ -9,6 +9,7 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
+import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/scanner/data/camera_list.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
@@ -103,6 +104,11 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     await Future.wait([minimum, work]);
     if (!mounted) return;
     context.go(Routes.home);
+    // Round 10, P0-3: display images missing from older documents are made
+    // in the background, once Home has settled.
+    Future<void>.delayed(const Duration(seconds: 3), () => getIt<PageRenderService>().ensureAllCaches()).catchError((Object e) {
+      debugPrint('[cache] $e');
+    }).ignore();
     // Ads SDK + consent when rewarded ads are on (a no-op in v1); never
     // blocks start-up.
     unawaited(getIt<RewardGate>().initialize());

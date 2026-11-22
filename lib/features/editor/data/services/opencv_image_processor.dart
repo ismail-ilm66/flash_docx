@@ -677,8 +677,10 @@ void cachesInIsolate(CachesMsg m) {
     m.edits,
     processedOut: m.processedOut,
     thumbOut: m.thumbOut,
-    previewLongEdge: RenderPx.previewLongEdge,
+    previewLongEdge: RenderPx.displayLongEdge,
     thumbLongEdge: RenderPx.thumbLongEdge,
+    quality: Limits.displayJpegQuality,
+    thumbQuality: Limits.thumbJpegQuality,
   );
 }
 

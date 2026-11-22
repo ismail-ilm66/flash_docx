@@ -28,6 +28,9 @@ abstract final class RenderPx {
   static const int thumbLongEdge = 300;
   /// Editor previews (round 3: 1200 px).
   static const int previewLongEdge = 1200;
+  /// The finished page the viewer shows (round 10, P0-3), saved with the
+  /// page: crop, filter and border clean-up at 1600 px.
+  static const int displayLongEdge = 1600;
   /// "Standard — smaller file, for sharing" (round 3).
   static const int standardExportLongEdge = 2000;
   static const int detectionLongEdge = 800;
@@ -42,4 +45,7 @@ abstract final class Limits {
   static const int standardJpegQuality = 85;
   static const int highJpegQuality = 95;
   static const int cacheJpegQuality = 90;
+  /// The viewer's display image and the thumbnail (round 10, P0-3).
+  static const int displayJpegQuality = 85;
+  static const int thumbJpegQuality = 80;
 }
