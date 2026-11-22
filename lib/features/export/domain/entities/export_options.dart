@@ -48,6 +48,10 @@ abstract class ExportOptions with _$ExportOptions {
     /// full resolution). A different shape is centre-cropped to fill it.
     int? pixelWidth,
     int? pixelHeight,
+
+    /// "Scanned with Flash Dox" on document pages (round 10, P1-6). Follows
+    /// the Settings switch.
+    @Default(true) bool footer,
   }) = _ExportOptions;
   const ExportOptions._();
 
@@ -66,5 +70,10 @@ abstract class PdfOptions with _$PdfOptions {
   const factory PdfOptions({
     @Default(PdfPageSize.auto) PdfPageSize pageSize,
     String? title,
+
+    /// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
+    /// moves it away from a signature.
+    @Default(false) bool footer,
+    @Default(<bool>[]) List<bool> footerLeft,
   }) = _PdfOptions;
 }

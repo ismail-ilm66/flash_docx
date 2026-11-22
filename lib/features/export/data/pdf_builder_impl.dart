@@ -4,9 +4,11 @@ import 'dart:typed_data';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/domain/entities/page_footer.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/print_layout/domain/print_layout_calculator.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:injectable/injectable.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -24,9 +26,10 @@ class PdfBuilderImpl implements PdfBuilder {
     required String outputPath,
   }) async {
     final t = StepTimer('PDF ${imagePaths.length} pages');
+    final art = options.footer ? await footerArt() : null;
     final bytes = await _runner.run(
       _buildPages,
-      _PagesMsg(imagePaths, options.pageSize, options.title),
+      _PagesMsg(imagePaths, options.pageSize, options.title, art, options.footerLeft),
       debugLabel: 'pdfPages',
       priority: JobPriority.interactive,
     );
@@ -65,6 +68,15 @@ class PdfBuilderImpl implements PdfBuilder {
     return _write(bytes, outputPath, t);
   }
 
+  /// The footer's font (Manrope SemiBold) and logo, read once from the app
+  /// bundle here: the worker isolate can't (round 10, P1-6).
+  static Future<FooterArt>? _art;
+  static Future<FooterArt> footerArt() => _art ??= () async {
+    final font = await rootBundle.load('assets/fonts/Manrope-600.ttf');
+    final svg = await rootBundle.loadString('assets/images/footer_mark.svg');
+    return (font: font.buffer.asUint8List(font.offsetInBytes, font.lengthInBytes), svg: svg);
+  }();
+
   static Future<File> _write(Uint8List bytes, String outputPath, StepTimer t) async {
     final f = File(outputPath);
     await f.parent.create(recursive: true);
@@ -76,12 +88,54 @@ class PdfBuilderImpl implements PdfBuilder {
   }
 }
 
+/// What the footer is drawn with.
+typedef FooterArt = ({Uint8List font, String svg});
+
 class _PagesMsg {
-  const _PagesMsg(this.paths, this.size, this.title);
+  const _PagesMsg(this.paths, this.size, this.title, this.footer, this.footerLeft);
   final List<String> paths;
   final PdfPageSize size;
   final String? title;
+  final FooterArt? footer;
+  final List<bool> footerLeft;
 }
+
+/// "Scanned with Flash Dox: Document Scanner" (round 10, P1-6): logo 4 mm,
+/// 7 pt Manrope SemiBold in #8A8A8A, on a white pill (85 %) so it reads on
+/// any content; the whole of it links to the store page. Vector, on top of
+/// the page image.
+pw.Widget pdfFooter(pw.Font font, String svg) => pw.UrlLink(
+  destination: PageFooter.url,
+  child: pw.Stack(
+    children: [
+      pw.Positioned.fill(
+        child: pw.Opacity(
+          opacity: PageFooter.pillOpacity,
+          child: pw.Container(
+            decoration: const pw.BoxDecoration(
+              color: PdfColors.white,
+              borderRadius: pw.BorderRadius.all(pw.Radius.circular(PageFooter.pillRadiusMm * _mm)),
+            ),
+          ),
+        ),
+      ),
+      pw.Padding(
+        padding: const pw.EdgeInsets.symmetric(vertical: PageFooter.pillPadVMm * _mm, horizontal: PageFooter.pillPadHMm * _mm),
+        child: pw.Row(
+          mainAxisSize: pw.MainAxisSize.min,
+          children: [
+            pw.SvgImage(svg: svg, height: PageFooter.logoMm * _mm),
+            pw.SizedBox(width: PageFooter.gapMm * _mm),
+            pw.Text(
+              PageFooter.text,
+              style: pw.TextStyle(font: font, fontSize: PageFooter.textPt, color: const PdfColor.fromInt(PageFooter.color)),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+);
 
 const double _mm = PdfPageFormat.mm;
 
@@ -114,7 +168,9 @@ Future<Uint8List> _buildPages(_PagesMsg m) async {
   final t = StepTimer('PDF build on worker');
   var reading = 0;
   final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
-  for (final path in m.paths) {
+  final art = m.footer;
+  final font = art == null ? null : pw.Font.ttf(ByteData.sublistView(art.font));
+  for (final (i, path) in m.paths.indexed) {
     final read = Stopwatch()..start();
     final bytes = File(path).readAsBytesSync();
     final image = pw.MemoryImage(bytes);
@@ -124,7 +180,23 @@ Future<Uint8List> _buildPages(_PagesMsg m) async {
       pw.Page(
         pageFormat: format,
         margin: pw.EdgeInsets.zero,
-        build: (_) => pw.Center(child: pw.Image(image, fit: fit, width: format.width, height: format.height)),
+        build: (_) {
+          final page = pw.Center(child: pw.Image(image, fit: fit, width: format.width, height: format.height));
+          if (font == null) return page;
+          const edge = PageFooter.marginMm * _mm;
+          final left = i < m.footerLeft.length && m.footerLeft[i];
+          return pw.Stack(
+            children: [
+              page,
+              pw.Positioned(
+                left: left ? edge : null,
+                right: left ? null : edge,
+                bottom: edge,
+                child: pdfFooter(font, art!.svg),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

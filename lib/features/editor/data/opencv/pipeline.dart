@@ -3398,3 +3398,40 @@ void writeJpeg(cv.Mat img, String path, {int quality = 90}) {
   params.dispose();
   if (!ok) throw StateError('Could not write $path');
 }
+
+/// Round 10, P1-6: the Flash Dox footer into an exported page image.
+/// [footer] is the BGRA artwork (pill, logo, text) drawn with a logo
+/// [artLogoPx] high; it's scaled so the logo is [logoFraction] of the page
+/// height, and placed one and a half logo heights from the bottom-right
+/// corner (bottom-left when [left]). Returns a new Mat.
+cv.Mat stampFooter(cv.Mat page, cv.Mat footer, {required double artLogoPx, required bool left, double logoFraction = 0.016}) {
+  final logo = page.rows * logoFraction;
+  final k = logo / artLogoPx;
+  final fw = math.max(1, (footer.cols * k).round());
+  final fh = math.max(1, (footer.rows * k).round());
+  final margin = (1.5 * logo).round();
+  final x = left ? margin : page.cols - margin - fw;
+  final y = page.rows - margin - fh;
+  final out = page.clone();
+  if (x < 0 || y < 0 || x + fw > page.cols) return out; // too small a page
+  final art = cv.resize(footer, (fw, fh), interpolation: k < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
+  final ch = cv.split(art);
+  final rgb = cv.merge(cv.VecMat.fromList([ch[0], ch[1], ch[2]]));
+  final alpha8 = ch[3];
+  final alpha = alpha8.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
+  final alpha3 = cv.merge(cv.VecMat.fromList([alpha, alpha, alpha]));
+  final roi = out.region(cv.Rect(x, y, fw, fh));
+  final bgF = roi.convertTo(cv.MatType.CV_32FC3);
+  final fgF = rgb.convertTo(cv.MatType.CV_32FC3);
+  final ones = cv.Mat.fromScalar(fh, fw, cv.MatType.CV_32FC3, cv.Scalar.all(1));
+  final inv = cv.subtract(ones, alpha3);
+  final a = cv.multiply(fgF, alpha3);
+  final b = cv.multiply(bgF, inv);
+  final sum = cv.add(a, b);
+  final blended = sum.convertTo(cv.MatType.CV_8UC3);
+  blended.copyTo(roi);
+  for (final m in [art, ...ch, rgb, alpha, alpha3, roi, bgF, fgF, ones, inv, a, b, sum, blended]) {
+    m.dispose();
+  }
+  return out;
+}

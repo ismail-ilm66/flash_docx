@@ -229,6 +229,16 @@ class OpenCvImageProcessor implements ImageProcessor {
       _runner.run(exactInIsolate, (src, width, height, outputPath, jpegQuality), debugLabel: 'exactSize');
 
   @override
+  Future<String> stampFooter(
+    String src, {
+    required String footerPng,
+    required double artLogoPx,
+    required bool left,
+    required String outputPath,
+    int jpegQuality = 92,
+  }) => _runner.run(footerInIsolate, (src, footerPng, artLogoPx, left, outputPath, jpegQuality), debugLabel: 'footer');
+
+  @override
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath) =>
       _runner.run(grayInIsolate, (data, width, height, outputPath), debugLabel: 'mask', priority: JobPriority.interactive);
 
@@ -778,6 +788,25 @@ String exactInIsolate((String, int, int, String, int) m) {
     return m.$4;
   } finally {
     out.dispose();
+  }
+}
+
+String footerInIsolate((String, String, double, bool, String, int) m) {
+  final page = cv.imread(m.$1);
+  final art = cv.imread(m.$2, flags: cv.IMREAD_UNCHANGED);
+  try {
+    if (page.isEmpty || art.isEmpty || art.channels != 4) throw StateError('Could not read ${m.$1} / ${m.$2}');
+    final out = pipe.stampFooter(page, art, artLogoPx: m.$3, left: m.$4);
+    try {
+      File(m.$5).parent.createSync(recursive: true);
+      pipe.writeJpeg(out, m.$5, quality: m.$6);
+      return m.$5;
+    } finally {
+      out.dispose();
+    }
+  } finally {
+    page.dispose();
+    art.dispose();
   }
 }
 

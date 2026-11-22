@@ -139,6 +139,18 @@ abstract interface class ImageProcessor {
   /// [outputPath] (JPEG or PNG by extension). Background lane.
   Future<String> resizeExact(String src, int width, int height, {required String outputPath, int jpegQuality = 92});
 
+  /// Round 10, P1-6: [src] with the Flash Dox footer ([footerPng], drawn
+  /// with a logo [artLogoPx] high) stamped bottom-right, or bottom-left
+  /// when [left]. JPEG or PNG by [outputPath]'s extension.
+  Future<String> stampFooter(
+    String src, {
+    required String footerPng,
+    required double artLogoPx,
+    required bool left,
+    required String outputPath,
+    int jpegQuality = 92,
+  });
+
   /// Writes 8-bit gray pixels as a PNG (a segmentation mask).
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath);
 

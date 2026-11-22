@@ -52,6 +52,7 @@ import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dar
     as _i935;
 import 'package:flash_dox/features/editor/presentation/editor_args.dart'
     as _i546;
+import 'package:flash_dox/features/export/data/footer_artwork.dart' as _i666;
 import 'package:flash_dox/features/export/data/pdf_builder_impl.dart' as _i337;
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart'
     as _i435;
@@ -134,6 +135,9 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i756.DraftService>(
       () => _i756.DraftService(gh<_i554.AppDatabase>(), gh<_i626.FileStore>()),
+    );
+    gh.lazySingleton<_i666.FooterArtwork>(
+      () => _i666.FooterArtwork(gh<_i626.FileStore>()),
     );
     gh.lazySingleton<_i132.DocumentRepository>(
       () => _i257.DocumentRepositoryImpl(
@@ -292,6 +296,16 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i990.NightModeService>(),
       ),
     );
+    gh.lazySingleton<_i491.BackgroundSegmenter>(
+      () => _i511.MlKitBackgroundSegmenter(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+      ),
+    );
+    gh.lazySingleton<_i769.PreviewCache>(
+      () =>
+          _i769.PreviewCache(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
+    );
     gh.factory<_i402.ExportDocument>(
       () => _i402.ExportDocument(
         gh<_i120.PageRenderService>(),
@@ -302,17 +316,8 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i132.DocumentRepository>(),
         gh<_i84.SheetImageRenderer>(),
         gh<_i618.ImageProcessor>(),
+        gh<_i666.FooterArtwork>(),
       ),
-    );
-    gh.lazySingleton<_i491.BackgroundSegmenter>(
-      () => _i511.MlKitBackgroundSegmenter(
-        gh<_i618.ImageProcessor>(),
-        gh<_i626.FileStore>(),
-      ),
-    );
-    gh.lazySingleton<_i769.PreviewCache>(
-      () =>
-          _i769.PreviewCache(gh<_i618.ImageProcessor>(), gh<_i626.FileStore>()),
     );
     gh.factoryParam<_i314.ExportBloc, _i355.ScanDocument, dynamic>(
       (document, _) => _i314.ExportBloc(

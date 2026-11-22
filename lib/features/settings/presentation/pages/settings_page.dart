@@ -173,6 +173,11 @@ class _SettingsView extends StatelessWidget {
                           if (v != null) await cubit.setDefaultQuality(v);
                         },
                       ),
+                      _Row(
+                        label: l.settingsFooter,
+                        trailing: Switch.adaptive(value: s.exportFooter, onChanged: cubit.setExportFooter),
+                        onTap: () => cubit.setExportFooter(!s.exportFooter),
+                      ),
                     ],
                   ),
                 ),

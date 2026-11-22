@@ -326,6 +326,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get shareMoreOptions => 'More options';
 
   @override
+  String get shareFooter => 'Flash Dox footer';
+
+  @override
+  String get settingsFooter => 'Add Flash Dox footer to pages';
+
+  @override
   String get shareImages => 'Images';
 
   @override

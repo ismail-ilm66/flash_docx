@@ -249,6 +249,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
                 .firstOrNull ??
             ExportQuality.standard,
         fileName: doc.title,
+        footer: p.exportFooter,
       );
   }
 

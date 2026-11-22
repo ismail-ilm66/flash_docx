@@ -18,6 +18,7 @@ class SettingsState extends Equatable {
     this.defaultQuality = ExportQuality.standard,
     this.shutterSound = true,
     this.magneticEdges = true,
+    this.exportFooter = true,
     this.storageBytes,
     this.version = '',
     this.clearing = false,
@@ -29,6 +30,9 @@ class SettingsState extends Equatable {
   final ExportQuality defaultQuality;
   final bool shutterSound;
   final bool magneticEdges;
+
+  /// "Add Flash Dox footer to pages" (round 10, P1-6).
+  final bool exportFooter;
   final int? storageBytes;
   final String version;
   final bool clearing;
@@ -40,6 +44,7 @@ class SettingsState extends Equatable {
     ExportQuality? defaultQuality,
     bool? shutterSound,
     bool? magneticEdges,
+    bool? exportFooter,
     int? storageBytes,
     String? version,
     bool? clearing,
@@ -51,6 +56,7 @@ class SettingsState extends Equatable {
         defaultQuality: defaultQuality ?? this.defaultQuality,
         shutterSound: shutterSound ?? this.shutterSound,
         magneticEdges: magneticEdges ?? this.magneticEdges,
+        exportFooter: exportFooter ?? this.exportFooter,
         storageBytes: storageBytes ?? this.storageBytes,
         version: version ?? this.version,
         clearing: clearing ?? this.clearing,
@@ -58,7 +64,7 @@ class SettingsState extends Equatable {
 
   @override
   List<Object?> get props =>
-      [defaultFilter, defaultFormat, defaultPageSize, defaultQuality, shutterSound, magneticEdges, storageBytes, version, clearing];
+      [defaultFilter, defaultFormat, defaultPageSize, defaultQuality, shutterSound, magneticEdges, exportFooter, storageBytes, version, clearing];
 }
 
 @injectable
@@ -81,6 +87,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         defaultPageSize: _enum(PdfPageSize.values, p.defaultPageSize, PdfPageSize.auto),
         defaultQuality: _enum(ExportQuality.values, p.defaultQuality, ExportQuality.standard),
         shutterSound: p.shutterSound,
+        exportFooter: p.exportFooter,
         magneticEdges: p.magneticEdges,
       );
 
@@ -114,6 +121,11 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> setDefaultQuality(ExportQuality q) async {
     emit(state.copyWith(defaultQuality: q));
     await _prefs.setDefaultQuality(q.name);
+  }
+
+  Future<void> setExportFooter(bool on) async {
+    emit(state.copyWith(exportFooter: on));
+    await _prefs.setExportFooter(on);
   }
 
   Future<void> setShutterSound(bool on) async {

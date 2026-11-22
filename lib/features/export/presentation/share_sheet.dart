@@ -8,6 +8,7 @@ import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/domain/entities/page_footer.dart';
 import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
 import 'package:flash_dox/features/export/presentation/image_size_sheet.dart';
@@ -188,6 +189,17 @@ class _SharePanelState extends State<SharePanel> {
             ),
             const SizedBox(height: Space.x3),
           ],
+          // Round 10, P1-6: the same switch as in Settings.
+          if (PageFooter.appliesTo(s.document))
+            SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              title: Text(l.shareFooter, style: context.text.titleSmall?.copyWith(fontSize: 14, fontWeight: FontWeight.w800)),
+              value: o.footer,
+              onChanged: (v) {
+                _update(o.copyWith(footer: v));
+                unawaited(getIt<PrefsService>().setExportFooter(v));
+              },
+            ),
           if (ExportDocument.canShrink(s.document, o)) ...[
             _SettingRow(
               title: l.shareMaxSize,

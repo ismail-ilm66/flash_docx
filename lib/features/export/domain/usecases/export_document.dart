@@ -14,7 +14,9 @@ import 'package:flash_dox/features/documents/domain/repositories/document_reposi
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/export/data/footer_artwork.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
+import 'package:flash_dox/features/export/domain/entities/page_footer.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
 import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart';
@@ -57,6 +59,7 @@ class ExportDocument {
     this._repo,
     this._sheet,
     this._processor,
+    this._footer,
   );
 
   final PageRenderService _render;
@@ -67,6 +70,17 @@ class ExportDocument {
   final DocumentRepository _repo;
   final SheetImageRenderer _sheet;
   final ImageProcessor _processor;
+  final FooterArtwork _footer;
+
+  /// Round 10, P1-6: the footer goes on this export's pages.
+  static bool footerOn(ScanDocument doc, ExportOptions o) => o.footer && PageFooter.appliesTo(doc);
+
+  static PdfOptions _pdfOptions(ScanDocument doc, ExportOptions o) => PdfOptions(
+    pageSize: o.pageSize,
+    title: doc.title,
+    footer: footerOn(doc, o),
+    footerLeft: [for (final pg in doc.sortedPages) PageFooter.onLeft(pg.edits)],
+  );
 
   /// True when the document is a two-sided card and the user asked for both
   /// sides in one picture / one PDF page.
@@ -136,7 +150,7 @@ class ExportDocument {
     // One staging folder per set of options, so an older, superseded job
     // never writes over a newer one.
     final staging = _files.exportPath(
-      'ready_${doc.id}_${Object.hash(options.format, options.quality, options.pageSize, options.layout).toUnsigned(32)}',
+      'ready_${doc.id}_${Object.hash(options.format, options.quality, options.pageSize, options.layout, footerOn(doc, options)).toUnsigned(32)}',
     );
     final total = stepsFor(doc, options);
     bool cancelled() => cancel?.isCancelled ?? false;
@@ -296,6 +310,24 @@ class ExportDocument {
       return Left(ImageProcessingFailure(e.toString()));
     }
     if (options.isImage) {
+      if (footerOn(doc, options)) {
+        try {
+          final art = await _footer.png();
+          for (final (i, page) in pages.indexed) {
+            rendered[i] = await _processor.stampFooter(
+              rendered[i],
+              footerPng: art,
+              artLogoPx: FooterArtwork.logoPx,
+              left: PageFooter.onLeft(page.edits),
+              outputPath: p.join(staging, 'page_${i + 1}_footer.${options.extension}'),
+              jpegQuality: jpegQ,
+            );
+          }
+          t.lap('footer');
+        } catch (e) {
+          return Left(ImageProcessingFailure(e.toString()));
+        }
+      }
       t.report();
       return Right(PreparedExport(rendered.map(File.new).toList()));
     }
@@ -303,7 +335,7 @@ class ExportDocument {
     try {
       final pdf = await _pdf.fromPages(
         rendered,
-        PdfOptions(pageSize: options.pageSize, title: doc.title),
+        _pdfOptions(doc, options),
         outputPath: p.join(staging, 'doc.pdf'),
       );
       t
@@ -424,7 +456,7 @@ class ExportDocument {
           case ShrinkFits(:final step, :final bytes):
             final pdf = await _pdf.fromPages(
               outputs,
-              PdfOptions(pageSize: options.pageSize, title: doc.title),
+              _pdfOptions(doc, options),
               outputPath: p.join(staging, 'doc.pdf'),
             );
             final size = pdf.lengthSync();

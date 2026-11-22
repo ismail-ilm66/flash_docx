@@ -19,7 +19,9 @@ mixin _$ExportOptions {
  int? get maxBytes;/// The user agreed to black and white because colour couldn't fit.
  bool get grayscaleToFit;/// Passport photo: exact pixel size an online form asks for (null =
 /// full resolution). A different shape is centre-cropped to fill it.
- int? get pixelWidth; int? get pixelHeight;
+ int? get pixelWidth; int? get pixelHeight;/// "Scanned with Flash Dox" on document pages (round 10, P1-6). Follows
+/// the Settings switch.
+ bool get footer;
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -30,16 +32,16 @@ $ExportOptionsCopyWith<ExportOptions> get copyWith => _$ExportOptionsCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight)&&(identical(other.footer, footer) || other.footer == footer));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight,footer);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight, footer: $footer)';
 }
 
 
@@ -50,7 +52,7 @@ abstract mixin class $ExportOptionsCopyWith<$Res>  {
   factory $ExportOptionsCopyWith(ExportOptions value, $Res Function(ExportOptions) _then) = _$ExportOptionsCopyWithImpl;
 @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight, bool footer
 });
 
 
@@ -67,7 +69,7 @@ class _$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,Object? footer = null,}) {
   return _then(_self.copyWith(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
@@ -78,7 +80,8 @@ as ExportLayout,maxBytes: freezed == maxBytes ? _self.maxBytes : maxBytes // ign
 as int?,grayscaleToFit: null == grayscaleToFit ? _self.grayscaleToFit : grayscaleToFit // ignore: cast_nullable_to_non_nullable
 as bool,pixelWidth: freezed == pixelWidth ? _self.pixelWidth : pixelWidth // ignore: cast_nullable_to_non_nullable
 as int?,pixelHeight: freezed == pixelHeight ? _self.pixelHeight : pixelHeight // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -90,7 +93,7 @@ as int?,
 
 
 class _ExportOptions extends ExportOptions {
-  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.auto, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false, this.pixelWidth, this.pixelHeight}): super._();
+  const _ExportOptions({this.format = ExportFormat.pdf, this.quality = ExportQuality.standard, this.pageSize = PdfPageSize.auto, this.fileName = '', this.layout = ExportLayout.oneImage, this.maxBytes, this.grayscaleToFit = false, this.pixelWidth, this.pixelHeight, this.footer = true}): super._();
   
 
 @override@JsonKey() final  ExportFormat format;
@@ -107,6 +110,9 @@ class _ExportOptions extends ExportOptions {
 /// full resolution). A different shape is centre-cropped to fill it.
 @override final  int? pixelWidth;
 @override final  int? pixelHeight;
+/// "Scanned with Flash Dox" on document pages (round 10, P1-6). Follows
+/// the Settings switch.
+@override@JsonKey() final  bool footer;
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -118,16 +124,16 @@ _$ExportOptionsCopyWith<_ExportOptions> get copyWith => __$ExportOptionsCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ExportOptions&&(identical(other.format, format) || other.format == format)&&(identical(other.quality, quality) || other.quality == quality)&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.fileName, fileName) || other.fileName == fileName)&&(identical(other.layout, layout) || other.layout == layout)&&(identical(other.maxBytes, maxBytes) || other.maxBytes == maxBytes)&&(identical(other.grayscaleToFit, grayscaleToFit) || other.grayscaleToFit == grayscaleToFit)&&(identical(other.pixelWidth, pixelWidth) || other.pixelWidth == pixelWidth)&&(identical(other.pixelHeight, pixelHeight) || other.pixelHeight == pixelHeight)&&(identical(other.footer, footer) || other.footer == footer));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight);
+int get hashCode => Object.hash(runtimeType,format,quality,pageSize,fileName,layout,maxBytes,grayscaleToFit,pixelWidth,pixelHeight,footer);
 
 @override
 String toString() {
-  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight)';
+  return 'ExportOptions(format: $format, quality: $quality, pageSize: $pageSize, fileName: $fileName, layout: $layout, maxBytes: $maxBytes, grayscaleToFit: $grayscaleToFit, pixelWidth: $pixelWidth, pixelHeight: $pixelHeight, footer: $footer)';
 }
 
 
@@ -138,7 +144,7 @@ abstract mixin class _$ExportOptionsCopyWith<$Res> implements $ExportOptionsCopy
   factory _$ExportOptionsCopyWith(_ExportOptions value, $Res Function(_ExportOptions) _then) = __$ExportOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight
+ ExportFormat format, ExportQuality quality, PdfPageSize pageSize, String fileName, ExportLayout layout, int? maxBytes, bool grayscaleToFit, int? pixelWidth, int? pixelHeight, bool footer
 });
 
 
@@ -155,7 +161,7 @@ class __$ExportOptionsCopyWithImpl<$Res>
 
 /// Create a copy of ExportOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? format = null,Object? quality = null,Object? pageSize = null,Object? fileName = null,Object? layout = null,Object? maxBytes = freezed,Object? grayscaleToFit = null,Object? pixelWidth = freezed,Object? pixelHeight = freezed,Object? footer = null,}) {
   return _then(_ExportOptions(
 format: null == format ? _self.format : format // ignore: cast_nullable_to_non_nullable
 as ExportFormat,quality: null == quality ? _self.quality : quality // ignore: cast_nullable_to_non_nullable
@@ -166,7 +172,8 @@ as ExportLayout,maxBytes: freezed == maxBytes ? _self.maxBytes : maxBytes // ign
 as int?,grayscaleToFit: null == grayscaleToFit ? _self.grayscaleToFit : grayscaleToFit // ignore: cast_nullable_to_non_nullable
 as bool,pixelWidth: freezed == pixelWidth ? _self.pixelWidth : pixelWidth // ignore: cast_nullable_to_non_nullable
 as int?,pixelHeight: freezed == pixelHeight ? _self.pixelHeight : pixelHeight // ignore: cast_nullable_to_non_nullable
-as int?,
+as int?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -176,7 +183,9 @@ as int?,
 /// @nodoc
 mixin _$PdfOptions {
 
- PdfPageSize get pageSize; String? get title;
+ PdfPageSize get pageSize; String? get title;/// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
+/// moves it away from a signature.
+ bool get footer; List<bool> get footerLeft;
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -187,16 +196,16 @@ $PdfOptionsCopyWith<PdfOptions> get copyWith => _$PdfOptionsCopyWithImpl<PdfOpti
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer)&&const DeepCollectionEquality().equals(other.footerLeft, footerLeft));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageSize,title);
+int get hashCode => Object.hash(runtimeType,pageSize,title,footer,const DeepCollectionEquality().hash(footerLeft));
 
 @override
 String toString() {
-  return 'PdfOptions(pageSize: $pageSize, title: $title)';
+  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer, footerLeft: $footerLeft)';
 }
 
 
@@ -207,7 +216,7 @@ abstract mixin class $PdfOptionsCopyWith<$Res>  {
   factory $PdfOptionsCopyWith(PdfOptions value, $Res Function(PdfOptions) _then) = _$PdfOptionsCopyWithImpl;
 @useResult
 $Res call({
- PdfPageSize pageSize, String? title
+ PdfPageSize pageSize, String? title, bool footer, List<bool> footerLeft
 });
 
 
@@ -224,11 +233,13 @@ class _$PdfOptionsCopyWithImpl<$Res>
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pageSize = null,Object? title = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,Object? footerLeft = null,}) {
   return _then(_self.copyWith(
 pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
+as bool,footerLeft: null == footerLeft ? _self.footerLeft : footerLeft // ignore: cast_nullable_to_non_nullable
+as List<bool>,
   ));
 }
 
@@ -240,11 +251,21 @@ as String?,
 
 
 class _PdfOptions implements PdfOptions {
-  const _PdfOptions({this.pageSize = PdfPageSize.auto, this.title});
+  const _PdfOptions({this.pageSize = PdfPageSize.auto, this.title, this.footer = false, final  List<bool> footerLeft = const <bool>[]}): _footerLeft = footerLeft;
   
 
 @override@JsonKey() final  PdfPageSize pageSize;
 @override final  String? title;
+/// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
+/// moves it away from a signature.
+@override@JsonKey() final  bool footer;
+ final  List<bool> _footerLeft;
+@override@JsonKey() List<bool> get footerLeft {
+  if (_footerLeft is EqualUnmodifiableListView) return _footerLeft;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_footerLeft);
+}
+
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -256,16 +277,16 @@ _$PdfOptionsCopyWith<_PdfOptions> get copyWith => __$PdfOptionsCopyWithImpl<_Pdf
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer)&&const DeepCollectionEquality().equals(other._footerLeft, _footerLeft));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageSize,title);
+int get hashCode => Object.hash(runtimeType,pageSize,title,footer,const DeepCollectionEquality().hash(_footerLeft));
 
 @override
 String toString() {
-  return 'PdfOptions(pageSize: $pageSize, title: $title)';
+  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer, footerLeft: $footerLeft)';
 }
 
 
@@ -276,7 +297,7 @@ abstract mixin class _$PdfOptionsCopyWith<$Res> implements $PdfOptionsCopyWith<$
   factory _$PdfOptionsCopyWith(_PdfOptions value, $Res Function(_PdfOptions) _then) = __$PdfOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- PdfPageSize pageSize, String? title
+ PdfPageSize pageSize, String? title, bool footer, List<bool> footerLeft
 });
 
 
@@ -293,11 +314,13 @@ class __$PdfOptionsCopyWithImpl<$Res>
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pageSize = null,Object? title = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,Object? footerLeft = null,}) {
   return _then(_PdfOptions(
 pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
+as bool,footerLeft: null == footerLeft ? _self._footerLeft : footerLeft // ignore: cast_nullable_to_non_nullable
+as List<bool>,
   ));
 }
 

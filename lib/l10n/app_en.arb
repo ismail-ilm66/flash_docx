@@ -131,6 +131,8 @@
   "sharePageFitHint": "Page is the shape of your scan, no margins",
   "sharePageAutoRecommended": "Auto (recommended)",
   "shareMoreOptions": "More options",
+  "shareFooter": "Flash Dox footer",
+  "settingsFooter": "Add Flash Dox footer to pages",
   "shareImages": "Images",
   "shareQualityPerPage": "~{size} per page",
   "@shareQualityPerPage": {

@@ -11,6 +11,7 @@ import 'package:flash_dox/features/editor/data/services/clean_base_service.dart'
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/export/data/footer_artwork.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
 import 'package:flash_dox/features/export/domain/services/pdf_builder.dart';
 import 'package:flash_dox/features/export/domain/shrink_to_fit.dart';
@@ -37,6 +38,8 @@ class _Sheet extends Mock implements SheetImageRenderer {}
 
 class _Proc extends Mock implements ImageProcessor {}
 
+class _Footer extends Mock implements FooterArtwork {}
+
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
   final Directory root;
@@ -54,6 +57,7 @@ void main() {
   late _Pdf pdf;
   late _Share share;
   late _Repo repo;
+  late _Footer footer;
   late ExportDocument export;
   late ScanDocument doc;
   late _Proc proc;
@@ -92,7 +96,25 @@ void main() {
       repo,
       _Sheet(),
       proc = _Proc(),
+      footer = _Footer(),
     );
+    when(() => footer.png()).thenAnswer((_) async => 'footer.png');
+    when(
+      () => proc.stampFooter(
+        any(),
+        footerPng: any(named: 'footerPng'),
+        artLogoPx: any(named: 'artLogoPx'),
+        left: any(named: 'left'),
+        outputPath: any(named: 'outputPath'),
+        jpegQuality: any(named: 'jpegQuality'),
+      ),
+    ).thenAnswer((inv) async {
+      final out = inv.namedArguments[#outputPath] as String;
+      File(out)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([7]);
+      return out;
+    });
     pdfBytes = [9];
     when(() => render.joinWarm(any())).thenAnswer((_) async => false);
     when(
@@ -244,6 +266,49 @@ void main() {
     verify(() => repo.logActivity('d2', ActivityType.sharedPdf)).called(1);
   });
 
+  group('round 10, P1-6: the Flash Dox footer', () {
+    PdfOptions pdfOptions() => verify(() => pdf.fromPages(any(), captureAny(), outputPath: any(named: 'outputPath'))).captured.last as PdfOptions;
+
+    test('on by default in document PDFs; off when switched off', () async {
+      await export.prepare(doc, const ExportOptions());
+      expect(pdfOptions().footer, isTrue);
+      await export.prepare(doc, const ExportOptions(footer: false));
+      expect(pdfOptions().footer, isFalse);
+    });
+
+    test('never on ID cards or passports', () async {
+      final card = doc.copyWith(mode: ScanMode.passport, pages: doc.pages.take(1).toList());
+      await export.prepare(card, const ExportOptions());
+      expect(pdfOptions().footer, isFalse);
+    });
+
+    test('stamped into JPG pages, moved left past a signature', () async {
+      final signed = doc.copyWith(
+        pages: [
+          doc.sortedPages.first.withEdits(
+            const PageEdits(
+              overlays: [PageOverlay(id: 's', kind: OverlayKind.signature, imagePath: '/s.png', left: 0.6, top: 0.85, width: 0.3, height: 0.1)],
+            ),
+          ),
+          ...doc.sortedPages.skip(1),
+        ],
+      );
+      final r = await export.prepare(signed, const ExportOptions(format: ExportFormat.jpg));
+      expect(r.getOrElse((_) => throw StateError('')).files.map((f) => p.basename(f.path)), ['page_1_footer.jpg', 'page_2_footer.jpg', 'page_3_footer.jpg']);
+      final lefts = verify(
+        () => proc.stampFooter(
+          any(),
+          footerPng: 'footer.png',
+          artLogoPx: any(named: 'artLogoPx'),
+          left: captureAny(named: 'left'),
+          outputPath: any(named: 'outputPath'),
+          jpegQuality: any(named: 'jpegQuality'),
+        ),
+      ).captured;
+      expect(lefts, [true, false, false]);
+    });
+  });
+
   test('a cancelled job stops before the next page', () async {
     final token = CancelToken();
     final r = await export.prepare(
@@ -262,9 +327,10 @@ void main() {
   });
 
   test('deliver names the files after the chosen file name', () async {
+    // Footer off: the prepared files are then the cached renders themselves.
     final jpg = (await export.prepare(
       doc,
-      const ExportOptions(format: ExportFormat.jpg),
+      const ExportOptions(format: ExportFormat.jpg, footer: false),
     )).getOrElse((_) => const PreparedExport([])).files;
     var existedWhileSharing = false;
     when(
@@ -277,7 +343,7 @@ void main() {
     final r = await export.deliver(
       doc,
       jpg,
-      const ExportOptions(format: ExportFormat.jpg, fileName: 'My lease'),
+      const ExportOptions(format: ExportFormat.jpg, fileName: 'My lease', footer: false),
       ExportTarget.share,
     );
     expect(r.isRight(), isTrue);

@@ -694,6 +694,18 @@ abstract class AppLocalizations {
   /// **'More options'**
   String get shareMoreOptions;
 
+  /// No description provided for @shareFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash Dox footer'**
+  String get shareFooter;
+
+  /// No description provided for @settingsFooter.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Flash Dox footer to pages'**
+  String get settingsFooter;
+
   /// No description provided for @shareImages.
   ///
   /// In en, this message translates to:
