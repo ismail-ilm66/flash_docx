@@ -194,6 +194,14 @@ void main() {
     }
   }
 
+  /// Round 10, P1-1: Max file size / Image size sit under More options.
+  Future<void> openMoreOptions(WidgetTester tester, Finder scrollable) async {
+    if (find.text(l.shareMaxSize).evaluate().isNotEmpty) return;
+    await tester.scrollUntilVisible(find.text(l.shareMoreOptions), 200, scrollable: scrollable);
+    await tester.tap(find.text(l.shareMoreOptions));
+    await settle(tester);
+  }
+
   void expectNothingCutOff(WidgetTester tester, String screen) {
     // Only what's on screen: a label counts when every route around it is
     // its navigator's current page, or the top page under a sheet / dialog
@@ -350,6 +358,7 @@ void main() {
       expectNothingCutOff(tester, 'Share sheet');
 
       if (mode == ScanMode.document) {
+        await openMoreOptions(tester, find.byType(Scrollable).last);
         await tester.scrollUntilVisible(find.text(l.shareMaxSize), 200, scrollable: find.byType(Scrollable).last);
         await tester.tap(find.text(l.shareMaxSize));
         await settle(tester);
@@ -405,6 +414,7 @@ void main() {
     expect(find.descendant(of: sheet, matching: find.text(l.shareJpg)), findsOneWidget);
     expect(find.descendant(of: sheet, matching: find.text(l.sharePng)), findsOneWidget);
     expectNothingCutOff(tester, 'Photo share');
+    await openMoreOptions(tester, find.byType(Scrollable).last);
     await tester.scrollUntilVisible(find.text(l.shareImageSize), 200, scrollable: find.byType(Scrollable).last);
     await tester.tap(find.text(l.shareImageSize));
     await settle(tester);
@@ -618,6 +628,7 @@ void main() {
     expect(find.text(l.shareJpg), findsOneWidget);
     expect(find.text(l.sharePng), findsOneWidget);
     expectNothingCutOff(tester, 'Single photo');
+    await openMoreOptions(tester, find.byType(Scrollable).first);
     await tester.scrollUntilVisible(find.text(l.shareImageSize), 200, scrollable: find.byType(Scrollable).first);
     expect(find.text(l.shareMaxSize), findsOneWidget);
     expect(find.text(l.shareButtonFormat(l.shareJpg)), findsOneWidget);

@@ -19,6 +19,7 @@ class PrefsService {
   static const _defaultQuality = 'default_export_quality';
   static const _signatureInk = 'signature_ink';
   static const _renderVersion = 'page_render_version';
+  static const _shareMoreOpen = 'share_more_open';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -52,6 +53,18 @@ class PrefsService {
 
   String? get signatureInk => _prefs.getString(_signatureInk);
   Future<void> setSignatureInk(String v) => _prefs.setString(_signatureInk, v);
+
+  /// Share sheet › More options open (round 10, P1-1).
+  bool get shareMoreOpen => _prefs.getBool(_shareMoreOpen) ?? false;
+  Future<void> setShareMoreOpen(bool v) => _prefs.setBool(_shareMoreOpen, v);
+
+  /// The format and layout last shared, per scan mode (round 10, P1-2).
+  String? lastShareFormat(String mode) => _prefs.getString('share_format_$mode');
+  String? lastShareLayout(String mode) => _prefs.getString('share_layout_$mode');
+  Future<void> setLastShare(String mode, {required String format, required String layout}) async {
+    await _prefs.setString('share_format_$mode', format);
+    await _prefs.setString('share_layout_$mode', layout);
+  }
 
   bool get consentDone => _prefs.getBool(_consentDone) ?? false;
   Future<void> setConsentDone(bool v) => _prefs.setBool(_consentDone, v);

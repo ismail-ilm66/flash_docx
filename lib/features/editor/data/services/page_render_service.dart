@@ -197,7 +197,7 @@ class PageRenderService {
   /// An export page at [size] (round 6, P0-2): from the page's cleaned base,
   /// waiting for it if it's being made (a Share moves it up the queue);
   /// `original` and passport photos straight from the original. High uses
-  /// the 2400 px base (2000 on a low-RAM phone).
+  /// the 3000 px base (2000 on a low-RAM phone).
   Future<String> renderExportPage(
     ScanPage page, {
     required RenderSize size,
@@ -236,7 +236,7 @@ class PageRenderService {
   }
 
   /// An ID card / passport side at real size for [dpi], from its cleaned
-  /// base (2400 px for 600 DPI).
+  /// base (3000 px for 600 DPI).
   Future<String> renderCardSide(
     ScanPage page, {
     required double widthMm,

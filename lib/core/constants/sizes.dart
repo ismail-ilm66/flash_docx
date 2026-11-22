@@ -42,8 +42,10 @@ abstract final class Limits {
   static const int sliderMax = 100;
   static const int sliderDebounceMs = 80;
   static const int maxBatchPages = 100;
-  static const int standardJpegQuality = 85;
-  static const int highJpegQuality = 95;
+  /// Round 10, P1-1: Standard = 2000 px at q80, High = 3000 px at q92, so
+  /// the two really differ.
+  static const int standardJpegQuality = 80;
+  static const int highJpegQuality = 92;
   static const int cacheJpegQuality = 90;
   /// The viewer's display image and the thumbnail (round 10, P0-3).
   static const int displayJpegQuality = 85;

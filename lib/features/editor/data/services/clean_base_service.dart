@@ -25,7 +25,7 @@ class CleanBaseService {
   final PrefsService _prefs;
 
   /// The base's long edge for High quality (600 DPI cards, High PDFs).
-  static const int highLongEdge = 2400;
+  static const int highLongEdge = 3000;
 
   final _jobs = <String, _CleanJob>{};
 
@@ -34,7 +34,7 @@ class CleanBaseService {
   static bool covers(PageEdits e) =>
       e.filter != FilterType.original && e.photoWidthMm == null;
 
-  /// Export size: 2400 px when High quality is wanted (by default, or
+  /// Export size: 3000 px (round 10) when High quality is wanted (by default, or
   /// [high]), else 2000; always 2000 on a low-RAM phone (P0-4).
   int longEdgeFor({bool? high}) {
     final wantHigh = high ?? (_prefs.defaultQuality == 'high');

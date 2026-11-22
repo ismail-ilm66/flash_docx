@@ -314,7 +314,24 @@ class AppLocalizationsEn extends AppLocalizations {
   String get sharePageLetter => 'Letter';
 
   @override
-  String get sharePageFit => 'Fit to image';
+  String get sharePageFit => 'Same as scan';
+
+  @override
+  String get sharePageFitHint => 'Page is the shape of your scan, no margins';
+
+  @override
+  String get sharePageAutoRecommended => 'Auto (recommended)';
+
+  @override
+  String get shareMoreOptions => 'More options';
+
+  @override
+  String get shareImages => 'Images';
+
+  @override
+  String shareQualityPerPage(String size) {
+    return '~$size per page';
+  }
 
   @override
   String get shareFileName => 'File name';

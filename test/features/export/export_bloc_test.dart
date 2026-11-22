@@ -52,6 +52,21 @@ void main() {
     expect(bloc.state.requiredUnlock, isNull);
   });
 
+  test('round 10, P1-2: ID cards default to images, one picture; each mode remembers its last share', () async {
+    SharedPreferences.setMockInitialValues({});
+    final fresh = PrefsService(await SharedPreferences.getInstance());
+    final card = doc.copyWith(mode: ScanMode.idCard);
+    final first = ExportBloc(export, fresh, card);
+    expect(first.state.options.format, ExportFormat.jpg);
+    expect(first.state.options.layout, ExportLayout.oneImage);
+    expect(ExportBloc(export, fresh, doc).state.options.format, ExportFormat.pdf);
+
+    await fresh.setLastShare(ScanMode.idCard.name, format: 'pdf', layout: 'separate');
+    final again = ExportBloc(export, fresh, card);
+    expect((again.state.options.format, again.state.options.layout), (ExportFormat.pdf, ExportLayout.separate));
+    expect(ExportBloc(export, fresh, doc).state.options.format, ExportFormat.pdf, reason: 'documents keep their own');
+  });
+
   test(
     'premium options are free while rewarded ads are off',
     () async {

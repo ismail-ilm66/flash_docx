@@ -673,8 +673,38 @@ abstract class AppLocalizations {
   /// No description provided for @sharePageFit.
   ///
   /// In en, this message translates to:
-  /// **'Fit to image'**
+  /// **'Same as scan'**
   String get sharePageFit;
+
+  /// No description provided for @sharePageFitHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Page is the shape of your scan, no margins'**
+  String get sharePageFitHint;
+
+  /// No description provided for @sharePageAutoRecommended.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto (recommended)'**
+  String get sharePageAutoRecommended;
+
+  /// No description provided for @shareMoreOptions.
+  ///
+  /// In en, this message translates to:
+  /// **'More options'**
+  String get shareMoreOptions;
+
+  /// No description provided for @shareImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Images'**
+  String get shareImages;
+
+  /// No description provided for @shareQualityPerPage.
+  ///
+  /// In en, this message translates to:
+  /// **'~{size} per page'**
+  String shareQualityPerPage(String size);
 
   /// No description provided for @shareFileName.
   ///

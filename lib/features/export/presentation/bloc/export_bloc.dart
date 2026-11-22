@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
@@ -164,10 +166,10 @@ class ExportState extends Equatable {
 class ExportBloc extends Bloc<ExportEvent, ExportState> {
   ExportBloc(
     this._export,
-    PrefsService prefs,
+    this._prefs,
     @factoryParam ScanDocument document,
   ) : super(
-        ExportState(document: document, options: _defaults(prefs, document)),
+        ExportState(document: document, options: _defaults(_prefs, document)),
       ) {
     on<ExportSheetOpened>((e, emit) => _startPrep(emit));
     on<ExportOptionsChanged>((e, emit) {
@@ -211,22 +213,31 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
   }
 
   final ExportDocument _export;
+  final PrefsService _prefs;
 
   Future<Either<Failure, PreparedExport>>? _job;
   ExportOptions? _jobKey;
   CancelToken? _cancel;
 
-  static ExportOptions _defaults(PrefsService p, ScanDocument doc) =>
-      ExportOptions(
-        format: doc.mode == ScanMode.photo
-            // A passport photo is shared as a picture, never a PDF.
-            ? (p.defaultExportFormat == ExportFormat.png.name
-                  ? ExportFormat.png
-                  : ExportFormat.jpg)
-            : ExportFormat.values
-                      .where((f) => f.name == p.defaultExportFormat)
-                      .firstOrNull ??
-                  ExportFormat.pdf,
+  /// Round 10, P1-2: the format and layout last shared for this kind of
+  /// scan; else ID cards as one image (front + back), documents in the
+  /// Settings format.
+  static ExportOptions _defaults(PrefsService p, ScanDocument doc) {
+    final mode = doc.mode.name;
+    T? named<T extends Enum>(List<T> values, String? name) => values.where((v) => v.name == name).firstOrNull;
+    final remembered = named(ExportFormat.values, p.lastShareFormat(mode));
+    final format = doc.mode == ScanMode.photo
+        // A passport photo is shared as a picture, never a PDF.
+        ? (remembered == ExportFormat.png || (remembered == null && p.defaultExportFormat == ExportFormat.png.name)
+              ? ExportFormat.png
+              : ExportFormat.jpg)
+        : remembered ??
+              (doc.mode == ScanMode.idCard
+                  ? ExportFormat.jpg
+                  : named(ExportFormat.values, p.defaultExportFormat) ?? ExportFormat.pdf);
+    return ExportOptions(
+        format: format,
+        layout: named(ExportLayout.values, p.lastShareLayout(mode)) ?? ExportLayout.oneImage,
         pageSize:
             PdfPageSize.values
                 .where((s) => s.name == p.defaultPageSize)
@@ -239,6 +250,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
             ExportQuality.standard,
         fileName: doc.title,
       );
+  }
 
   /// What the prepared files depend on: everything but the file name.
   static ExportOptions _keyOf(ExportOptions o) => o.copyWith(fileName: '');
@@ -282,6 +294,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
   Future<void> _onExport(ExportRequested e, Emitter<ExportState> emit) async {
     if (state.status is ExportWorking) return;
     final options = state.options;
+    unawaited(_prefs.setLastShare(state.document.mode.name, format: options.format.name, layout: options.layout.name));
     final timer = StepTimer('share tap → sheet (${e.target.name})');
     emit(state.copyWith(status: ExportWorking(e.target)));
     // Uses the file built since the sheet opened, or waits for it.

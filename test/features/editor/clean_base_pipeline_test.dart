@@ -37,13 +37,13 @@ void main() {
 
   // First: the process's peak memory only ever grows, so a big render
   // before this would hide what it measures.
-  test('the 2400 px base job on a 3000 × 4000 photo stays well under 600 MB', () {
+  test('the 3000 px (High) base job on a 3000 × 4000 photo stays well under 600 MB', () {
     final before = ProcessInfo.maxRss;
     final out = p.join(tmp.path, 'mem_base.png');
-    cleanBaseInIsolate(CleanBaseMsg(photo, edits, 2400, out, p.join(tmp.path, 'mem_prev.png')));
+    cleanBaseInIsolate(CleanBaseMsg(photo, edits, 3000, out, p.join(tmp.path, 'mem_prev.png')));
     final grew = (ProcessInfo.maxRss - before) / 1e6;
     // ignore: avoid_print
-    print('2400 px cleaned base: +${grew.round()} MB peak');
+    print('3000 px cleaned base: +${grew.round()} MB peak');
     expect(grew, lessThan(600), reason: '+${grew.round()} MB');
   });
 

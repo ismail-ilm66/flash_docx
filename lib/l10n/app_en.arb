@@ -127,7 +127,19 @@
   "sharePageAuto": "Auto",
   "sharePageA4": "A4",
   "sharePageLetter": "Letter",
-  "sharePageFit": "Fit to image",
+  "sharePageFit": "Same as scan",
+  "sharePageFitHint": "Page is the shape of your scan, no margins",
+  "sharePageAutoRecommended": "Auto (recommended)",
+  "shareMoreOptions": "More options",
+  "shareImages": "Images",
+  "shareQualityPerPage": "~{size} per page",
+  "@shareQualityPerPage": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
   "shareFileName": "File name",
   "shareButton": "Share",
   "shareSaveToPhone": "Save to phone",

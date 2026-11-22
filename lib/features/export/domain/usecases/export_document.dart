@@ -78,6 +78,20 @@ class ExportDocument {
   /// True when Max file size applies: a page-per-page PDF with a limit.
   /// Max file size is offered for a page-per-page PDF, and for a passport
   /// photo saved as JPG (forms often cap the photo size).
+  /// Round 10, P1-1: a rough size per page for the Quality buttons
+  /// ("Standard · ~0.4 MB per page"). An A4-shaped page at the export size;
+  /// bytes per pixel from typical scanned pages at that JPEG quality.
+  static int estimatePageBytes(ExportOptions o) {
+    final long = o.quality == ExportQuality.high ? 3000 : RenderPx.standardExportLongEdge;
+    final px = long * long / 1.414;
+    final perPixel = switch ((o.format, o.quality)) {
+      (ExportFormat.png, _) => 0.9,
+      (_, ExportQuality.high) => 0.19,
+      (_, ExportQuality.standard) => 0.14,
+    };
+    return (px * perPixel).round();
+  }
+
   static bool canShrink(ScanDocument doc, ExportOptions o) =>
       !usesOneImage(doc, o) &&
       (o.format == ExportFormat.pdf ||

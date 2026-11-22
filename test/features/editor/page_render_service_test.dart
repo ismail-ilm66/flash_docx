@@ -285,9 +285,9 @@ void main() {
       await expectLater(job, throwsA(isA<JobCancelled>()));
     });
 
-    test('2000 px by default, 2400 for High, never above 2000 on a low-RAM phone', () async {
+    test('2000 px by default, 3000 for High (round 10), never above 2000 on a low-RAM phone', () async {
       expect(bases.longEdgeFor(), 2000);
-      expect(bases.longEdgeFor(high: true), 2400);
+      expect(bases.longEdgeFor(high: true), 3000);
       final low = DeviceProfile()..debugSet(totalBytes: 2 << 30);
       final lowRam = CleanBaseService(proc, files, low, PrefsService(await SharedPreferences.getInstance()));
       expect(lowRam.longEdgeFor(high: true), 2000);

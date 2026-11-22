@@ -13,7 +13,12 @@ class AppBottomSheet extends StatelessWidget {
     this.title,
     this.subtitle,
     this.padding = const EdgeInsets.fromLTRB(Space.x5, 0, Space.x5, 22),
+    this.footer,
   });
+
+  /// Stays at the bottom of the sheet, under the scrolling body (round 10,
+  /// P1-1: Save to phone · Share always visible).
+  final Widget? footer;
 
   final String? title;
   final String? subtitle;
@@ -25,9 +30,13 @@ class AppBottomSheet extends StatelessWidget {
     required WidgetBuilder builder,
     bool isScrollControlled = true,
   }) {
+    // Round 10, P1-1: one 280 ms ease-out slide; the height fits the
+    // content, at most 90 % of the screen.
     return showModalBottomSheet<T>(
       context: context,
       isScrollControlled: isScrollControlled,
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.9),
+      sheetAnimationStyle: const AnimationStyle(duration: Duration(milliseconds: 280), curve: Curves.easeOut),
       useSafeArea: true,
       // Above the shell's bottom nav, not inside the tab's navigator.
       useRootNavigator: true,
@@ -84,10 +93,15 @@ class AppBottomSheet extends StatelessWidget {
               ),
             Flexible(
               child: SingleChildScrollView(
-                padding: padding,
+                padding: footer == null ? padding : padding.copyWith(bottom: Space.x3),
                 child: child,
               ),
             ),
+            if (footer != null)
+              Padding(
+                padding: EdgeInsets.fromLTRB(padding.left, Space.x2, padding.right, padding.bottom),
+                child: footer,
+              ),
           ],
         ),
       ),

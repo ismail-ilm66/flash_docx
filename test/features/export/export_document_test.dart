@@ -7,6 +7,7 @@ import 'package:flash_dox/core/services/save_service.dart';
 import 'package:flash_dox/core/services/share_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
+import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
@@ -208,6 +209,29 @@ void main() {
       expect(renders(), 3);
     },
   );
+
+  test('round 10, P1-1: Standard and High really differ (2000 px q80 vs 3000 px q92)', () async {
+    for (final q in ExportQuality.values) {
+      await export.prepare(doc, ExportOptions(quality: q, format: ExportFormat.jpg));
+    }
+    final calls = verify(
+      () => render.renderExportPage(
+        any(),
+        size: captureAny(named: 'size'),
+        outputPath: any(named: 'outputPath'),
+        jpegQuality: captureAny(named: 'jpegQuality'),
+        card: any(named: 'card'),
+      ),
+    ).captured;
+    final pairs = {for (var i = 0; i < calls.length; i += 2) (calls[i] as RenderSize, calls[i + 1] as int)};
+    expect(pairs, {(RenderSize.standard, 80), (RenderSize.full, 92)});
+    expect(RenderSize.standard.longEdge, 2000);
+    expect(CleanBaseService.highLongEdge, 3000, reason: 'High renders the 3000 px base');
+    expect(
+      ExportDocument.estimatePageBytes(const ExportOptions(quality: ExportQuality.high)),
+      greaterThan(2 * ExportDocument.estimatePageBytes(const ExportOptions())),
+    );
+  });
 
   test('a cancelled job stops before the next page', () async {
     final token = CancelToken();

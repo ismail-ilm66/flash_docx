@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
@@ -52,6 +55,9 @@ class SharePanel extends StatefulWidget {
 
 class _SharePanelState extends State<SharePanel> {
   late final TextEditingController _name;
+
+  /// More options, open as the user last left it (round 10, P1-1).
+  bool _moreOpen = getIt<PrefsService>().shareMoreOpen;
 
   @override
   void initState() {
@@ -119,96 +125,134 @@ class _SharePanelState extends State<SharePanel> {
           ExportFormat.png => l.sharePng,
         };
         const gap = SizedBox(height: 18);
-        final body = Column(
+        final isIdCard = s.document.mode == ScanMode.idCard;
+        // Round 10, P1-2: ID cards are shared as images first.
+        final formats = s.document.mode == ScanMode.photo
+            ? const [ExportFormat.jpg, ExportFormat.png]
+            : isIdCard
+            ? const [ExportFormat.jpg, ExportFormat.pdf, ExportFormat.png]
+            : ExportFormat.values;
+        String formatLabel(ExportFormat f) => isIdCard && f == ExportFormat.jpg ? l.shareImages : formatName(f);
+        String perPage(ExportQuality q) =>
+            l.shareQualityPerPage(formatBytes(ExportDocument.estimatePageBytes(o.copyWith(quality: q))));
+        final layoutShown = s.document.mode.supportsPrintLayout && s.document.pages.length >= 2;
+        final more = <Widget>[
+          if (!o.isImage) ...[
+            SectionLabel(l.sharePageSize, padding: const EdgeInsets.only(bottom: Space.x2)),
+            for (final p in PdfPageSize.values)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Space.x2),
+                child: _PageSizeOption(
+                  size: p,
+                  label: switch (p) {
+                    PdfPageSize.auto => l.sharePageAutoRecommended,
+                    PdfPageSize.a4 => l.sharePageA4,
+                    PdfPageSize.letter => l.sharePageLetter,
+                    PdfPageSize.fit => l.sharePageFit,
+                  },
+                  hint: p == PdfPageSize.fit ? l.sharePageFitHint : null,
+                  selected: o.pageSize == p,
+                  onTap: () => _update(o.copyWith(pageSize: p)),
+                ),
+              ),
+            const SizedBox(height: Space.x2),
+          ],
+          if (layoutShown) ...[
+            SectionLabel(l.shareLayout, padding: const EdgeInsets.only(bottom: Space.x2)),
+            SegmentedPills<ExportLayout>(
+              values: ExportLayout.values,
+              selected: o.layout,
+              labelOf: (v) => v == ExportLayout.oneImage ? l.shareLayoutOneImage : l.shareLayoutSeparate,
+              onChanged: (v) => _update(o.copyWith(layout: v)),
+            ),
+            gap,
+          ],
+          // Passport photo: the exact pixels an online form asks for.
+          if (s.document.mode == ScanMode.photo) ...[
+            _SettingRow(
+              title: l.shareImageSize,
+              hint: l.shareImageSizeHint,
+              value: imageSizeLabel(context, o.hasPixelSize ? (width: o.pixelWidth!, height: o.pixelHeight!) : null),
+              onTap: () async {
+                final e = s.document.cover?.edits;
+                final picked = await showImageSizeSheet(
+                  context,
+                  current: o.hasPixelSize ? (width: o.pixelWidth!, height: o.pixelHeight!) : null,
+                  widthMm: e?.photoWidthMm ?? 35,
+                  heightMm: e?.photoHeightMm ?? 45,
+                );
+                if (picked == null || !context.mounted) return;
+                final cur = context.read<ExportBloc>().state.options;
+                _update(cur.copyWith(pixelWidth: picked.size?.width, pixelHeight: picked.size?.height));
+              },
+            ),
+            const SizedBox(height: Space.x3),
+          ],
+          if (ExportDocument.canShrink(s.document, o)) ...[
+            _SettingRow(
+              title: l.shareMaxSize,
+              hint: l.shareMaxSizeHint,
+              value: maxSizeLabel(context, o.maxBytes),
+              onTap: () async {
+                final picked = await showMaxSizeSheet(context, o.maxBytes, photo: s.document.mode == ScanMode.photo);
+                if (picked == null || !context.mounted) return;
+                final cur = context.read<ExportBloc>().state.options;
+                _update(cur.copyWith(maxBytes: picked.bytes, grayscaleToFit: false));
+              },
+            ),
+            const SizedBox(height: Space.x3),
+          ],
+        ];
+        final top = Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SectionLabel(
-              l.shareFormat,
-              padding: const EdgeInsets.only(bottom: Space.x2),
+            // Round 10, P1-1: file name · format · quality, the rest under
+            // More options.
+            SectionLabel(l.shareFileName, padding: const EdgeInsets.only(bottom: 6)),
+            TextField(
+              controller: _name,
+              textInputAction: TextInputAction.done,
+              style: context.text.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                suffixText: '.${o.extension}',
+                suffixStyle: context.text.bodyMedium?.copyWith(color: c.muted, fontWeight: FontWeight.w600),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.borderStrong)),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent, width: 1.5)),
+              ),
             ),
+            gap,
+            SectionLabel(l.shareFormat, padding: const EdgeInsets.only(bottom: Space.x2)),
             Row(
               children: [
-                // A passport photo is a picture: JPG or PNG, no PDF.
-                for (final (i, f)
-                    in (s.document.mode == ScanMode.photo
-                            ? const [ExportFormat.jpg, ExportFormat.png]
-                            : ExportFormat.values)
-                        .indexed) ...[
+                for (final (i, f) in formats.indexed) ...[
                   if (i > 0) const SizedBox(width: Space.x2),
                   Expanded(
                     child: OptionCard(
                       centered: true,
                       height: 64,
                       titleSize: 15,
-                      title: formatName(f),
-                      subtitle: f == ExportFormat.pdf
-                          ? l.shareOneFile
-                          : l.shareImagesCount(pageCount),
+                      title: formatLabel(f),
+                      subtitle: f == ExportFormat.pdf ? l.shareOneFile : l.shareImagesCount(pageCount),
                       selected: o.format == f,
-                      gated:
-                          f == ExportFormat.png &&
-                          !s.unlocked.contains(PremiumFeature.pngExport),
+                      gated: f == ExportFormat.png && !s.unlocked.contains(PremiumFeature.pngExport),
                       onTap: () => _update(o.copyWith(format: f)),
                     ),
                   ),
                 ],
               ],
             ),
-            if (s.document.mode.supportsPrintLayout &&
-                s.document.pages.length >= 2) ...[
-              const SizedBox(height: Space.x4),
-              SectionLabel(
-                l.shareLayout,
-                padding: const EdgeInsets.only(bottom: Space.x2),
-              ),
-              SegmentedPills<ExportLayout>(
-                values: ExportLayout.values,
-                selected: o.layout,
-                labelOf: (v) => v == ExportLayout.oneImage
-                    ? l.shareLayoutOneImage
-                    : l.shareLayoutSeparate,
-                onChanged: (v) => _update(o.copyWith(layout: v)),
-              ),
-            ],
-            if (!o.isImage) ...[
-              gap,
-              SectionLabel(
-                l.sharePageSize,
-                padding: const EdgeInsets.only(bottom: Space.x2),
-              ),
-              Wrap(
-                spacing: Space.x2,
-                runSpacing: Space.x2,
-                children: [
-                  for (final p in PdfPageSize.values)
-                    OptionChip(
-                      label: switch (p) {
-                        PdfPageSize.auto => l.sharePageAuto,
-                        PdfPageSize.a4 => l.sharePageA4,
-                        PdfPageSize.letter => l.sharePageLetter,
-                        PdfPageSize.fit => l.sharePageFit,
-                      },
-                      selected: o.pageSize == p,
-                      onTap: () => _update(o.copyWith(pageSize: p)),
-                    ),
-                ],
-              ),
-            ],
             gap,
-            SectionLabel(
-              l.shareQuality,
-              padding: const EdgeInsets.only(bottom: Space.x2),
-            ),
+            SectionLabel(l.shareQuality, padding: const EdgeInsets.only(bottom: Space.x2)),
             Row(
               children: [
                 Expanded(
                   child: OptionCard(
                     height: 56,
                     title: l.shareQualityStandard,
-                    subtitle: l.shareQualityStandardHint,
+                    subtitle: perPage(ExportQuality.standard),
                     selected: o.quality == ExportQuality.standard,
-                    onTap: () =>
-                        _update(o.copyWith(quality: ExportQuality.standard)),
+                    onTap: () => _update(o.copyWith(quality: ExportQuality.standard)),
                   ),
                 ),
                 const SizedBox(width: Space.x2),
@@ -216,129 +260,49 @@ class _SharePanelState extends State<SharePanel> {
                   child: OptionCard(
                     height: 56,
                     title: l.shareQualityHigh,
-                    subtitle: l.shareQualityHighHint,
+                    subtitle: perPage(ExportQuality.high),
                     selected: o.quality == ExportQuality.high,
-                    gated: !s.unlocked.contains(
-                      PremiumFeature.highQualityExport,
-                    ),
-                    onTap: () =>
-                        _update(o.copyWith(quality: ExportQuality.high)),
+                    gated: !s.unlocked.contains(PremiumFeature.highQualityExport),
+                    onTap: () => _update(o.copyWith(quality: ExportQuality.high)),
                   ),
                 ),
               ],
             ),
-            // Passport photo: the exact pixels an online form asks for.
-            if (s.document.mode == ScanMode.photo) ...[
+            if (more.isNotEmpty) ...[
               const SizedBox(height: Space.x3),
-              _SettingRow(
-                title: l.shareImageSize,
-                hint: l.shareImageSizeHint,
-                value: imageSizeLabel(
-                  context,
-                  o.hasPixelSize
-                      ? (width: o.pixelWidth!, height: o.pixelHeight!)
-                      : null,
-                ),
-                onTap: () async {
-                  final e = s.document.cover?.edits;
-                  final picked = await showImageSizeSheet(
-                    context,
-                    current: o.hasPixelSize
-                        ? (width: o.pixelWidth!, height: o.pixelHeight!)
-                        : null,
-                    widthMm: e?.photoWidthMm ?? 35,
-                    heightMm: e?.photoHeightMm ?? 45,
-                  );
-                  if (picked == null || !context.mounted) return;
-                  final cur = context.read<ExportBloc>().state.options;
-                  _update(
-                    cur.copyWith(
-                      pixelWidth: picked.size?.width,
-                      pixelHeight: picked.size?.height,
-                    ),
-                  );
+              _MoreOptions(
+                label: l.shareMoreOptions,
+                open: _moreOpen,
+                onToggle: () {
+                  setState(() => _moreOpen = !_moreOpen);
+                  unawaited(getIt<PrefsService>().setShareMoreOpen(_moreOpen));
                 },
+                children: more,
               ),
             ],
-            if (ExportDocument.canShrink(s.document, o)) ...[
-              const SizedBox(height: Space.x3),
-              _SettingRow(
-                title: l.shareMaxSize,
-                hint: l.shareMaxSizeHint,
-                value: maxSizeLabel(context, o.maxBytes),
-                onTap: () async {
-                  final picked = await showMaxSizeSheet(
-                    context,
-                    o.maxBytes,
-                    photo: s.document.mode == ScanMode.photo,
-                  );
-                  if (picked == null || !context.mounted) return;
-                  final cur = context.read<ExportBloc>().state.options;
-                  _update(
-                    cur.copyWith(
-                      maxBytes: picked.bytes,
-                      grayscaleToFit: false,
-                    ),
-                  );
-                },
-              ),
-            ],
-            gap,
-            SectionLabel(
-              l.shareFileName,
-              padding: const EdgeInsets.only(bottom: 6),
-            ),
-            TextField(
-              controller: _name,
-              textInputAction: TextInputAction.done,
-              style: context.text.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-              decoration: InputDecoration(
-                suffixText: '.${o.extension}',
-                suffixStyle: context.text.bodyMedium?.copyWith(
-                  color: c.muted,
-                  fontWeight: FontWeight.w600,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.borderStrong),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.borderStrong),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.accent, width: 1.5),
-                ),
-              ),
-            ),
-            const SizedBox(height: 22),
+          ],
+        );
+        final bottom = Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
             if (preparing || working) ...[
               LinearProgressIndicator(
-                value: prep == null || prep.done == 0 || prep.ready
-                    ? null
-                    : prep.done / prep.total,
+                value: prep == null || prep.done == 0 || prep.ready ? null : prep.done / prep.total,
                 borderRadius: Radii.pillR,
               ),
               const SizedBox(height: Space.x2),
               Text(
                 !preparing
                     ? l.sharePreparing
-                    : ExportDocument.shrinks(s.document, o) &&
-                          prep.done >= pageCount
+                    : ExportDocument.shrinks(s.document, o) && prep.done >= pageCount
                     ? l.shareShrinking
-                    : l.sharePreparingPages(
-                        prep.done.clamp(0, pageCount),
-                        pageCount,
-                      ),
+                    : l.sharePreparingPages(prep.done.clamp(0, pageCount), pageCount),
                 style: context.text.bodySmall?.copyWith(color: c.muted),
               ),
               const SizedBox(height: Space.x3),
             ],
-            if (!preparing && !working && prep != null)
-              ..._result(context, prep, o),
+            if (!preparing && !working && prep != null) ..._result(context, prep, o),
             Row(
               children: [
                 Expanded(
@@ -346,15 +310,13 @@ class _SharePanelState extends State<SharePanel> {
                     label: l.shareSaveToPhone,
                     icon: AppIcons.save,
                     dense: true,
-                    onPressed: working
-                        ? null
-                        : () => _go(ExportTarget.saveToPhone),
+                    onPressed: working ? null : () => _go(ExportTarget.saveToPhone),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: PrimaryButton(
-                    label: l.shareButtonFormat(formatName(o.format)),
+                    label: l.shareButtonFormat(formatLabel(o.format)),
                     icon: AppIcons.share,
                     loading: working,
                     onPressed: working ? null : () => _go(ExportTarget.share),
@@ -364,11 +326,17 @@ class _SharePanelState extends State<SharePanel> {
             ),
           ],
         );
-        if (widget.inline) return body;
+        if (widget.inline) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [top, const SizedBox(height: 22), bottom],
+          );
+        }
         return AppBottomSheet(
           title: l.shareTitle,
           subtitle: '${s.document.title} · ${l.pagesCount(pageCount)}',
-          child: body,
+          footer: bottom,
+          child: top,
         );
       },
     );
@@ -496,4 +464,123 @@ class _SettingRow extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "More options ›": one row, closed by default; the options under it when
+/// open (round 10, P1-1).
+class _MoreOptions extends StatelessWidget {
+  const _MoreOptions({required this.label, required this.open, required this.onToggle, required this.children});
+  final String label;
+  final bool open;
+  final VoidCallback onToggle;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InkWell(
+          onTap: onToggle,
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: Sizes.tap),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(label, style: context.text.titleSmall?.copyWith(fontSize: 14, fontWeight: FontWeight.w800)),
+                ),
+                AnimatedRotation(
+                  turns: open ? 0.25 : 0,
+                  duration: Motion.fast,
+                  child: AppIcon(AppIcons.chevronRight, size: 18, color: c.muted),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (open) ...[const SizedBox(height: Space.x2), ...children],
+      ],
+    );
+  }
+}
+
+/// A page size with a small icon of its shape (round 10, P1-1).
+class _PageSizeOption extends StatelessWidget {
+  const _PageSizeOption({required this.size, required this.label, required this.selected, required this.onTap, this.hint});
+  final PdfPageSize size;
+  final String label;
+  final String? hint;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final fg = selected ? c.accentText : c.text;
+    return Material(
+      color: selected ? c.accentSoft : Colors.transparent,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: selected ? c.accent : c.borderStrong, width: selected ? 1.5 : 1),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              SizedBox(width: 22, height: 26, child: CustomPaint(painter: _PageShapePainter(size, fg))),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(label, style: context.text.labelLarge?.copyWith(fontWeight: FontWeight.w700, color: fg)),
+                    if (hint != null)
+                      Text(hint!, style: context.text.labelSmall?.copyWith(fontSize: 11, color: c.muted)),
+                  ],
+                ),
+              ),
+              if (selected) AppIcon(AppIcons.check, size: 18, color: c.accentText),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PageShapePainter extends CustomPainter {
+  const _PageShapePainter(this.size, this.color);
+  final PdfPageSize size;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size box) {
+    // A4 1 : 1.414, Letter 1 : 1.294; Auto is A4 that fills, Same as scan a
+    // freer shape (a receipt).
+    final aspect = switch (size) {
+      PdfPageSize.letter => 1 / 1.294,
+      PdfPageSize.fit => 1 / 1.9,
+      _ => 1 / 1.414,
+    };
+    final h = box.height;
+    final w = h * aspect;
+    final r = Rect.fromLTWH((box.width - w) / 2, 0, w, h);
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), stroke);
+    if (size == PdfPageSize.auto) {
+      // The image filling the page.
+      canvas.drawRect(r.deflate(3), Paint()..color = color.withValues(alpha: 0.35));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _PageShapePainter old) => old.size != size || old.color != color;
 }
