@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flash_dox/features/signature/domain/catmull_rom.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 /// Strokes drawn on a [DrawPad], with undo.
@@ -103,30 +104,50 @@ void _paintStrokes(Canvas canvas, List<List<Offset>> strokes, Color color, doubl
 }
 
 /// "Draw" (feature 4): sign with a finger; strokes are smoothed with a
-/// Catmull-Rom spline.
+/// Catmull-Rom spline. [enabled] false only shows the strokes.
 class DrawPad extends StatelessWidget {
-  const DrawPad({required this.controller, required this.ink, super.key});
+  const DrawPad({required this.controller, required this.ink, this.enabled = true, super.key});
 
   static const strokeWidth = 3.5;
 
   final DrawPadController controller;
   final Color ink;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onPanStart: (d) => controller._start(d.localPosition),
-      onPanUpdate: (d) => controller._extend(d.localPosition),
-      child: ListenableBuilder(
-        listenable: controller,
-        builder: (context, _) => CustomPaint(
-          painter: _StrokesPainter(controller.strokes, ink),
-          size: Size.infinite,
-        ),
+    final paint = ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => CustomPaint(
+        painter: _StrokesPainter(controller.strokes, ink),
+        size: Size.infinite,
       ),
     );
+    if (!enabled) return paint;
+    // Round 11b, F1: the pan is taken at the first move, before any
+    // scrolling parent or route gesture can claim it.
+    return RawGestureDetector(
+      behavior: HitTestBehavior.opaque,
+      gestures: {
+        _EagerPan: GestureRecognizerFactoryWithHandlers<_EagerPan>(
+          () => _EagerPan(debugOwner: this),
+          (r) => r
+            ..dragStartBehavior = DragStartBehavior.down
+            ..onStart = ((d) => controller._start(d.localPosition))
+            ..onUpdate = ((d) => controller._extend(d.localPosition)),
+        ),
+      },
+      child: paint,
+    );
   }
+}
+
+/// A pan that wins on its first move (no slop).
+class _EagerPan extends PanGestureRecognizer {
+  _EagerPan({super.debugOwner});
+
+  @override
+  bool hasSufficientGlobalDistanceToAccept(PointerDeviceKind pointerDeviceKind, double? deviceTouchSlop) => true;
 }
 
 class _StrokesPainter extends CustomPainter {

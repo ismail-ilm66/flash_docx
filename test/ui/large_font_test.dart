@@ -16,6 +16,7 @@ import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart
 import 'package:flash_dox/features/documents/presentation/widgets/folder_chips.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/pick_document_sheet.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/suggestion_banner.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
@@ -29,6 +30,7 @@ import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
 import 'package:flash_dox/features/signature/data/signature_store.dart';
+import 'package:flash_dox/features/signature/presentation/pages/my_signature_page.dart';
 import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/features/signature/presentation/widgets/draw_pad.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
@@ -598,7 +600,17 @@ void main() {
     await real(tester);
     expect(find.byType(OverlayBox), findsOneWidget);
     final before = tester.widget<OverlayBox>(find.byType(OverlayBox)).overlay;
-    await tester.drag(find.byType(OverlayBox), const Offset(30, -60));
+    final sigImage = find.descendant(of: find.byType(OverlayBox), matching: find.byType(Image));
+    final startAt = tester.getCenter(sigImage);
+    final g = await tester.startGesture(startAt);
+    for (var i = 0; i < 6; i++) {
+      await g.moveBy(const Offset(5, -10));
+      await tester.pump();
+    }
+    // Round 11b, F2: while moving, only the box follows the finger.
+    expect(tester.getCenter(sigImage).dy, lessThan(startAt.dy - 30));
+    expect(tester.widget<OverlayBox>(find.byType(OverlayBox)).overlay, before, reason: 'the screen gets it on release');
+    await g.up();
     await tester.pump();
     final after = tester.widget<OverlayBox>(find.byType(OverlayBox)).overlay;
     expect(after.left, greaterThan(before.left));
@@ -612,6 +624,8 @@ void main() {
     await tester.tap(find.text(l.enhanceDone));
     await real(tester);
     final saved = (await tester.runAsync(() => getIt<DocumentRepository>().get(doc.id)))!.getOrElse((f) => throw StateError('$f'));
+    // F3: the signed page is handed to the viewer, drawn from memory.
+    expect(getIt<PreviewCache>().handedOff(saved.sortedPages.first), isNotNull);
     final overlays = saved.sortedPages.first.edits.overlays;
     expect(overlays.map((o) => o.kind), [OverlayKind.signature, OverlayKind.date]);
     expect(overlays.first.left, closeTo(after.left, 1e-9));
@@ -627,20 +641,21 @@ void main() {
     expectNothingCutOff(tester, 'My signature');
     await tester.tap(find.text(l.mySignatureDraw));
     await settle(tester);
-    // P1-5: sign on the sideways full-screen canvas, then back.
-    await tester.tap(find.text(l.mySignatureExpand));
+    // Round 11b, F1: tap the pad for its own full-screen route, sign there
+    // (a vertical stroke never scrolls), then back.
+    await tester.tap(find.text(l.mySignatureTapToSign));
     await settle(tester);
-    expect(find.byType(RotatedBox), findsWidgets);
-    expectNothingCutOff(tester, 'Expanded signature');
+    expect(find.byType(SignaturePadPage), findsOneWidget);
+    expect(find.descendant(of: find.byType(SignaturePadPage), matching: find.byType(Scrollable)), findsNothing);
+    expectNothingCutOff(tester, 'Signature pad');
     final big = find.byType(DrawPad);
     await tester.dragFrom(tester.getCenter(big) - const Offset(0, 120), const Offset(10, 240));
     await tester.pump();
+    expect(tester.widget<DrawPad>(big).controller.strokes.single.length, greaterThan(2));
     await tester.tap(find.text(l.commonDone));
     await settle(tester);
     final pad = find.byType(DrawPad);
     expect(tester.widget<DrawPad>(pad).controller.isEmpty, isFalse, reason: 'brought back into the pad');
-    await tester.dragFrom(tester.getCenter(pad) - const Offset(80, 0), const Offset(160, 20));
-    await tester.pump();
     await tester.tap(find.text(l.mySignatureSave));
     await real(tester);
     expect(getIt<SignatureStore>().saved.value, isTrue);

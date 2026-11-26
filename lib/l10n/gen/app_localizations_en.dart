@@ -1665,7 +1665,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get mySignatureSignHere => 'Sign here';
 
   @override
-  String get mySignatureExpand => 'Expand';
+  String get mySignatureTapToSign => 'Tap to sign';
 
   @override
   String get cameraFlip => 'Switch camera';

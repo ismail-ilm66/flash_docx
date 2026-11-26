@@ -14,6 +14,7 @@ import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/signature/data/signature_store.dart';
@@ -55,6 +56,46 @@ Future<Uint8List> renderDateStamp(String text) async {
   final data = await img.toByteData(format: ui.ImageByteFormat.png);
   img.dispose();
   tp.dispose();
+  return data!.buffer.asUint8List();
+}
+
+/// [base] with [overlays] in their inks, as a PNG: what the viewer shows
+/// for a just-signed page until its merged image is made (round 11b, F3).
+Future<Uint8List> composeSigned(String base, List<PageOverlay> overlays) async {
+  Future<ui.Image> decode(String path) async {
+    final codec = await ui.instantiateImageCodec(await File(path).readAsBytes());
+    final frame = await codec.getNextFrame();
+    codec.dispose();
+    return frame.image;
+  }
+
+  final page = await decode(base);
+  final w = page.width.toDouble();
+  final h = page.height.toDouble();
+  final rec = ui.PictureRecorder();
+  final canvas = Canvas(rec)..drawImage(page, Offset.zero, Paint());
+  for (final o in overlays) {
+    final img = await decode(o.imagePath);
+    final color = inkColor(o.ink);
+    final box = Rect.fromLTWH(o.left * w, o.top * h, o.width * w, o.height * h);
+    // BoxFit.contain, like the on-screen box.
+    final src = Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble());
+    final fit = applyBoxFit(BoxFit.contain, src.size, box.size);
+    final dst = Alignment.center.inscribe(fit.destination, box);
+    canvas.drawImageRect(
+      img,
+      src,
+      dst,
+      Paint()
+        ..filterQuality = FilterQuality.medium
+        ..colorFilter = color == null ? null : ColorFilter.mode(color, BlendMode.srcIn),
+    );
+    img.dispose();
+  }
+  final out = await rec.endRecording().toImage(page.width, page.height);
+  page.dispose();
+  final data = await out.toByteData(format: ui.ImageByteFormat.png);
+  out.dispose();
   return data!.buffer.asUint8List();
 }
 
@@ -237,10 +278,26 @@ class _SignDocumentPageState extends State<SignDocumentPage> {
     final changed = [
       for (final pg in doc.pages)
         if (_overlays[pg.id]!.length != pg.edits.overlays.length || !_sameOverlays(_overlays[pg.id]!, pg.edits.overlays))
-          // A new preview and thumbnail render with the overlays; the text
-          // doesn't change.
+          // A new preview and thumbnail render with the overlays (in the
+          // background isolate, from the viewer); the text doesn't change.
           pg.copyWith(edits: pg.edits.copyWith(overlays: _overlays[pg.id]!), processedPath: null, thumbPath: null),
     ];
+    // Round 11b, F3: the viewer shows each signed page at once, drawn here
+    // from what's in memory, until its merged image is ready.
+    final previews = getIt<PreviewCache>();
+    await Future.wait([
+      for (final pg in changed)
+        if (_base[pg.id] case final base?)
+          () async {
+            try {
+              final out = _files.newCapturePath('signed_${pg.id}_${newId()}').replaceAll('.jpg', '.png');
+              await File(out).writeAsBytes(await composeSigned(base, pg.edits.overlays));
+              previews.handOff(pg.id, pg.edits, out);
+            } on Object catch (e) {
+              debugPrint('[sign] quick page: $e');
+            }
+          }(),
+    ]);
     final r = await getIt<UpdatePages>()(changed);
     if (!mounted) return;
     if (r.isLeft()) {
@@ -498,7 +555,9 @@ class _PageWithOverlays extends StatelessWidget {
                     color: Colors.white,
                     boxShadow: [BoxShadow(color: Color(0x40000000), blurRadius: 24, offset: Offset(0, 6))],
                   ),
-                  child: Image.file(File(image), fit: BoxFit.fill, gaplessPlayback: true),
+                  // Drawn once (round 11b, F2): moving a signature never
+                  // repaints the page.
+                  child: RepaintBoundary(child: Image.file(File(image), fit: BoxFit.fill, gaplessPlayback: true)),
                 ),
               ),
             ),
@@ -521,7 +580,11 @@ class _PageWithOverlays extends StatelessWidget {
 
 /// A placed signature or date: drag to move, the corner handle to resize
 /// (shape kept), ✕ to remove. Positions are page fractions.
-class OverlayBox extends StatelessWidget {
+///
+/// Round 11b, F2: while a finger moves it, only this box changes: the live
+/// geometry is a [ValueNotifier] (a [Transform] for moves), and the screen
+/// gets the result once, when the finger lifts.
+class OverlayBox extends StatefulWidget {
   const OverlayBox({
     required this.overlay,
     required this.page,
@@ -539,101 +602,159 @@ class OverlayBox extends StatelessWidget {
   final ValueChanged<PageOverlay> onChanged;
   final VoidCallback onRemove;
 
+  @override
+  State<OverlayBox> createState() => _OverlayBoxState();
+}
+
+class _OverlayBoxState extends State<OverlayBox> {
+  late final ValueNotifier<PageOverlay> _live = ValueNotifier(widget.overlay);
+  bool _dragging = false;
+
   /// Room around the box for the ✕ and the handle, so they stay tappable.
   static const _m = 14.0;
   static const _minPx = 36.0;
 
   @override
+  void didUpdateWidget(OverlayBox old) {
+    super.didUpdateWidget(old);
+    if (!_dragging && widget.overlay != _live.value) _live.value = widget.overlay;
+  }
+
+  @override
+  void dispose() {
+    _live.dispose();
+    super.dispose();
+  }
+
+  void _start() {
+    _dragging = true;
+    if (!widget.selected) widget.onSelect();
+  }
+
+  void _end() {
+    _dragging = false;
+    if (_live.value != widget.overlay) widget.onChanged(_live.value);
+  }
+
+  void _move(Offset d) {
+    final o = _live.value;
+    final page = widget.page;
+    _live.value = o.copyWith(
+      left: (o.left + d.dx / page.width).clamp(0, math.max(0, 1 - o.width)),
+      top: (o.top + d.dy / page.height).clamp(0, math.max(0, 1 - o.height)),
+    );
+  }
+
+  void _resize(Offset d) {
+    final o = _live.value;
+    final page = widget.page;
+    final w = o.width * page.width;
+    final h = o.height * page.height;
+    final ratio = h / w;
+    final maxW = math.min((1 - o.left) * page.width, (1 - o.top) * page.height / ratio);
+    final nw = (w + d.dx).clamp(math.min(_minPx, maxW), maxW);
+    _live.value = o.copyWith(width: nw / page.width, height: nw * ratio / page.height);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
-    final o = overlay;
-    final w = o.width * page.width;
-    final h = o.height * page.height;
-
-    void move(Offset d) {
-      onChanged(o.copyWith(
-        left: (o.left + d.dx / page.width).clamp(0, math.max(0, 1 - o.width)),
-        top: (o.top + d.dy / page.height).clamp(0, math.max(0, 1 - o.height)),
-      ));
-    }
-
-    void resize(Offset d) {
-      final ratio = h / w;
-      final maxW = math.min((1 - o.left) * page.width, (1 - o.top) * page.height / ratio);
-      final nw = (w + d.dx).clamp(math.min(_minPx, maxW), maxW);
-      onChanged(o.copyWith(width: nw / page.width, height: nw * ratio / page.height));
-    }
-
+    final page = widget.page;
+    final base = widget.overlay;
+    // Drawn once; moves and resizes only re-lay this out.
+    final image = RepaintBoundary(
+      child: inkedImage(Image.file(File(base.imagePath), fit: BoxFit.contain, gaplessPlayback: true), base.ink),
+    );
     return Positioned(
-      left: o.left * page.width - _m,
-      top: o.top * page.height - _m,
-      width: w + _m * 2,
-      height: h + _m * 2,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            left: _m,
-            top: _m,
-            right: _m,
-            bottom: _m,
-            child: GestureDetector(
-              onTap: onSelect,
-              onPanStart: (_) => onSelect(),
-              onPanUpdate: (d) => move(d.delta),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  border: selected ? Border.all(color: c.accent, width: 2) : null,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(2),
-                  child: inkedImage(Image.file(File(o.imagePath), fit: BoxFit.contain, gaplessPlayback: true), o.ink),
-                ),
-              ),
-            ),
-          ),
-          if (selected) ...[
-            Positioned(
-              left: 0,
-              top: 0,
-              child: Semantics(
-                button: true,
-                label: l.signRemove,
-                child: GestureDetector(
-                  onTap: onRemove,
-                  child: Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: c.surface,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: c.accent, width: 2),
+      left: base.left * page.width - _m,
+      top: base.top * page.height - _m,
+      width: (1 - base.left) * page.width + _m * 2,
+      height: (1 - base.top) * page.height + _m * 2,
+      child: ValueListenableBuilder<PageOverlay>(
+        valueListenable: _live,
+        child: image,
+        builder: (context, o, image) {
+          final w = o.width * page.width;
+          final h = o.height * page.height;
+          return Transform.translate(
+            offset: Offset((o.left - base.left) * page.width, (o.top - base.top) * page.height),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SizedBox(
+                width: w + _m * 2,
+                height: h + _m * 2,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      left: _m,
+                      top: _m,
+                      right: _m,
+                      bottom: _m,
+                      child: GestureDetector(
+                        onTap: widget.onSelect,
+                        onPanStart: (_) => _start(),
+                        onPanUpdate: (d) => _move(d.delta),
+                        onPanEnd: (_) => _end(),
+                        onPanCancel: _end,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: widget.selected ? Border.all(color: c.accent, width: 2) : null,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Padding(padding: const EdgeInsets.all(2), child: image),
+                        ),
+                      ),
                     ),
-                    child: AppIcon(AppIcons.close, size: 14, color: c.text),
-                  ),
+                    if (widget.selected) ...[
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        child: Semantics(
+                          button: true,
+                          label: l.signRemove,
+                          child: GestureDetector(
+                            onTap: widget.onRemove,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: c.surface,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: c.accent, width: 2),
+                              ),
+                              child: AppIcon(AppIcons.close, size: 14, color: c.text),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: GestureDetector(
+                          onPanStart: (_) => _start(),
+                          onPanUpdate: (d) => _resize(d.delta),
+                          onPanEnd: (_) => _end(),
+                          onPanCancel: _end,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 18,
+                              height: 18,
+                              decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
-            Positioned(
-              right: 0,
-              bottom: 0,
-              child: GestureDetector(
-                onPanUpdate: (d) => resize(d.delta),
-                child: Container(
-                  width: 28,
-                  height: 28,
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 18,
-                    height: 18,
-                    decoration: BoxDecoration(color: c.accent, shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 2)),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }

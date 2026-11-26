@@ -2968,11 +2968,11 @@ abstract class AppLocalizations {
   /// **'Sign here'**
   String get mySignatureSignHere;
 
-  /// No description provided for @mySignatureExpand.
+  /// No description provided for @mySignatureTapToSign.
   ///
   /// In en, this message translates to:
-  /// **'Expand'**
-  String get mySignatureExpand;
+  /// **'Tap to sign'**
+  String get mySignatureTapToSign;
 
   /// No description provided for @cameraFlip.
   ///
