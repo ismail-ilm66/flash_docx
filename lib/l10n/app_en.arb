@@ -558,6 +558,70 @@
   },
   "toolReduceSize": "Reduce size",
   "cameraSettings": "Camera settings",
+  "reduceTitle": "Reduce size",
+  "reducePickTitle": "Make a PDF or photos smaller",
+  "reduceChoosePdf": "Choose PDF",
+  "reduceChooseImages": "Choose images",
+  "reduceMaxSize": "Max file size",
+  "reduceMaxSizeEach": "Max file size, each image",
+  "reduceCustom": "Custom",
+  "reduceCustomKbTitle": "Max file size in KB",
+  "reducePixels": "Size in pixels",
+  "reduceOriginal": "Original",
+  "reduceLongSide": "{px} px long side",
+  "@reduceLongSide": {
+    "placeholders": {
+      "px": {
+        "type": "int"
+      }
+    }
+  },
+  "reduceWidth": "Width",
+  "reduceHeight": "Height",
+  "reduceKeepShape": "Keep the shape",
+  "reduceFormat": "Format",
+  "reduceGo": "Reduce",
+  "reduceWorking": "Reducing…",
+  "reduceBeforeAfter": "{before} → {after}",
+  "@reduceBeforeAfter": {
+    "placeholders": {
+      "before": {
+        "type": "String"
+      },
+      "after": {
+        "type": "String"
+      }
+    }
+  },
+  "reducePages": "{count, plural, =1{1 page} other{{count} pages}}",
+  "@reducePages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reduceImages": "{count, plural, =1{1 image} other{{count} images}}",
+  "@reduceImages": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "reduceSmallest": "Smallest possible: {size}",
+  "@reduceSmallest": {
+    "placeholders": {
+      "size": {
+        "type": "String"
+      }
+    }
+  },
+  "reduceSaveAnyway": "Make it anyway",
+  "reducePdfWarningTitle": "Text won't be selectable",
+  "reducePdfWarningBody": "Reducing turns each page into an image. Text in this PDF won't be selectable afterwards.",
+  "reduceContinue": "Continue",
+  "reduceOriginalKept": "The original file is not changed.",
   "cameraAutoCapture": "Auto capture",
   "cameraAutoCaptureHint": "Takes the photo when the page is found and the phone is still",
   "cameraHdPhotos": "HD photos",

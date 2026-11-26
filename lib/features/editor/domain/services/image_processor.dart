@@ -133,6 +133,19 @@ abstract interface class ImageProcessor {
     int minEdge = ShrinkToFit.minEdge,
   });
 
+  /// Round 11 (Reduce size): one picture as small as [maxBytes], at a pixel
+  /// size ([boxW] × [boxH], [exact] or fitted; or [longSide]), in
+  /// [outputPath]'s format, without metadata. Its size and whether it fits.
+  Future<({int bytes, bool fits})> reduceImage(
+    String src, {
+    required String outputPath,
+    required int maxBytes,
+    int? boxW,
+    int? boxH,
+    bool exact = false,
+    int? longSide,
+  });
+
   /// A passport photo (feature 5) at its print size and [dpi]. Background.
   Future<String> renderPhoto(
     String originalPath,

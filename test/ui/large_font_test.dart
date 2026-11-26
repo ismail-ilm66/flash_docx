@@ -24,6 +24,7 @@ import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
+import 'package:flash_dox/features/reduce/presentation/reduce_size_page.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
@@ -269,6 +270,20 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await settle(tester);
   }
+
+  testWidgets('round 11: Reduce size (images): limit, pixel size, format', (tester) async {
+    final router = await pumpApp(tester);
+    unawaited(router.push(Routes.reduce, extra: const ReduceImages(['/a.jpg', '/b.jpg'])));
+    await settle(tester);
+    expect(find.text(l.reduceMaxSizeEach.toUpperCase()), findsOneWidget);
+    expect(find.text('200 KB'), findsOneWidget);
+    expect(find.text('300×300'), findsOneWidget);
+    expectNothingCutOff(tester, 'Reduce size');
+    await tester.scrollUntilVisible(find.text('WEBP'), 200, scrollable: find.byType(Scrollable).first);
+    await settle(tester);
+    expectNothingCutOff(tester, 'Reduce size, format');
+    await close(tester);
+  });
 
   testWidgets('Home', (tester) async {
     final router = await pumpApp(tester);

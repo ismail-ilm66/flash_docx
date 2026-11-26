@@ -20,6 +20,7 @@ import 'package:flash_dox/features/export/domain/usecases/export_document.dart';
 import 'package:flash_dox/features/export/presentation/bloc/export_bloc.dart';
 import 'package:flash_dox/features/export/presentation/share_sheet.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
+import 'package:flash_dox/features/reduce/presentation/reduce_size_page.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
@@ -181,7 +182,7 @@ class _HomeViewState extends State<_HomeView> {
     return [
       HomeTool(icon: AppIcons.portrait, label: l.toolPassportPhoto, onTap: () => startPassportPhoto(context)),
       HomeTool(icon: AppIcons.signature, label: l.toolSign, onTap: () => _runTool(context, ToolTarget.sign)),
-      HomeTool(icon: AppIcons.shrink, label: l.toolReduceSize, onTap: () => _runTool(context, ToolTarget.shrink)),
+      HomeTool(icon: AppIcons.shrink, label: l.toolReduceSize, onTap: () => startReduceSize(context)),
       HomeTool(icon: AppIcons.text, label: l.toolExtractText, onTap: () => _runTool(context, ToolTarget.extractText)),
     ];
   }

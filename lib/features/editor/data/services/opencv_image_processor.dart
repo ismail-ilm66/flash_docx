@@ -98,6 +98,22 @@ class OpenCvImageProcessor implements ImageProcessor {
   );
 
   @override
+  Future<({int bytes, bool fits})> reduceImage(
+    String src, {
+    required String outputPath,
+    required int maxBytes,
+    int? boxW,
+    int? boxH,
+    bool exact = false,
+    int? longSide,
+  }) => _runner.run(
+    reduceInIsolate,
+    (src, outputPath, maxBytes, boxW, boxH, exact, longSide),
+    debugLabel: 'reduce',
+    priority: JobPriority.interactive,
+  );
+
+  @override
   Future<List<List<Pt>>?> findFingers(
     String originalPath,
     PageEdits edits, {
@@ -644,6 +660,11 @@ String cleanBaseInIsolate(CleanBaseMsg m) {
   } finally {
     clean.dispose();
   }
+}
+
+({int bytes, bool fits}) reduceInIsolate((String, String, int, int?, int?, bool, int?) m) {
+  File(m.$2).parent.createSync(recursive: true);
+  return pipe.reduceImage(m.$1, m.$2, maxBytes: m.$3, boxW: m.$4, boxH: m.$5, exact: m.$6, longSide: m.$7);
 }
 
 List<List<Pt>>? fingersInIsolate(LookMsg m) {

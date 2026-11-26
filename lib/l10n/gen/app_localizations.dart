@@ -1942,6 +1942,162 @@ abstract class AppLocalizations {
   /// **'Camera settings'**
   String get cameraSettings;
 
+  /// No description provided for @reduceTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Reduce size'**
+  String get reduceTitle;
+
+  /// No description provided for @reducePickTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Make a PDF or photos smaller'**
+  String get reducePickTitle;
+
+  /// No description provided for @reduceChoosePdf.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose PDF'**
+  String get reduceChoosePdf;
+
+  /// No description provided for @reduceChooseImages.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose images'**
+  String get reduceChooseImages;
+
+  /// No description provided for @reduceMaxSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Max file size'**
+  String get reduceMaxSize;
+
+  /// No description provided for @reduceMaxSizeEach.
+  ///
+  /// In en, this message translates to:
+  /// **'Max file size, each image'**
+  String get reduceMaxSizeEach;
+
+  /// No description provided for @reduceCustom.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom'**
+  String get reduceCustom;
+
+  /// No description provided for @reduceCustomKbTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Max file size in KB'**
+  String get reduceCustomKbTitle;
+
+  /// No description provided for @reducePixels.
+  ///
+  /// In en, this message translates to:
+  /// **'Size in pixels'**
+  String get reducePixels;
+
+  /// No description provided for @reduceOriginal.
+  ///
+  /// In en, this message translates to:
+  /// **'Original'**
+  String get reduceOriginal;
+
+  /// No description provided for @reduceLongSide.
+  ///
+  /// In en, this message translates to:
+  /// **'{px} px long side'**
+  String reduceLongSide(int px);
+
+  /// No description provided for @reduceWidth.
+  ///
+  /// In en, this message translates to:
+  /// **'Width'**
+  String get reduceWidth;
+
+  /// No description provided for @reduceHeight.
+  ///
+  /// In en, this message translates to:
+  /// **'Height'**
+  String get reduceHeight;
+
+  /// No description provided for @reduceKeepShape.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the shape'**
+  String get reduceKeepShape;
+
+  /// No description provided for @reduceFormat.
+  ///
+  /// In en, this message translates to:
+  /// **'Format'**
+  String get reduceFormat;
+
+  /// No description provided for @reduceGo.
+  ///
+  /// In en, this message translates to:
+  /// **'Reduce'**
+  String get reduceGo;
+
+  /// No description provided for @reduceWorking.
+  ///
+  /// In en, this message translates to:
+  /// **'Reducing…'**
+  String get reduceWorking;
+
+  /// No description provided for @reduceBeforeAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'{before} → {after}'**
+  String reduceBeforeAfter(String before, String after);
+
+  /// No description provided for @reducePages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page} other{{count} pages}}'**
+  String reducePages(int count);
+
+  /// No description provided for @reduceImages.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 image} other{{count} images}}'**
+  String reduceImages(int count);
+
+  /// No description provided for @reduceSmallest.
+  ///
+  /// In en, this message translates to:
+  /// **'Smallest possible: {size}'**
+  String reduceSmallest(String size);
+
+  /// No description provided for @reduceSaveAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Make it anyway'**
+  String get reduceSaveAnyway;
+
+  /// No description provided for @reducePdfWarningTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Text won\'t be selectable'**
+  String get reducePdfWarningTitle;
+
+  /// No description provided for @reducePdfWarningBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Reducing turns each page into an image. Text in this PDF won\'t be selectable afterwards.'**
+  String get reducePdfWarningBody;
+
+  /// No description provided for @reduceContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get reduceContinue;
+
+  /// No description provided for @reduceOriginalKept.
+  ///
+  /// In en, this message translates to:
+  /// **'The original file is not changed.'**
+  String get reduceOriginalKept;
+
   /// No description provided for @cameraAutoCapture.
   ///
   /// In en, this message translates to:

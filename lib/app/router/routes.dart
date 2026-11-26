@@ -9,6 +9,7 @@ abstract final class Routes {
   static const enhance = '/enhance';
   static const signature = '/signature';
   static const photoCrop = '/photo';
+  static const reduce = '/reduce';
 
   static String viewer(String docId) => '/doc/$docId';
   static String text(String docId) => '/doc/$docId/text';

@@ -4722,6 +4722,98 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
   return out;
 }
 
+/// Round 11, section F (Reduce size): one picture made as small as
+/// [maxBytes]. [boxW] × [boxH] ([exact]: cover-cropped to exactly that
+/// size; else fitted inside) or [longSide] set the pixel size; then the quality goes
+/// down (JPEG / WebP 92 … 40) and, when the size may change, the long edge
+/// by 15 % steps down to [minEdge]. Written to [out] in its extension's
+/// format, without any metadata (no location). Returns its size and whether
+/// it fits; when nothing fits, [out] is the smallest version.
+({int bytes, bool fits}) reduceImage(
+  String src,
+  String out, {
+  required int maxBytes,
+  int? boxW,
+  int? boxH,
+  bool exact = false,
+  int? longSide,
+  int minEdge = 800,
+}) {
+  var img = readUpright(src);
+  try {
+    if (boxW != null && boxH != null) {
+      final sized = exact ? _cover(img, boxW, boxH) : _fitInside(img, boxW, boxH);
+      disposeUnless(img, sized);
+      img = sized;
+    } else if (longSide != null) {
+      final sized = fitLongEdge(img, longSide);
+      disposeUnless(img, sized);
+      img = sized;
+    }
+    final ext = out.split('.').last.toLowerCase();
+    final png = ext == 'png';
+    final qualities = png ? const [9] : const [92, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
+    cv.VecI32 params(int q) => cv.VecI32.fromList(switch (ext) {
+      'png' => [cv.IMWRITE_PNG_COMPRESSION, q],
+      'webp' => [cv.IMWRITE_WEBP_QUALITY, q],
+      _ => [cv.IMWRITE_JPEG_QUALITY, q],
+    });
+    Uint8List encode(cv.Mat m, int q) {
+      final ps = params(q);
+      final (ok, bytes) = cv.imencode('.$ext', m, params: ps);
+      ps.dispose();
+      if (!ok) throw StateError('Could not encode .$ext');
+      return bytes;
+    }
+
+    Uint8List? best;
+    var edge = math.max(img.cols, img.rows);
+    final floor = exact ? edge : math.min(edge, minEdge);
+    var current = img;
+    while (true) {
+      for (final q in qualities) {
+        final bytes = encode(current, q);
+        if (best == null || bytes.length < best.length) best = bytes;
+        if (bytes.length <= maxBytes) {
+          File(out).writeAsBytesSync(bytes, flush: true);
+          return (bytes: bytes.length, fits: true);
+        }
+      }
+      if (exact || edge <= floor) break;
+      edge = math.max(floor, (edge * 0.85).round());
+      final next = fitLongEdge(img, edge);
+      if (!identical(current, img)) current.dispose();
+      current = next;
+    }
+    if (!identical(current, img)) current.dispose();
+    File(out).writeAsBytesSync(best!, flush: true);
+    return (bytes: best.length, fits: false);
+  } finally {
+    img.dispose();
+  }
+}
+
+/// Exactly [w] × [h], the centre kept (scaled to cover, then cropped).
+cv.Mat _cover(cv.Mat src, int w, int h) {
+  final s = math.max(w / src.cols, h / src.rows);
+  final sw = math.max(w, (src.cols * s).round());
+  final sh = math.max(h, (src.rows * s).round());
+  final scaled = cv.resize(src, (sw, sh), interpolation: s < 1 ? cv.INTER_AREA : cv.INTER_CUBIC);
+  final roi = scaled.region(cv.Rect((sw - w) ~/ 2, (sh - h) ~/ 2, w, h));
+  final out = roi.clone();
+  roi.dispose();
+  scaled.dispose();
+  return out;
+}
+
+/// Inside [w] × [h], the shape kept; never enlarged. [src] itself when it
+/// already fits.
+cv.Mat _fitInside(cv.Mat src, int w, int h) {
+  final s = math.min(w / src.cols, h / src.rows);
+  if (s >= 1) return src;
+  return cv.resize(src, (math.max(1, (src.cols * s).round()), math.max(1, (src.rows * s).round())), interpolation: cv.INTER_AREA);
+}
+
 /// Round 10, P1-8: a passport photo sheet as one picture (for a photo shop
 /// or WhatsApp) at [dpi]: white [paperW] × [paperH] mm paper, each of
 /// [items] (mm) showing `photos[photoOf[i]]`, and the same dashed cut lines

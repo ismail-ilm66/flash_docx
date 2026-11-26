@@ -10,6 +10,7 @@ import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.da
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/photo/presentation/photo_sheet_page.dart';
 import 'package:flash_dox/features/print_layout/presentation/pages/print_layout_page.dart';
+import 'package:flash_dox/features/reduce/presentation/reduce_size_page.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
 import 'package:flash_dox/features/settings/presentation/pages/settings_page.dart';
 import 'package:flash_dox/features/signature/presentation/pages/my_signature_page.dart';
@@ -77,6 +78,11 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
         parentNavigatorKey: rootNavigatorKey,
         path: Routes.photoCrop,
         builder: (_, state) => PhotoCropPage(args: state.extra! as PhotoCropArgs),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: Routes.reduce,
+        builder: (_, state) => ReduceSizePage(source: state.extra! as ReduceSource),
       ),
       GoRoute(
         parentNavigatorKey: rootNavigatorKey,

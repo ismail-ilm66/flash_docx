@@ -26,6 +26,19 @@ class ImportService {
     }
   }
 
+  /// Round 11 (Reduce size): one PDF from the Files app (a copy; no
+  /// storage permission).
+  Future<Either<Failure, String>> pdfFromFiles() async {
+    try {
+      final files = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf']);
+      final path = files.map((f) => f.path).whereType<String>().firstOrNull;
+      if (path == null) return const Left(CancelledFailure());
+      return Right(path);
+    } catch (e) {
+      return Left(UnknownFailure(e.toString()));
+    }
+  }
+
   Future<Either<Failure, List<String>>> fromFiles() async {
     try {
       final files = await FilePicker.pickFiles(type: FileType.image);

@@ -1058,6 +1058,107 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cameraSettings => 'Camera settings';
 
   @override
+  String get reduceTitle => 'Reduce size';
+
+  @override
+  String get reducePickTitle => 'Make a PDF or photos smaller';
+
+  @override
+  String get reduceChoosePdf => 'Choose PDF';
+
+  @override
+  String get reduceChooseImages => 'Choose images';
+
+  @override
+  String get reduceMaxSize => 'Max file size';
+
+  @override
+  String get reduceMaxSizeEach => 'Max file size, each image';
+
+  @override
+  String get reduceCustom => 'Custom';
+
+  @override
+  String get reduceCustomKbTitle => 'Max file size in KB';
+
+  @override
+  String get reducePixels => 'Size in pixels';
+
+  @override
+  String get reduceOriginal => 'Original';
+
+  @override
+  String reduceLongSide(int px) {
+    return '$px px long side';
+  }
+
+  @override
+  String get reduceWidth => 'Width';
+
+  @override
+  String get reduceHeight => 'Height';
+
+  @override
+  String get reduceKeepShape => 'Keep the shape';
+
+  @override
+  String get reduceFormat => 'Format';
+
+  @override
+  String get reduceGo => 'Reduce';
+
+  @override
+  String get reduceWorking => 'Reducing…';
+
+  @override
+  String reduceBeforeAfter(String before, String after) {
+    return '$before → $after';
+  }
+
+  @override
+  String reducePages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pages',
+      one: '1 page',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reduceImages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count images',
+      one: '1 image',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String reduceSmallest(String size) {
+    return 'Smallest possible: $size';
+  }
+
+  @override
+  String get reduceSaveAnyway => 'Make it anyway';
+
+  @override
+  String get reducePdfWarningTitle => 'Text won\'t be selectable';
+
+  @override
+  String get reducePdfWarningBody =>
+      'Reducing turns each page into an image. Text in this PDF won\'t be selectable afterwards.';
+
+  @override
+  String get reduceContinue => 'Continue';
+
+  @override
+  String get reduceOriginalKept => 'The original file is not changed.';
+
+  @override
   String get cameraAutoCapture => 'Auto capture';
 
   @override
