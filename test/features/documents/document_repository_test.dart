@@ -133,6 +133,28 @@ void main() {
     expect(all.map((d) => d.id), [b.id, a.id]);
     final filtered = await repo.watchAll(search: 'alp').first;
     expect(filtered.map((d) => d.id), [a.id]);
+    // Round 11, P1-1: recognised text counts too.
+    await repo.updatePage(b.pages.single.copyWith(ocrText: 'Electricity bill October'));
+    expect((await repo.watchAll(search: 'electricity').first).map((d) => d.id), [b.id]);
+  });
+
+  test('round 11, P0-13: pages move to another document or a new one', () async {
+    final src = (await repo.create(mode: ScanMode.document, pages: [draft('m1'), draft('m2'), draft('m3')], title: 'Src')).getOrElse((f) => fail('$f'));
+    final dst = (await repo.create(mode: ScanMode.document, pages: [draft('d1')], title: 'Dst')).getOrElse((f) => fail('$f'));
+    expect((await repo.movePages(['m3', 'm1'], toDocumentId: dst.id)).getOrElse((f) => fail('$f')), dst.id);
+    final to = (await repo.get(dst.id)).getOrElse((f) => fail('$f'));
+    expect(to.sortedPages.map((p) => p.id), ['d1', 'm3', 'm1']);
+    expect(File(files.originalPath(dst.id, 'm3')).existsSync(), isTrue);
+    expect(File(files.originalPath(src.id, 'm3')).existsSync(), isFalse);
+    final from = (await repo.get(src.id)).getOrElse((f) => fail('$f'));
+    expect(from.pages.map((p) => p.id), ['m2']);
+
+    // The last page to a new document: the old one goes.
+    final newId = (await repo.movePages(['m2'])).getOrElse((f) => fail('$f'));
+    expect((await repo.get(src.id)).isLeft(), isTrue);
+    final fresh = (await repo.get(newId)).getOrElse((f) => fail('$f'));
+    expect(fresh.pages.single.id, 'm2');
+    expect(fresh.mode, ScanMode.document);
   });
 
   group('feature 3: folders, suggestions, sizes', () {

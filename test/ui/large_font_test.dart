@@ -275,16 +275,24 @@ void main() {
     router.go(Routes.home);
     await settle(tester);
     expectNothingCutOff(tester, 'Home');
-    // P1-1: Docs · ID Card · Passport · Import: equal width, one line each.
-    final tiles = find.byType(QuickActionTile);
-    expect(tiles, findsNWidgets(4));
-    final widths = {for (final e in tiles.evaluate()) tester.getSize(find.byWidget(e.widget)).width.round()};
-    expect(widths, hasLength(1), reason: 'equal width');
-    for (final label in [l.homeDocument, l.homeIdCard, l.modePassport, l.homeImport]) {
-      final paragraph = tester.renderObject<RenderParagraph>(find.descendant(of: tiles, matching: find.text(label)));
+    // Round 11 redesign: greeting, the Scan a document card, then ID Card ·
+    // Passport · Import (one line each, 48 dp), a floating camera button,
+    // settings in the header, no bottom navigation.
+    expect(find.text(l.homeScanTitle), findsOneWidget);
+    expect(find.text(l.homeHeadline), findsNothing);
+    expect(find.byType(ScanFab), findsOneWidget);
+    expect(find.byTooltip(l.navSettings), findsOneWidget);
+    expect(find.text(l.navHome), findsNothing, reason: 'no bottom bar');
+    final widths = <int>{};
+    for (final label in [l.homeIdCard, l.modePassport, l.homeImport]) {
+      final paragraph = tester.renderObject<RenderParagraph>(find.text(label));
       final lineHeight = paragraph.getFullHeightForCaret(const TextPosition(offset: 0));
       expect(paragraph.size.height, lessThan(lineHeight * 1.5), reason: '$label on one line');
+      final tile = find.ancestor(of: find.text(label), matching: find.byType(InkWell)).first;
+      expect(tester.getSize(tile).height, 48);
+      widths.add(tester.getSize(tile).width.round());
     }
+    expect(widths, hasLength(1), reason: 'equal width');
     final list = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(find.textContaining(l.sidesCount(2)), 200, scrollable: list);
     await settle(tester);

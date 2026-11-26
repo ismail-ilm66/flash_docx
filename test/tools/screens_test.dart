@@ -98,7 +98,7 @@ void main() {
     await tmp.delete(recursive: true);
   });
 
-  Future<GoRouter> pumpApp(WidgetTester tester, String location) async {
+  Future<GoRouter> pumpApp(WidgetTester tester, String location, {ThemeMode theme = ThemeMode.dark}) async {
     tester.view
       ..physicalSize = const Size(390, 844)
       ..devicePixelRatio = 1;
@@ -115,7 +115,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
-          themeMode: ThemeMode.dark,
+          themeMode: theme,
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -149,6 +149,28 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
     }
   }
+
+  testWidgets('home (round 11 redesign): light, dark, selecting, search', (tester) async {
+    for (final (theme, name) in [(ThemeMode.light, 'home_light'), (ThemeMode.dark, 'home_dark')]) {
+      await pumpApp(tester, Routes.home, theme: theme);
+      await real(tester, rounds: 20);
+      await shot(tester, name);
+      await close(tester);
+    }
+    await pumpApp(tester, Routes.home, theme: ThemeMode.light);
+    await real(tester, rounds: 20);
+    await tester.longPress(find.text('CNIC – front & back'));
+    await real(tester, rounds: 5);
+    await shot(tester, 'home_select');
+    await tester.tap(find.byTooltip('Close'));
+    await real(tester, rounds: 5);
+    await tester.tap(find.byTooltip('Search documents'));
+    await real(tester, rounds: 5);
+    await tester.enterText(find.byType(TextField), 'CNIC');
+    await real(tester, rounds: 10);
+    await shot(tester, 'home_search');
+    await close(tester);
+  });
 
   testWidgets('print layout', (tester) async {
     await pumpApp(tester, Routes.print(card.id));

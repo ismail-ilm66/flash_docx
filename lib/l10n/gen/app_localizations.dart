@@ -1876,6 +1876,78 @@ abstract class AppLocalizations {
   /// **'Move'**
   String get viewerMove;
 
+  /// No description provided for @backPressAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Press back again to exit'**
+  String get backPressAgain;
+
+  /// No description provided for @homeGreetingMorning.
+  ///
+  /// In en, this message translates to:
+  /// **'Good morning'**
+  String get homeGreetingMorning;
+
+  /// No description provided for @homeGreetingAfternoon.
+  ///
+  /// In en, this message translates to:
+  /// **'Good afternoon'**
+  String get homeGreetingAfternoon;
+
+  /// No description provided for @homeGreetingEvening.
+  ///
+  /// In en, this message translates to:
+  /// **'Good evening'**
+  String get homeGreetingEvening;
+
+  /// No description provided for @homeScanTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan a document'**
+  String get homeScanTitle;
+
+  /// No description provided for @homeScanSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto crop · shadows removed · PDF in seconds'**
+  String get homeScanSubtitle;
+
+  /// No description provided for @homeRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent'**
+  String get homeRecent;
+
+  /// No description provided for @homeDeselectAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Deselect all'**
+  String get homeDeselectAll;
+
+  /// No description provided for @homeResultsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No results} =1{1 result} other{{count} results}}'**
+  String homeResultsCount(int count);
+
+  /// No description provided for @toolReduceSize.
+  ///
+  /// In en, this message translates to:
+  /// **'Reduce size'**
+  String get toolReduceSize;
+
+  /// No description provided for @dateToday.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get dateToday;
+
+  /// No description provided for @dateYesterday.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday'**
+  String get dateYesterday;
+
   /// No description provided for @sharePages.
   ///
   /// In en, this message translates to:

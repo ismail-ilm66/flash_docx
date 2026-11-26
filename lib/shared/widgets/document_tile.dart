@@ -5,12 +5,12 @@ import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/shared/widgets/app_icon.dart';
 import 'package:flash_dox/shared/widgets/app_icons.dart';
-import 'package:flash_dox/shared/widgets/fit_text.dart';
 import 'package:flash_dox/shared/widgets/page_thumb.dart';
 import 'package:flutter/material.dart';
 
-/// Home / search row: thumb, title, meta, activity line, ⋮. [compact] (the
-/// "Pick a document" sheet) leaves out the activity line.
+/// Home / search row: thumb, title, one meta line ("Other · 4 pages ·
+/// 1.6 MB · Today", round 11), ⋮. [compact] (the "Pick a document" sheet)
+/// is the same row without ⋮ or selection.
 class DocumentTile extends StatelessWidget {
   const DocumentTile({
     required this.document,
@@ -40,13 +40,10 @@ class DocumentTile extends StatelessWidget {
     final l = context.l10n;
     final d = document;
     final cover = d.cover;
-    final act = d.lastActivity;
-    final activityLine = act == null
-        ? DateFmt.relative(d.updatedAt)
-        : '${activityLabel(context, act.type)} · ${DateFmt.relative(act.at)}';
-
     final isCard = d.mode == ScanMode.idCard || d.mode == ScanMode.passport;
-    final meta = documentMeta(context, d);
+    // Round 11: the date joins the meta line.
+    final meta = '${documentMeta(context, d)} · ${_when(context, d.updatedAt)}';
+    final ticked = selecting && selected;
 
     return InkWell(
       onTap: onTap,
@@ -54,6 +51,8 @@ class DocumentTile extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
+          // Round 11, P0-2: selected rows get an amber tint.
+          color: ticked ? c.accentSoft : null,
           border: Border(bottom: BorderSide(color: c.border)),
         ),
         child: Row(
@@ -96,36 +95,29 @@ class DocumentTile extends StatelessWidget {
                     meta,
                     style: context.text.bodySmall?.copyWith(color: c.muted),
                   ),
-                  if (!compact) ...[
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        AppIcon(AppIcons.clock, size: 13, color: c.accentText),
-                        const SizedBox(width: 5),
-                        Expanded(
-                          child: FitText(
-                            activityLine,
-                            textAlign: TextAlign.start,
-                            style: context.text.bodySmall?.copyWith(
-                              color: c.accentText,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
                 ],
               ),
             ),
             if (selecting)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Space.x2),
-                child: Checkbox(
-                  value: selected,
-                  onChanged: (_) => onTap(),
-                  activeColor: c.accent,
-                  checkColor: c.onAccent,
+              // Filled amber when ticked, an empty grey box when not.
+              Semantics(
+                checked: selected,
+                child: SizedBox(
+                  width: Sizes.tap,
+                  height: Sizes.tap,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: Motion.fast,
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: selected ? c.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: selected ? c.accent : c.muted, width: 1.6),
+                      ),
+                      child: selected ? Icon(Icons.check_rounded, size: 16, color: c.onAccent) : null,
+                    ),
+                  ),
                 ),
               )
             else if (onMore != null)
@@ -139,6 +131,17 @@ class DocumentTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// "Today", "Yesterday", "Nov 23" (round 11 meta line).
+String _when(BuildContext context, DateTime d) {
+  final l = context.l10n;
+  final now = DateTime.now();
+  final day = DateTime(d.year, d.month, d.day);
+  final today = DateTime(now.year, now.month, now.day);
+  if (day == today) return l.dateToday;
+  if (day == today.subtract(const Duration(days: 1))) return l.dateYesterday;
+  return DateFmt.day(d);
 }
 
 String folderLabel(BuildContext context, DocFolder f) {

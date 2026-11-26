@@ -15,7 +15,7 @@ import 'package:flash_dox/features/settings/presentation/pages/settings_page.dar
 import 'package:flash_dox/features/signature/presentation/pages/my_signature_page.dart';
 import 'package:flash_dox/features/signature/presentation/pages/sign_document_page.dart';
 import 'package:flash_dox/features/splash/presentation/splash_page.dart';
-import 'package:flash_dox/shared/widgets/app_shell.dart';
+import 'package:flash_dox/shared/widgets/back_guards.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
@@ -34,33 +34,19 @@ GoRouter buildRouter({String initialLocation = Routes.splash}) {
           child: const SplashPage(),
         ),
       ),
-      // Bottom-nav shell. The active tab follows the current branch index.
-      StatefulShellRoute.indexedStack(
-        builder: (context, state, shell) => AppShell(shell: shell),
-        branches: [
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: Routes.home,
-                pageBuilder: (_, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const HomePage(),
-                ),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: Routes.settings,
-                pageBuilder: (_, state) => NoTransitionPage(
-                  key: state.pageKey,
-                  child: const SettingsPage(),
-                ),
-              ),
-            ],
-          ),
-        ],
+      // Round 11 (Home redesign): no bottom navigation. Home is the root
+      // (Back twice leaves the app); Settings opens from its header.
+      GoRoute(
+        path: Routes.home,
+        pageBuilder: (_, state) => NoTransitionPage(
+          key: state.pageKey,
+          child: const LeaveAppGuard(child: HomePage()),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: rootNavigatorKey,
+        path: Routes.settings,
+        builder: (_, _) => const SettingsPage(),
       ),
       // Full-screen flows outside the shell (no bottom nav).
       GoRoute(

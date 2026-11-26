@@ -16,5 +16,9 @@ abstract final class DateFmt {
     return _full.format(d);
   }
 
+  /// "Oct 3" this year, "Oct 3, 2025" otherwise (today and yesterday are
+  /// words the caller supplies).
+  static String day(DateTime d) => d.year == DateTime.now().year ? _day.format(d) : _full.format(d);
+
   static String forFile(DateTime d) => _file.format(d);
 }

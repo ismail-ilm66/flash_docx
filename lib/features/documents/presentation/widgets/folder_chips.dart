@@ -36,10 +36,10 @@ class FolderChips extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Space.x5),
       child: Row(
         children: [
-          _Chip(label: context.l10n.folderAll, count: total, selected: selected == null, onTap: () => onSelected(null)),
+          _Chip(label: context.l10n.folderAll, count: total, selected: selected == null, onTap: () => onSelected(null), dot: folderDotColor(null)),
           for (final f in shown) ...[
             const SizedBox(width: Space.x2),
-            _Chip(label: folderLabel(context, f), count: counts[f] ?? 0, selected: selected == f, onTap: () => onSelected(f)),
+            _Chip(label: folderLabel(context, f), count: counts[f] ?? 0, selected: selected == f, onTap: () => onSelected(f), dot: folderDotColor(f)),
           ],
         ],
       ),
@@ -47,13 +47,29 @@ class FolderChips extends StatelessWidget {
   }
 }
 
+/// Round 11 (Home redesign, option C): each folder's dot colour, the same
+/// in both themes.
+Color folderDotColor(DocFolder? f) => switch (f) {
+  null => const Color(0xFFFFC233),
+  DocFolder.ids => const Color(0xFF3B82F6),
+  DocFolder.photos => const Color(0xFFF97316),
+  DocFolder.office => const Color(0xFF8B5CF6),
+  DocFolder.bills => const Color(0xFF14B8A6),
+  DocFolder.education => const Color(0xFFEAB308),
+  DocFolder.receipts => const Color(0xFFEC4899),
+  DocFolder.other => const Color(0xFF9CA3AF),
+};
+
+/// A pill: 40 dp, a 10 dp colour dot, the name and the count (70 %). The
+/// selected one is filled with the text colour, its text inverted.
 class _Chip extends StatelessWidget {
-  const _Chip({required this.label, required this.count, required this.selected, required this.onTap});
+  const _Chip({required this.label, required this.count, required this.selected, required this.onTap, required this.dot});
 
   final String label;
   final int count;
   final bool selected;
   final VoidCallback onTap;
+  final Color dot;
 
   @override
   Widget build(BuildContext context) {
@@ -65,22 +81,25 @@ class _Chip extends StatelessWidget {
       label: '$label, $count',
       excludeSemantics: true,
       child: Material(
-        color: selected ? c.text : Colors.transparent,
+        color: selected ? c.text : c.surface,
         shape: StadiumBorder(side: selected ? BorderSide.none : BorderSide(color: c.border)),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 36),
+            constraints: const BoxConstraints(minHeight: 40),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(label, style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
+                Container(width: 10, height: 10, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+                const SizedBox(width: 8),
+                Text(label, maxLines: 1, style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w700, color: fg)),
                 const SizedBox(width: 6),
                 Text(
                   '$count',
-                  style: context.text.labelMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: selected ? c.bg : c.muted),
+                  maxLines: 1,
+                  style: context.text.labelMedium?.copyWith(fontSize: 12, fontWeight: FontWeight.w600, color: fg.withValues(alpha: 0.7)),
                 ),
               ],
             ),

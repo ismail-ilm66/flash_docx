@@ -149,6 +149,9 @@ class HomeCubit extends Cubit<HomeState> {
 
   void clearSelection() => emit(state.copyWith(selecting: false, selected: const {}));
 
+  /// "Deselect all" (round 11, P0-2): nothing ticked, still selecting.
+  void selectNone() => emit(state.copyWith(selected: const {}));
+
   /// Delete, step 1: the selected documents leave the list (and selection
   /// mode ends); returns their ids. [undoDelete] brings them back,
   /// [commitDelete] deletes them once the Undo snackbar has closed.

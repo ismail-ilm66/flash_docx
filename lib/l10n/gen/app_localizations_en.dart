@@ -1016,6 +1016,51 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewerMove => 'Move';
 
   @override
+  String get backPressAgain => 'Press back again to exit';
+
+  @override
+  String get homeGreetingMorning => 'Good morning';
+
+  @override
+  String get homeGreetingAfternoon => 'Good afternoon';
+
+  @override
+  String get homeGreetingEvening => 'Good evening';
+
+  @override
+  String get homeScanTitle => 'Scan a document';
+
+  @override
+  String get homeScanSubtitle => 'Auto crop · shadows removed · PDF in seconds';
+
+  @override
+  String get homeRecent => 'Recent';
+
+  @override
+  String get homeDeselectAll => 'Deselect all';
+
+  @override
+  String homeResultsCount(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count results',
+      one: '1 result',
+      zero: 'No results',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get toolReduceSize => 'Reduce size';
+
+  @override
+  String get dateToday => 'Today';
+
+  @override
+  String get dateYesterday => 'Yesterday';
+
+  @override
   String get sharePages => 'Pages';
 
   @override

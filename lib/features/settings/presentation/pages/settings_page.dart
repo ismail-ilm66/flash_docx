@@ -63,22 +63,22 @@ class _SettingsView extends StatelessWidget {
       builder: (context, s) {
         final cubit = context.read<SettingsCubit>();
         final format = s.defaultFormat == ExportFormat.png ? ExportFormat.jpg : s.defaultFormat;
-        return AppScaffold(
+        // Round 11: Settings opens from Home's gear; Back returns to Home
+        // (also when it was opened directly).
+        void back() => context.canPop() ? context.pop() : context.go(Routes.home);
+        return PopScope(
+          canPop: context.canPop(),
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) back();
+          },
+          child: AppScaffold(
+          topBar: AppTopBar(title: l.settingsTitle, onLeading: back),
           body: SafeArea(
             bottom: false,
+            top: false,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, Space.x6),
+              padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, Space.x6),
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(Space.x1, Space.x5, Space.x1, Space.x4),
-                  child: Semantics(
-                    header: true,
-                    child: Text(
-                      l.settingsTitle,
-                      style: context.text.headlineMedium?.copyWith(fontSize: 26, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
                 _Section(
                   title: l.settingsAppearance,
                   child: BlocBuilder<ThemeCubit, ThemeMode>(
@@ -260,6 +260,7 @@ class _SettingsView extends StatelessWidget {
                 ),
               ],
             ),
+          ),
           ),
         );
       },

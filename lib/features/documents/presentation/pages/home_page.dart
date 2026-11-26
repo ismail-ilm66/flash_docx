@@ -48,11 +48,18 @@ class _HomeView extends StatefulWidget {
   State<_HomeView> createState() => _HomeViewState();
 }
 
+/// Home, round 11 redesign (artboards *HomeV11*, *HomeSelect*,
+/// *HomeSearch*): a fixed header (logo · search · settings), then one
+/// scrolling list: greeting, the Scan a document card with ID Card ·
+/// Passport · Import, Tools, folder pills and the documents. A floating
+/// camera button sits bottom right; no bottom navigation.
 class _HomeViewState extends State<_HomeView> {
   StreamSubscription<List<String>>? _shareSub;
   bool _importing = false;
   bool _searching = false;
+  bool _scrolled = false;
   final _searchCtrl = TextEditingController();
+  final _scroll = ScrollController();
 
   @override
   void initState() {
@@ -60,6 +67,10 @@ class _HomeViewState extends State<_HomeView> {
     final shareIn = getIt<ShareInService>();
     unawaited(shareIn.initialShare().then(_onSharedIn));
     _shareSub = shareIn.shares.listen(_onSharedIn);
+    _scroll.addListener(() {
+      final scrolled = _scroll.hasClients && _scroll.offset > 0;
+      if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+    });
   }
 
   @override
@@ -67,6 +78,7 @@ class _HomeViewState extends State<_HomeView> {
     LeaveAppGuard.interceptor = null;
     _shareSub?.cancel();
     _searchCtrl.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
@@ -139,23 +151,37 @@ class _HomeViewState extends State<_HomeView> {
     if (picked != null) cubit.setSort(picked);
   }
 
-  void _toggleSearch(BuildContext context) {
-    final cubit = context.read<HomeCubit>();
-    setState(() => _searching = !_searching);
-    if (!_searching) {
-      _searchCtrl.clear();
-      cubit.search('');
-    }
+  /// P1-1: search mode (back arrow + field; results right under it, above
+  /// the keyboard).
+  void _openSearch() {
+    setState(() => _searching = true);
+    _syncBack();
   }
 
-  /// Home › Tools (round 4): Passport photo, Sign document, Shrink PDF,
-  /// Extract text.
+  void _closeSearch() {
+    _searchCtrl.clear();
+    context.read<HomeCubit>().search('');
+    setState(() => _searching = false);
+    _syncBack();
+  }
+
+  /// Back leaves search or selection mode first, then (Home) the app.
+  void _syncBack() {
+    final cubit = context.read<HomeCubit>();
+    LeaveAppGuard.interceptor = cubit.state.selecting
+        ? cubit.clearSelection
+        : _searching
+        ? _closeSearch
+        : null;
+  }
+
+  /// Home › Tools: Passport photo, Sign document, Reduce size, Extract text.
   List<HomeTool> _tools(BuildContext context) {
     final l = context.l10n;
     return [
       HomeTool(icon: AppIcons.portrait, label: l.toolPassportPhoto, onTap: () => startPassportPhoto(context)),
       HomeTool(icon: AppIcons.signature, label: l.toolSign, onTap: () => _runTool(context, ToolTarget.sign)),
-      HomeTool(icon: AppIcons.shrink, label: l.toolShrinkPdf, onTap: () => _runTool(context, ToolTarget.shrink)),
+      HomeTool(icon: AppIcons.shrink, label: l.toolReduceSize, onTap: () => _runTool(context, ToolTarget.shrink)),
       HomeTool(icon: AppIcons.text, label: l.toolExtractText, onTap: () => _runTool(context, ToolTarget.extractText)),
     ];
   }
@@ -182,8 +208,7 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
-  void _scan(BuildContext context, ScanMode? mode) =>
-      context.push(Routes.camera, extra: CameraArgs(mode: mode));
+  void _scan(BuildContext context, ScanMode mode) => context.push(Routes.camera, extra: CameraArgs(mode: mode));
 
   Future<void> _onMore(BuildContext context, ScanDocument doc) async {
     final cubit = context.read<HomeCubit>();
@@ -201,10 +226,11 @@ class _HomeViewState extends State<_HomeView> {
     }
   }
 
-  // ---- round 10, P1-5: several documents at once ----
+  // ---- several documents at once (round 10, P1-5; round 11, P0-1–P0-3) ----
 
   Future<void> _deleteSelected(BuildContext context) async {
     final l = context.l10n;
+    final c = context.colors;
     final cubit = context.read<HomeCubit>();
     final n = cubit.state.selected.length;
     final ok = await AppDialog.confirm(
@@ -217,12 +243,18 @@ class _HomeViewState extends State<_HomeView> {
     if (!ok || !context.mounted) return;
     final ids = cubit.hideSelected();
     final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    // P0-3: closes by itself after 5 s (a snackbar with an action stays
+    // until dismissed unless told otherwise), floats above the camera
+    // button, Undo in amber.
     final reason = await messenger
         .showSnackBar(
           SnackBar(
             content: Text(l.homeDeletedMany(ids.length)),
             duration: const Duration(seconds: 5),
-            action: SnackBarAction(label: l.commonUndo, onPressed: () {}),
+            persist: false,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.fromLTRB(Space.x4, 0, Space.x4, 96),
+            action: SnackBarAction(label: l.commonUndo, textColor: c.accent, onPressed: () {}),
           ),
         )
         .closed;
@@ -272,10 +304,131 @@ class _HomeViewState extends State<_HomeView> {
     final c = context.colors;
     return BlocConsumer<HomeCubit, HomeState>(
       listenWhen: (a, b) => a.selecting != b.selecting,
-      // Back leaves selection mode, not the app.
-      listener: (context, s) => LeaveAppGuard.interceptor = s.selecting ? context.read<HomeCubit>().clearSelection : null,
+      listener: (context, s) => _syncBack(),
       builder: (context, s) {
-        final showEmpty = !s.loading && s.documents.isEmpty && s.search.isEmpty;
+        final cubit = context.read<HomeCubit>();
+        final showEmpty = !s.loading && s.all.isEmpty && s.search.isEmpty;
+        final plain = !_searching && !s.selecting;
+        final bottomPad = MediaQuery.paddingOf(context).bottom;
+
+        final list = <Widget>[
+          if (!_searching) ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, 0),
+              sliver: SliverList.list(
+                children: [
+                  // Round 11: one line, nothing under it.
+                  FitText(
+                    _greeting(context),
+                    maxLines: 1,
+                    textAlign: TextAlign.start,
+                    style: context.text.headlineMedium?.copyWith(fontSize: 24, fontWeight: FontWeight.w800),
+                  ),
+                  const SizedBox(height: Space.x4),
+                  DraftCard(drafts: getIt<DraftService>()),
+                  _ScanCard(onTap: () => _scan(context, ScanMode.document)),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      for (final (i, a) in [
+                        (AppIcons.idCard, l.homeIdCard, () => _scan(context, ScanMode.idCard)),
+                        (AppIcons.passport, l.modePassport, () => _scan(context, ScanMode.passport)),
+                        (AppIcons.gallery, l.homeImport, _pickImportSource),
+                      ].indexed) ...[
+                        if (i > 0) const SizedBox(width: Space.x2),
+                        Expanded(child: _QuickAction(icon: a.$1, label: a.$2, onTap: a.$3)),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: Space.x5),
+                  ToolsRow(tools: _tools(context)),
+                ],
+              ),
+            ),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Space.x5, Space.x5, Space.x3, 6),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(l.homeRecent, style: context.text.titleLarge?.copyWith(fontSize: 17)),
+                    ),
+                    if (!showEmpty)
+                      TextButton(
+                        onPressed: () => _pickSort(context, s.sort),
+                        style: TextButton.styleFrom(
+                          foregroundColor: c.muted,
+                          minimumSize: const Size(Sizes.tap, Sizes.tap),
+                          padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+                          textStyle: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(_sortLabel(context, s.sort)),
+                            const SizedBox(width: Space.x1),
+                            AppIcon(AppIcons.chevronDown, size: 16, color: c.muted),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (!showEmpty && s.all.isNotEmpty)
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 2, bottom: Space.x2),
+                  child: FolderChips(counts: s.counts, selected: s.folder, onSelected: cubit.setFolder),
+                ),
+              ),
+          ] else
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, Space.x2),
+                child: Text(
+                  l.homeResultsCount(s.documents.length),
+                  style: context.text.labelLarge?.copyWith(color: c.muted, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
+          if (showEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: EmptyState(title: l.homeEmptyTitle, body: l.homeEmptyBody),
+            )
+          else if (s.failure != null)
+            SliverFillRemaining(hasScrollBody: false, child: ErrorView(failure: s.failure))
+          else if (!s.loading && s.documents.isEmpty && !_searching)
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: Space.x8),
+                child: s.folder != null && s.all.isNotEmpty
+                    ? EmptyState(icon: AppIcons.files, title: l.folderEmpty(folderLabel(context, s.folder!)))
+                    : EmptyState(icon: AppIcons.search, title: l.homeNoResults),
+              ),
+            )
+          else
+            SliverPadding(
+              // Room under the last row for the camera button / action bar.
+              padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x2, 96),
+              sliver: SliverList.builder(
+                itemCount: s.documents.length,
+                itemBuilder: (context, i) {
+                  final d = s.documents[i];
+                  return DocumentTile(
+                    document: d,
+                    selecting: s.selecting,
+                    selected: s.selected.contains(d.id),
+                    onTap: s.selecting ? () => cubit.toggleSelected(d.id) : () => context.push(Routes.viewer(d.id)),
+                    onLongPress: s.selecting || _searching ? null : () => cubit.startSelection(d.id),
+                    onMore: () => _onMore(context, d),
+                  );
+                },
+              ),
+            ),
+        ];
+
         return AppScaffold(
           body: SafeArea(
             bottom: false,
@@ -286,155 +439,46 @@ class _HomeViewState extends State<_HomeView> {
                     if (s.selecting)
                       _SelectionBar(
                         count: s.selected.length,
-                        onClose: context.read<HomeCubit>().clearSelection,
-                        onSelectAll: context.read<HomeCubit>().selectAll,
+                        all: s.documents.isNotEmpty && s.selected.length == s.documents.length,
+                        onClose: cubit.clearSelection,
+                        onSelectAll: cubit.selectAll,
+                        onDeselectAll: cubit.selectNone,
                       )
+                    else if (_searching)
+                      _SearchBar(controller: _searchCtrl, onChanged: cubit.search, onBack: _closeSearch)
                     else
-                      _Header(searching: _searching, onSearch: () => _toggleSearch(context)),
-                    AnimatedSize(
-                      duration: Motion.normal,
-                      curve: Curves.easeOutCubic,
-                      child: !_searching
-                          ? const SizedBox(width: double.infinity)
-                          : Padding(
-                              padding: const EdgeInsets.fromLTRB(Space.x5, Space.x1, Space.x5, Space.x2),
-                              child: TextField(
-                                controller: _searchCtrl,
-                                autofocus: true,
-                                onChanged: context.read<HomeCubit>().search,
-                                textInputAction: TextInputAction.search,
-                                decoration: InputDecoration(
-                                  hintText: l.homeSearchHint,
-                                  prefixIcon: AppIcon(AppIcons.search, size: 20, color: c.muted),
-                                ),
-                              ),
-                            ),
-                    ),
+                      _Header(
+                        divider: _scrolled,
+                        onSearch: _openSearch,
+                        onSettings: () => context.push(Routes.settings),
+                      ),
                     Expanded(
                       child: CustomScrollView(
-                        slivers: [
-                          SliverPadding(
-                            padding: const EdgeInsets.fromLTRB(Space.x5, Space.x2, Space.x5, 0),
-                            sliver: SliverList.list(
-                              children: [
-                                DraftCard(drafts: getIt<DraftService>()),
-                                Text(
-                                  l.homeHeadline,
-                                  style: context.text.headlineMedium?.copyWith(fontSize: 26, fontWeight: FontWeight.w800),
-                                ),
-                                const SizedBox(height: Space.x5),
-                                Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    for (final (i, tile) in [
-                                      QuickActionTile(icon: AppIcons.document, label: l.homeDocument, onTap: () => _scan(context, ScanMode.document)),
-                                      QuickActionTile(icon: AppIcons.idCard, label: l.homeIdCard, onTap: () => _scan(context, ScanMode.idCard)),
-                                      QuickActionTile(icon: AppIcons.passport, label: l.modePassport, onTap: () => _scan(context, ScanMode.passport)),
-                                      QuickActionTile(icon: AppIcons.gallery, label: l.homeImport, onTap: _pickImportSource),
-                                    ].indexed) ...[
-                                      if (i > 0) const SizedBox(width: 10),
-                                      Expanded(child: tile),
-                                    ],
-                                  ],
-                                ),
-                                const SizedBox(height: Space.x5),
-                                ToolsRow(tools: _tools(context)),
-                              ],
-                            ),
-                          ),
-                          SliverToBoxAdapter(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(Space.x5, Space.x5, Space.x3, 6),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      l.homeRecentActivity,
-                                      style: context.text.titleLarge?.copyWith(fontSize: 17),
-                                    ),
-                                  ),
-                                  if (!showEmpty)
-                                    TextButton(
-                                      onPressed: () => _pickSort(context, s.sort),
-                                      style: TextButton.styleFrom(
-                                        foregroundColor: c.muted,
-                                        minimumSize: const Size(Sizes.tap, Sizes.tap),
-                                        padding: const EdgeInsets.symmetric(horizontal: Space.x2),
-                                        textStyle: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600),
-                                      ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(_sortLabel(context, s.sort)),
-                                          const SizedBox(width: Space.x1),
-                                          AppIcon(AppIcons.chevronDown, size: 16, color: c.muted),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          ),
-                          if (!showEmpty && s.all.isNotEmpty)
-                            SliverToBoxAdapter(
-                              child: Padding(
-                                padding: const EdgeInsets.only(top: 2, bottom: Space.x2),
-                                child: FolderChips(
-                                  counts: s.counts,
-                                  selected: s.folder,
-                                  onSelected: context.read<HomeCubit>().setFolder,
-                                ),
-                              ),
-                            ),
-                          if (showEmpty)
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: EmptyState(title: l.homeEmptyTitle, body: l.homeEmptyBody),
-                            )
-                          else if (s.failure != null)
-                            SliverFillRemaining(hasScrollBody: false, child: ErrorView(failure: s.failure))
-                          else if (!s.loading && s.documents.isEmpty)
-                            SliverFillRemaining(
-                              hasScrollBody: false,
-                              child: s.folder != null && s.all.isNotEmpty
-                                  ? EmptyState(icon: AppIcons.files, title: l.folderEmpty(folderLabel(context, s.folder!)))
-                                  : EmptyState(icon: AppIcons.search, title: l.homeNoResults),
-                            )
-                          else
-                            SliverPadding(
-                              // Room for the selection bar over the last row.
-                              padding: EdgeInsets.fromLTRB(Space.x5, 0, Space.x2, s.selecting ? 80 : Space.x6),
-                              sliver: SliverList.builder(
-                                itemCount: s.documents.length,
-                                itemBuilder: (context, i) {
-                                  final d = s.documents[i];
-                                  final cubit = context.read<HomeCubit>();
-                                  return DocumentTile(
-                                    document: d,
-                                    selecting: s.selecting,
-                                    selected: s.selected.contains(d.id),
-                                    onTap: s.selecting ? () => cubit.toggleSelected(d.id) : () => context.push(Routes.viewer(d.id)),
-                                    onLongPress: s.selecting ? null : () => cubit.startSelection(d.id),
-                                    onMore: () => _onMore(context, d),
-                                  );
-                                },
-                              ),
-                            ),
-                        ],
+                        controller: _scroll,
+                        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                        slivers: list,
                       ),
                     ),
                   ],
                 ),
+                if (plain)
+                  Positioned(
+                    right: 20,
+                    bottom: 24 + bottomPad,
+                    child: ScanFab(onPressed: () => _scan(context, ScanMode.document)),
+                  ),
                 if (s.selecting)
                   Positioned(
                     left: 0,
                     right: 0,
                     bottom: 0,
-                    child: _SelectionActions(
+                    child: SelectionActionBar(
                       enabled: s.selected.isNotEmpty,
-                      onDelete: () => _deleteSelected(context),
-                      onShare: () => _shareSelected(context),
-                      onMove: () => _moveSelected(context),
+                      actions: [
+                        SelectionAction(AppIcons.delete, l.commonDelete, () => _deleteSelected(context), danger: true),
+                        SelectionAction(AppIcons.share, l.viewerShare, () => _shareSelected(context)),
+                        SelectionAction(AppIcons.files, l.viewerMove, () => _moveSelected(context)),
+                      ],
                     ),
                   ),
                 if (_importing) ProgressOverlay(label: l.sharePreparing),
@@ -444,6 +488,18 @@ class _HomeViewState extends State<_HomeView> {
         );
       },
     );
+  }
+
+  /// "Good morning" before 12:00, "Good afternoon" until 17:00, then "Good
+  /// evening".
+  String _greeting(BuildContext context) {
+    final l = context.l10n;
+    final h = DateTime.now().hour;
+    return h < 12
+        ? l.homeGreetingMorning
+        : h < 17
+        ? l.homeGreetingAfternoon
+        : l.homeGreetingEvening;
   }
 }
 
@@ -456,120 +512,318 @@ String _sortLabel(BuildContext context, HomeSort s) {
   };
 }
 
-/// Brand mark + wordmark, with the search toggle on the right.
+/// Logo + FLASH DOX, search and settings on the right. Gets the page
+/// background and a 1 px divider once the list scrolls under it (P1-2).
 class _Header extends StatelessWidget {
-  const _Header({required this.searching, required this.onSearch});
+  const _Header({required this.divider, required this.onSearch, required this.onSettings});
 
-  final bool searching;
+  final bool divider;
   final VoidCallback onSearch;
+  final VoidCallback onSettings;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final l = context.l10n;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.x5, Space.x4, Space.x3, Space.x2),
-      child: Row(
-        children: [
-          const BrandMark(),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Semantics(
-              header: true,
-              child: Text(
-                l.appName.toUpperCase(),
-                style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 1),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: c.bg,
+        border: Border(bottom: BorderSide(color: divider ? c.border : Colors.transparent)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.x5, Space.x3, Space.x2, Space.x2),
+        child: Row(
+          children: [
+            const BrandMark(),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Semantics(
+                header: true,
+                child: Text(
+                  l.appName.toUpperCase(),
+                  maxLines: 1,
+                  style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800, letterSpacing: 1),
+                ),
               ),
             ),
-          ),
-          IconButton(
-            tooltip: searching ? l.commonClose : l.homeSearchHint,
-            onPressed: onSearch,
-            icon: AppIcon(searching ? AppIcons.close : AppIcons.search, size: 22, color: c.text),
-          ),
-        ],
+            IconButton(
+              tooltip: l.homeSearchHint,
+              onPressed: onSearch,
+              icon: AppIcon(AppIcons.search, size: 22, color: c.text),
+            ),
+            IconButton(
+              tooltip: l.navSettings,
+              onPressed: onSettings,
+              icon: Icon(Icons.settings_outlined, size: 23, color: c.text),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Selection mode's top bar (round 10, P1-5): ✕ · "3 selected" · Select all.
+/// P1-1 (artboard *HomeSearch*): back arrow + search field.
+class _SearchBar extends StatelessWidget {
+  const _SearchBar({required this.controller, required this.onChanged, required this.onBack});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final l = context.l10n;
+    return DecoratedBox(
+      decoration: BoxDecoration(color: c.bg, border: Border(bottom: BorderSide(color: c.border))),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.x1, Space.x2, Space.x4, Space.x2),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: l.commonBack,
+              onPressed: onBack,
+              icon: AppIcon(AppIcons.back, size: 22, color: c.text),
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                autofocus: true,
+                onChanged: onChanged,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  hintText: l.homeSearchHint,
+                  prefixIcon: AppIcon(AppIcons.search, size: 20, color: c.muted),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Selection mode's top bar (P0-2, artboard *HomeSelect*): a light amber
+/// band with ✕, "3 selected" and an outlined "Select all" / "Deselect all".
 class _SelectionBar extends StatelessWidget {
-  const _SelectionBar({required this.count, required this.onClose, required this.onSelectAll});
+  const _SelectionBar({
+    required this.count,
+    required this.all,
+    required this.onClose,
+    required this.onSelectAll,
+    required this.onDeselectAll,
+  });
+
   final int count;
+  final bool all;
   final VoidCallback onClose;
   final VoidCallback onSelectAll;
+  final VoidCallback onDeselectAll;
 
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.x2, Space.x4, Space.x3, Space.x2),
-      child: Row(
-        children: [
-          IconButton(
-            tooltip: l.commonClose,
-            onPressed: onClose,
-            icon: AppIcon(AppIcons.close, size: 22, color: c.text),
-          ),
-          const SizedBox(width: Space.x1),
-          Expanded(
-            child: Text(
-              l.homeSelectedCount(count),
-              style: context.text.headlineSmall?.copyWith(fontWeight: FontWeight.w800),
+    final band = c.isDark ? const Color(0xFF2A2410) : const Color(0xFFFFF3D1);
+    final ink = c.isDark ? const Color(0xFFF3F3F1) : const Color(0xFF15171A);
+    return ColoredBox(
+      color: band,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.x1, Space.x2, Space.x4, Space.x2),
+        child: Row(
+          children: [
+            IconButton(
+              tooltip: l.commonClose,
+              onPressed: onClose,
+              icon: AppIcon(AppIcons.close, size: 22, color: ink),
             ),
-          ),
-          TextButton(onPressed: onSelectAll, child: Text(l.homeSelectAll)),
-        ],
+            const SizedBox(width: Space.x1),
+            Expanded(
+              child: FitText(
+                l.homeSelectedCount(count),
+                maxLines: 1,
+                textAlign: TextAlign.start,
+                style: context.text.titleLarge?.copyWith(fontWeight: FontWeight.w800, color: ink),
+              ),
+            ),
+            const SizedBox(width: Space.x2),
+            OutlinedButton.icon(
+              onPressed: all ? onDeselectAll : onSelectAll,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: ink,
+                side: BorderSide(color: ink.withValues(alpha: 0.6)),
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: Space.x3),
+                textStyle: context.text.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              icon: Icon(all ? Icons.check_box_outline_blank_rounded : Icons.check_box_outlined, size: 18, color: ink),
+              label: MediaQuery.withClampedTextScaling(
+                maxScaleFactor: 1.3,
+                child: Text(all ? l.homeDeselectAll : l.homeSelectAll, maxLines: 1),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-/// Selection mode's bottom bar: Delete · Share · Move to folder.
-class _SelectionActions extends StatelessWidget {
-  const _SelectionActions({required this.enabled, required this.onDelete, required this.onShare, required this.onMove});
-  final bool enabled;
-  final VoidCallback onDelete;
-  final VoidCallback onShare;
-  final VoidCallback onMove;
+/// The big amber "Scan a document" card with the page illustration on the
+/// right; tapping anywhere opens the camera in Document mode.
+class _ScanCard extends StatelessWidget {
+  const _ScanCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  static const _ink = Color(0xFF15171A);
 
   @override
   Widget build(BuildContext context) {
-    final l = context.l10n;
     final c = context.colors;
-    Widget action(AppIcons icon, String label, VoidCallback onTap, {bool danger = false}) => Expanded(
-          child: InkWell(
-            onTap: enabled ? onTap : null,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 60),
-              child: Column(
+    final l = context.l10n;
+    return Semantics(
+      button: true,
+      label: l.homeScanTitle,
+      excludeSemantics: true,
+      child: Material(
+        color: c.accent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(Space.x5, Space.x5, Space.x3, Space.x5),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        l.homeScanTitle,
+                        style: context.text.headlineSmall?.copyWith(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, height: 1.15),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        l.homeScanSubtitle,
+                        style: context.text.bodySmall?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink.withValues(alpha: 0.75)),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Space.x3),
+                const SizedBox(width: 84, height: 96, child: CustomPaint(painter: _ScanIllustration())),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A page with text lines, scan corners and a scan line (vector).
+class _ScanIllustration extends CustomPainter {
+  const _ScanIllustration();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const ink = Color(0xFF15171A);
+    final page = Rect.fromLTWH(size.width * 0.14, size.height * 0.1, size.width * 0.72, size.height * 0.8);
+    canvas
+      ..drawRRect(
+        RRect.fromRectAndRadius(page.shift(const Offset(0, 3)), const Radius.circular(6)),
+        Paint()..color = ink.withValues(alpha: 0.18),
+      )
+      ..drawRRect(RRect.fromRectAndRadius(page, const Radius.circular(6)), Paint()..color = Colors.white);
+    final line = Paint()
+      ..color = ink.withValues(alpha: 0.28)
+      ..strokeWidth = 3
+      ..strokeCap = StrokeCap.round;
+    final left = page.left + page.width * 0.16;
+    for (final (i, w) in [0.55, 0.68, 0.62, 0.68, 0.4].indexed) {
+      final y = page.top + page.height * (0.2 + i * 0.15);
+      canvas.drawLine(Offset(left, y), Offset(left + page.width * w, y), line);
+    }
+    // Scan corners just outside the page.
+    final corner = Paint()
+      ..color = ink
+      ..strokeWidth = 3
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+    final r = page.inflate(5);
+    const k = 12.0;
+    for (final (o, dx, dy) in [
+      (r.topLeft, 1.0, 1.0),
+      (r.topRight, -1.0, 1.0),
+      (r.bottomLeft, 1.0, -1.0),
+      (r.bottomRight, -1.0, -1.0),
+    ]) {
+      canvas
+        ..drawLine(o, o + Offset(k * dx, 0), corner)
+        ..drawLine(o, o + Offset(0, k * dy), corner);
+    }
+    // The scan line.
+    final y = page.top + page.height * 0.58;
+    canvas.drawLine(
+      Offset(r.left + 2, y),
+      Offset(r.right - 2, y),
+      Paint()
+        ..color = const Color(0xFFFF8A00)
+        ..strokeWidth = 2.5
+        ..strokeCap = StrokeCap.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ScanIllustration old) => false;
+}
+
+/// ID Card · Passport · Import: icon and label on one line, 48 dp high.
+class _QuickAction extends StatelessWidget {
+  const _QuickAction({required this.icon, required this.label, required this.onTap});
+
+  final AppIcons icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      label: label,
+      excludeSemantics: true,
+      child: Material(
+        color: c.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: c.border)),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.x2),
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  AppIcon(icon, size: 22, color: !enabled ? c.muted : danger ? c.danger : c.text),
-                  const SizedBox(height: 4),
-                  FitText(
-                    label,
-                    maxLines: 1,
-                    style: context.text.labelMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                      color: !enabled ? c.muted : danger ? c.danger : c.text,
+                  AppIcon(icon, size: 18, color: c.accentText),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: FitText(
+                      label,
+                      maxLines: 1,
+                      style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ],
               ),
             ),
           ),
-        );
-    return DecoratedBox(
-      decoration: BoxDecoration(color: c.surface, border: Border(top: BorderSide(color: c.border))),
-      child: Row(
-        children: [
-          action(AppIcons.delete, l.commonDelete, onDelete, danger: true),
-          action(AppIcons.share, l.viewerShare, onShare),
-          action(AppIcons.files, l.menuMoveToFolder, onMove),
-        ],
+        ),
       ),
     );
   }

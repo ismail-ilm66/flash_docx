@@ -41,7 +41,13 @@ class DocumentRepositoryImpl implements DocumentRepository {
     final q = _db.select(_db.documents)
       ..orderBy([(d) => OrderingTerm.desc(d.updatedAt)]);
     if (search != null && search.trim().isNotEmpty) {
-      q.where((d) => d.title.like('%${search.trim()}%'));
+      // Round 11, P1-1: the name, or text recognised on any page.
+      final pattern = '%${search.trim()}%';
+      q.where(
+        (d) =>
+            d.title.like(pattern) |
+            existsQuery(_db.select(_db.pages)..where((p) => p.documentId.equalsExp(d.id) & p.ocrText.like(pattern))),
+      );
     }
     final docs$ = q.watch();
     final pages$ = _db.select(_db.pages).watch();
