@@ -204,7 +204,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get filterIdColor => 'ID colour';
 
   @override
-  String get filterBwPrint => 'B&W print';
+  String get filterBwPrint => 'B&W';
 
   @override
   String get viewerEdit => 'Edit';
@@ -886,6 +886,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get enhanceEdges => 'Edges';
+
+  @override
+  String get enhanceCrop => 'Crop';
+
+  @override
+  String get enhanceApplyAll => 'Apply to all';
 
   @override
   String get enhanceZoomIn => 'Zoom in';

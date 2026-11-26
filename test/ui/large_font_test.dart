@@ -556,7 +556,7 @@ void main() {
     await settle(tester);
     await tester.tap(find.text(l.adjustNext));
     await settle(tester);
-    expect(find.text(l.enhanceEdges), findsOneWidget);
+    expect(find.text(l.enhanceCrop), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await settle(tester);
@@ -565,7 +565,7 @@ void main() {
 
     await tester.tap(find.text(l.adjustNext));
     await settle(tester);
-    await tester.tap(find.text(l.enhanceEdges));
+    await tester.tap(find.text(l.enhanceCrop));
     await settle(tester);
     expect(find.text(l.adjustRotateLeft), findsOneWidget);
 

@@ -282,56 +282,44 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                   ),
                                 ),
                               ),
-                            // Round 11, P1-12: Compare at the top right, the
-                            // one small progress ring beside it (P0-8).
-                            Positioned(
-                              top: Space.x1,
-                              right: Space.x2,
-                              child: Row(
-                                children: [
-                                  if (s.rendering && !_comparing)
-                                    Padding(
-                                      padding: const EdgeInsets.only(
-                                        right: Space.x2,
-                                      ),
-                                      child: SizedBox(
-                                        width: 18,
-                                        height: 18,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                          color: c.accent,
-                                        ),
-                                      ),
-                                    ),
-                                  _CompareButton(
-                                    comparing: _comparing,
-                                    onChanged: (v) =>
-                                        setState(() => _comparing = v),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Positioned(
-                              left: 12,
-                              bottom: 12,
-                              child: _ZoomPill(zoom: _zoom),
-                            ),
-                            if (page != null && !_comparing)
+                            // Round 11b (EnhanceV11): only the small ring
+                            // over the page; Compare and the fingers chip
+                            // sit under it.
+                            if (s.rendering && !_comparing)
                               Positioned(
-                                right: 12,
-                                bottom: 12,
-                                child: _FingersChip(
-                                  found: s.currentFingers != null &&
-                                      !page.edits.fingersRemoved,
-                                  undo: s.fingersUndoPage == page.id &&
-                                      page.edits.fingersRemoved,
-                                  onRemove: () => bloc.add(
-                                    const EditorFingersRemoved(remove: true),
-                                  ),
-                                  onUndo: () => bloc.add(
-                                    const EditorFingersRemoved(remove: false),
+                                top: Space.x2,
+                                right: Space.x3,
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: c.accent,
                                   ),
                                 ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // ---- under the page: Hold to compare · fingers ----
+                    ColoredBox(
+                      color: _stage,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(Space.x3, 0, Space.x3, Space.x2),
+                        child: Row(
+                          children: [
+                            _CompareButton(
+                              comparing: _comparing,
+                              onChanged: (v) => setState(() => _comparing = v),
+                            ),
+                            const Spacer(),
+                            if (page != null && !_comparing)
+                              _FingersChip(
+                                found: s.currentFingers != null && !page.edits.fingersRemoved,
+                                undo: s.fingersUndoPage == page.id && page.edits.fingersRemoved,
+                                onRemove: () => bloc.add(const EditorFingersRemoved(remove: true)),
+                                onUndo: () => bloc.add(const EditorFingersRemoved(remove: false)),
                               ),
                           ],
                         ),
@@ -373,6 +361,23 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                       },
                                       onChangeEnd: (_) =>
                                           setState(() => _contrast = null),
+                                    ),
+                                    // Round 11b: Reset lives with the sliders.
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: TextButton.icon(
+                                        onPressed: s.canReset && !saving
+                                            ? () {
+                                                setState(() {
+                                                  _brightness = null;
+                                                  _contrast = null;
+                                                });
+                                                bloc.add(const EditorLookReset());
+                                              }
+                                            : null,
+                                        icon: const AppIcon(AppIcons.reset, size: 16),
+                                        label: Text(l.enhanceReset),
+                                      ),
                                     ),
                                   ],
                                 ),
@@ -419,59 +424,35 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 12,
                                 ),
+                                // Round 11b: Crop · Adjust · Apply to all.
                                 child: Row(
                                   children: [
+                                    // Back to Adjust edges on this page (round
+                                    // 10, P0-1); Next returns here.
                                     Expanded(
-                                      flex: 10,
-                                      child: _BarButton(
-                                        icon: AppIcons.edit,
-                                        label: l.enhanceAdjust,
-                                        active: _adjustOpen,
-                                        onTap: () => setState(
-                                          () => _adjustOpen = !_adjustOpen,
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: Space.x2),
-                                    // Round 10, P0-1: back to Adjust edges on
-                                    // this page; Next returns here.
-                                    Expanded(
-                                      flex: 10,
                                       child: _BarButton(
                                         icon: AppIcons.autoEdges,
-                                        label: l.enhanceEdges,
+                                        label: l.enhanceCrop,
                                         onTap: saving ? null : () => context.pop(),
                                       ),
                                     ),
                                     const SizedBox(width: Space.x2),
                                     Expanded(
-                                      flex: 10,
                                       child: _BarButton(
-                                        icon: AppIcons.reset,
-                                        label: l.enhanceReset,
-                                        onTap: s.canReset && !saving
-                                            ? () {
-                                                setState(() {
-                                                  _brightness = null;
-                                                  _contrast = null;
-                                                });
-                                                bloc.add(
-                                                  const EditorLookReset(),
-                                                );
-                                              }
-                                            : null,
+                                        icon: AppIcons.edit,
+                                        label: l.enhanceAdjust,
+                                        active: _adjustOpen,
+                                        onTap: () => setState(() => _adjustOpen = !_adjustOpen),
                                       ),
                                     ),
                                     if (multi) ...[
                                       const SizedBox(width: Space.x2),
                                       Expanded(
-                                        flex: 20,
-                                        child: _AllPagesSwitch(
-                                          label: l.enhanceAllPagesShort,
-                                          on: s.applyAll,
-                                          onChanged: (v) => bloc.add(
-                                            EditorApplyAllToggled(v),
-                                          ),
+                                        child: _BarButton(
+                                          icon: AppIcons.pages,
+                                          label: l.enhanceApplyAll,
+                                          filled: s.applyAll,
+                                          onTap: () => bloc.add(EditorApplyAllToggled(!s.applyAll)),
                                         ),
                                       ),
                                     ],
@@ -524,60 +505,6 @@ class _PageDots extends StatelessWidget {
   }
 }
 
-/// − / 100 % / + driving the shared [ZoomController].
-class _ZoomPill extends StatelessWidget {
-  const _ZoomPill({required this.zoom});
-  final ZoomController zoom;
-
-  @override
-  Widget build(BuildContext context) {
-    final l = context.l10n;
-    final c = context.colors;
-    return ListenableBuilder(
-      listenable: zoom,
-      builder: (context, _) => Container(
-        height: 40,
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.65),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              tooltip: l.enhanceZoomOut,
-              onPressed: zoom.scale > 1.01 ? zoom.zoomOut : null,
-              icon: Icon(Icons.remove_rounded, size: 18, color: c.text),
-              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-              padding: EdgeInsets.zero,
-            ),
-            SizedBox(
-              width: 44,
-              child: Text(
-                '${(zoom.scale * 100).round()}%',
-                textAlign: TextAlign.center,
-                style: context.text.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w800,
-                  color: c.text,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: l.enhanceZoomIn,
-              onPressed: zoom.scale < ZoomablePages.maxScale - 0.01
-                  ? zoom.zoomIn
-                  : null,
-              icon: Icon(Icons.add_rounded, size: 18, color: c.text),
-              constraints: const BoxConstraints.tightFor(width: 40, height: 40),
-              padding: EdgeInsets.zero,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// Outlined pill button in the bottom bar (Adjust, Reset).
 class _BarButton extends StatelessWidget {
   const _BarButton({
@@ -585,11 +512,15 @@ class _BarButton extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.active = false,
+    this.filled = false,
   });
   final AppIcons icon;
   final String label;
   final VoidCallback? onTap;
   final bool active;
+
+  /// An on / off chip that is on: filled amber (Apply to all).
+  final bool filled;
 
   @override
   Widget build(BuildContext context) {
@@ -597,11 +528,15 @@ class _BarButton extends StatelessWidget {
     final enabled = onTap != null;
     final fg = !enabled
         ? c.muted.withValues(alpha: 0.5)
+        : filled
+        ? c.onAccent
         : (active ? c.accentText : c.text);
-    return Material(
-      color: active ? c.accentSoft : Colors.transparent,
+    return Semantics(
+      toggled: filled,
+      child: Material(
+      color: filled ? c.accent : (active ? c.accentSoft : Colors.transparent),
       shape: StadiumBorder(
-        side: BorderSide(color: active ? c.accent : _EnhanceViewState._outline),
+        side: BorderSide(color: filled || active ? c.accent : _EnhanceViewState._outline),
       ),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -630,83 +565,6 @@ class _BarButton extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
-}
-
-/// "All N pages" with a switch, on an amber-tinted pill.
-class _AllPagesSwitch extends StatelessWidget {
-  const _AllPagesSwitch({
-    required this.label,
-    required this.on,
-    required this.onChanged,
-  });
-  final String label;
-  final bool on;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return Semantics(
-      toggled: on,
-      label: label,
-      excludeSemantics: true,
-      child: Material(
-        color: on ? c.accentSoft : Colors.transparent,
-        shape: StadiumBorder(
-          side: BorderSide(
-            color: on ? Colors.transparent : _EnhanceViewState._outline,
-          ),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () => onChanged(!on),
-          child: SizedBox(
-            height: 44,
-            child: Padding(
-              padding: const EdgeInsets.only(left: 12, right: 6),
-              child: Row(
-                children: [
-                  // Round 11, P1-2: one line, never cut.
-                  Expanded(
-                    child: FitText(
-                      label,
-                      maxLines: 1,
-                      textAlign: TextAlign.start,
-                      style: context.text.labelLarge?.copyWith(
-                        fontSize: 13,
-                        height: 1.1,
-                        color: c.text,
-                      ),
-                    ),
-                  ),
-                  AnimatedContainer(
-                    duration: Motion.fast,
-                    width: 38,
-                    height: 24,
-                    padding: const EdgeInsets.all(3),
-                    alignment: on
-                        ? Alignment.centerRight
-                        : Alignment.centerLeft,
-                    decoration: BoxDecoration(
-                      color: on ? c.accent : const Color(0xFF3A3E46),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Container(
-                      width: 18,
-                      height: 18,
-                      decoration: BoxDecoration(
-                        color: on ? c.onAccent : c.muted,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }
@@ -752,7 +610,7 @@ class _CompareButton extends StatelessWidget {
                   MediaQuery.withClampedTextScaling(
                     maxScaleFactor: 1.3,
                     child: Text(
-                      comparing ? l.filterOriginal : l.enhanceCompare,
+                      comparing ? l.filterOriginal : l.enhanceHoldToCompare,
                       maxLines: 1,
                       style: context.text.labelMedium?.copyWith(
                         fontWeight: FontWeight.w700,

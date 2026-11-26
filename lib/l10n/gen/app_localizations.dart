@@ -463,7 +463,7 @@ abstract class AppLocalizations {
   /// No description provided for @filterBwPrint.
   ///
   /// In en, this message translates to:
-  /// **'B&W print'**
+  /// **'B&W'**
   String get filterBwPrint;
 
   /// No description provided for @viewerEdit.
@@ -1641,6 +1641,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edges'**
   String get enhanceEdges;
+
+  /// No description provided for @enhanceCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get enhanceCrop;
+
+  /// No description provided for @enhanceApplyAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply to all'**
+  String get enhanceApplyAll;
 
   /// No description provided for @enhanceZoomIn.
   ///
