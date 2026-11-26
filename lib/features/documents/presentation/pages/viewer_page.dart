@@ -672,20 +672,24 @@ class _TitleButton extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
+                      FitText(
                         title,
                         maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.start,
                         style: context.text.titleMedium?.copyWith(
                           fontWeight: FontWeight.w700,
                         ),
                       ),
                       const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: context.text.bodySmall?.copyWith(color: c.muted),
+                      // Never cut (standing rule): shrinks to fit.
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          subtitle,
+                          maxLines: 1,
+                          style: context.text.bodySmall?.copyWith(color: c.muted),
+                        ),
                       ),
                     ],
                   ),
