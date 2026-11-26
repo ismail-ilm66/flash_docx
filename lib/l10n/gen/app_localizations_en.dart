@@ -1593,7 +1593,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photoEnhanceNaturalHint =>
-      'Fixes light and colour, sharpens the eyes and softens skin a little.';
+      'Brightens the face naturally and sharpens the eyes. No smoothing.';
 
   @override
   String get photoEnhanceSmoothHint =>

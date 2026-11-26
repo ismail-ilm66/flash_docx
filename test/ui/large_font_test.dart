@@ -22,6 +22,7 @@ import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dar
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/ocr/presentation/pages/extracted_text_page.dart';
 import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
+import 'package:flash_dox/features/photo/domain/face_locator.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
 import 'package:flash_dox/features/print_layout/domain/entities/print_layout_spec.dart';
 import 'package:flash_dox/features/reduce/presentation/reduce_size_page.dart';
@@ -67,6 +68,12 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 class _PendingProcessor implements ImageProcessor {
   @override
   dynamic noSuchMethod(Invocation invocation) => Completer<Never>().future;
+}
+
+/// ML Kit isn't there in tests: no face found.
+class _NoFace implements FaceLocator {
+  @override
+  Future<List<double>?> faceBox(String photoPath) async => null;
 }
 
 /// Answers what the passport photo screens ask; the rest stays pending.
@@ -149,7 +156,9 @@ void main() {
       ..unregister<AppDatabase>()
       ..registerLazySingleton<AppDatabase>(() => AppDatabase.test(NativeDatabase.memory()))
       ..unregister<ImageProcessor>()
-      ..registerLazySingleton<ImageProcessor>(_PendingProcessor.new);
+      ..registerLazySingleton<ImageProcessor>(_PendingProcessor.new)
+      ..unregister<FaceLocator>()
+      ..registerLazySingleton<FaceLocator>(_NoFace.new);
 
     final files = getIt<FileStore>();
     // Never decoded (renders are stubbed); any JPEG will do.

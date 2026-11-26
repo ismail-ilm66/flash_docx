@@ -92,6 +92,8 @@ void main() {
 
   test('renderEdits composites overlays last, in page space', () {
     final photo = cv.Mat.fromScalar(1200, 900, cv.MatType.CV_8UC3, cv.Scalar.all(240));
+    // A line of text: Auto (what OCR reads) expects a page with ink on it.
+    cv.rectangle(photo, cv.Rect(100, 200, 600, 30), cv.Scalar.all(30), thickness: -1);
     final photoPath = p.join(tmp.path, 'page.jpg');
     cv.imwrite(photoPath, photo);
     final sig = cv.Mat.fromScalar(50, 50, cv.MatType.CV_8UC4, cv.Scalar(0, 0, 0, 255));
@@ -105,7 +107,9 @@ void main() {
     expect(out.at<cv.Vec3b>(660, 495).val1, closeTo(26, 3));
     expect(out.at<cv.Vec3b>(100, 100).val1, closeTo(240, 3));
     final ocr = pipe.renderForOcr(photoPath, edits);
-    expect(ocr.at<int>(660, 495), greaterThan(200), reason: 'OCR never sees the signature');
+    // Round 11b, K1: OCR reads the Auto page, at least 1600 px.
+    final k = ocr.rows / out.rows;
+    expect(ocr.at<cv.Vec3b>((660 * k).round(), (495 * k).round()).val1, greaterThan(200), reason: 'OCR never sees the signature');
     for (final m in [photo, sig, out, ocr]) {
       m.dispose();
     }

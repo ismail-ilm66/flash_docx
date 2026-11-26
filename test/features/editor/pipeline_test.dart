@@ -332,11 +332,11 @@ void main() {
       }
     });
 
-    test('OCR render is single-channel at full resolution', () {
+    test('OCR reads the Auto page at 1600 px or more, whatever the filter (round 11b, K1)', () {
       final (path, quad) = makeSample(tmp, name: 'ocr');
       final out = pipe.renderForOcr(path, PageEdits(crop: quad, filter: FilterType.bwPrint));
-      expect(out.channels, 1);
-      expect(math.max(out.cols, out.rows), greaterThan(900));
+      expect(out.channels, 3);
+      expect(math.max(out.cols, out.rows), inInclusiveRange(1600, 2400));
       out.dispose();
     });
   });

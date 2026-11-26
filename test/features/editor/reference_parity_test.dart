@@ -220,6 +220,32 @@ void main() {
     });
   });
 
+  test('round 11b, P1-14: passport brightening matches passport_brighten', () {
+    final img = cv.imread(p.join(refDir.path, 'synthetic_portrait.png'));
+    final person = cv.imread(p.join(refDir.path, 'synthetic_portrait_person.png'), flags: cv.IMREAD_GRAYSCALE);
+    final expected = cv.imread(p.join(refDir.path, 'synthetic_portrait_bright.png'));
+    // The face box dump_reference.py prints.
+    final got = pipe.passportBrighten(img, person, (110, 138, 250, 276));
+    expectSameImage(got, expected, 'passport brighten');
+    // The face is lifted, the wall is untouched.
+    double meanL(cv.Mat m, cv.Rect r) {
+      final lab = cv.cvtColor(m.region(r), cv.COLOR_BGR2Lab);
+      final v = cv.mean(lab).val1;
+      lab.dispose();
+      return v;
+    }
+
+    expect(meanL(got, cv.Rect(140, 170, 80, 60)), greaterThan(meanL(img, cv.Rect(140, 170, 80, 60)) + 10));
+    expect(meanL(got, cv.Rect(5, 5, 40, 40)), closeTo(meanL(img, cv.Rect(5, 5, 40, 40)), 0.5));
+    // Without ML Kit's box, one from the mask lands on the face.
+    final box = pipe.faceBoxFromPerson(person)!;
+    expect(box.$1, inInclusiveRange(95, 150));
+    expect(box.$3, inInclusiveRange(210, 265));
+    for (final m in [img, person, expected, got]) {
+      m.dispose();
+    }
+  });
+
   test('warp forces the card shape like the reference', () {
     final img = cv.Mat.fromScalar(600, 800, cv.MatType.CV_8UC3, cv.Scalar.all(128));
     final q = Quad.full(inset: 0.1);

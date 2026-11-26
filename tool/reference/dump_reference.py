@@ -145,3 +145,38 @@ assert mask is not None, 'reference finds no finger on the synthetic thumb'
 cv.imwrite(os.path.join(out, 'synthetic_thumb_mask.png'), mask)
 cv.imwrite(os.path.join(out, 'synthetic_thumb_removed.png'), ref.remove_fingers(ref.filter_auto_color(thumb), mask))
 print(f'synthetic thumb: mask {cv.countNonZero(mask) / mask.size:.2%} of the page')
+
+
+def portrait():
+    """Round 11b, P1-14: a dim passport-style portrait on a blue wall, its
+    person mask (8-bit) and face box, for passport_brighten."""
+    H, W = 460, 360
+    img = np.full((H, W, 3), (143, 78, 31), np.uint8)
+    person = np.zeros((H, W), np.uint8)
+    cv.ellipse(person, (W // 2, H), (int(W * 0.48), int(H * 0.22)), 0, 0, 360, 255, -1)    # shoulders
+    cv.rectangle(person, (W // 2 - 40, int(H * 0.55)), (W // 2 + 40, int(H * 0.8)), 255, -1)  # neck
+    cv.ellipse(person, (W // 2, int(H * 0.4)), (90, 120), 0, 0, 360, 255, -1)               # head
+    img[person > 0] = (88, 112, 150)                                                         # skin, dim
+    shirt = np.zeros_like(person)
+    cv.ellipse(shirt, (W // 2, H), (int(W * 0.48), int(H * 0.2)), 0, 0, 360, 255, -1)
+    img[shirt > 0] = (70, 72, 52)
+    cv.ellipse(img, (W // 2, int(H * 0.3)), (92, 70), 0, 180, 360, (30, 32, 36), -1)       # hair
+    for ex in (-38, 38):
+        cv.ellipse(img, (W // 2 + ex, int(H * 0.38)), (14, 7), 0, 0, 360, (40, 42, 50), -1)  # eyes
+    cv.ellipse(img, (W // 2, int(H * 0.52)), (26, 8), 0, 0, 360, (80, 85, 125), -1)         # mouth
+    yy, xx = np.mgrid[0:H, 0:W]
+    shade = (0.85 + 0.25 * (xx / W)).astype(np.float32)                                      # light from the right
+    img = np.clip(img.astype(np.float32) * shade[..., None], 0, 255)
+    rng = np.random.default_rng(11)
+    img = np.clip(img + rng.normal(0, 3, img.shape), 0, 255).astype(np.uint8)
+    img = cv.GaussianBlur(img, (0, 0), 0.8)
+    person = cv.GaussianBlur(person, (0, 0), 1.5)
+    return img, person, (W // 2 - 70, int(H * 0.3), W // 2 + 70, int(H * 0.6))
+
+
+face_img, person8, face_box = portrait()
+cv.imwrite(os.path.join(out, 'synthetic_portrait.png'), face_img)
+cv.imwrite(os.path.join(out, 'synthetic_portrait_person.png'), person8)
+cv.imwrite(os.path.join(out, 'synthetic_portrait_bright.png'),
+           ref.passport_brighten(face_img, person8.astype(np.float32) / 255.0, face_box))
+print(f'synthetic portrait: face box {face_box}')

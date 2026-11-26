@@ -71,6 +71,10 @@ import 'package:flash_dox/features/photo/data/mlkit_background_segmenter.dart'
     as _i511;
 import 'package:flash_dox/features/photo/domain/background_segmenter.dart'
     as _i491;
+import 'package:flash_dox/features/photo/data/mlkit_face_locator.dart'
+    as _i9003;
+import 'package:flash_dox/features/photo/domain/face_locator.dart'
+    as _i9004;
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart'
     as _i84;
 import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layout.dart'
@@ -304,6 +308,12 @@ extension GetItInjectableX on _i174.GetIt {
     );
     gh.lazySingleton<_i491.BackgroundSegmenter>(
       () => _i511.MlKitBackgroundSegmenter(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+      ),
+    );
+    gh.lazySingleton<_i9004.FaceLocator>(
+      () => _i9003.MlKitFaceLocator(
         gh<_i618.ImageProcessor>(),
         gh<_i626.FileStore>(),
       ),

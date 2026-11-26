@@ -46,6 +46,11 @@ abstract class PageEdits with _$PageEdits {
     @Default(PhotoEnhance.off)
     PhotoEnhance photoEnhance,
 
+    /// Round 11b, P1-14: the face in a passport photo (ML Kit), as
+    /// [x0, y0, x1, y1] fractions of the upright photo, for Enhance's
+    /// face brightening. Null: found from the person mask instead.
+    List<double>? faceBox,
+
     /// Round 11, P0-14: the user placed the corners in Adjust edges, so the
     /// bent-page warp keeps them exactly (only the sides may bend). Pages
     /// saved before it existed read as true: their corners never move.

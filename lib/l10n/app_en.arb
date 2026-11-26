@@ -867,7 +867,7 @@
   "photoEnhanceNatural": "Natural",
   "photoEnhanceSmooth": "Soft",
   "photoEnhanceOffHint": "The photo as taken.",
-  "photoEnhanceNaturalHint": "Fixes light and colour, sharpens the eyes and softens skin a little.",
+  "photoEnhanceNaturalHint": "Brightens the face naturally and sharpens the eyes. No smoothing.",
   "photoEnhanceSmoothHint": "Softer skin. Some passport offices reject retouched photos; use Natural or Off for official ones.",
   "photoPreview": "Preview",
   "photoUpTo": "Up to {count} photos",

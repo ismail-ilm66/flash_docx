@@ -3399,6 +3399,8 @@ cv.Mat _withPhotoFinish(cv.Mat page, PageEdits edits) {
   final enhance = edits.photoEnhance;
   if (color == null && enhance == PhotoEnhance.off) return page;
   cv.Mat? warped;
+  // The whole-photo mask, kept for placing the face box.
+  cv.Mat? mask0;
   final path = edits.backgroundMaskPath;
   if (path != null) {
     final mask = cv.imread(path, flags: cv.IMREAD_GRAYSCALE);
@@ -3407,7 +3409,11 @@ cv.Mat _withPhotoFinish(cv.Mat page, PageEdits edits) {
     } else {
       // The crop is in fractions of the upright photo, so it fits the mask too.
       warped = cropAndRotate(mask, edits);
-      disposeUnless(mask, warped);
+      if (identical(mask, warped)) {
+        mask0 = mask.clone();
+      } else {
+        mask0 = mask;
+      }
     }
   }
   // A passport photo never needs more than this (35 × 45 mm at ~900 dpi;
@@ -3422,11 +3428,15 @@ cv.Mat _withPhotoFinish(cv.Mat page, PageEdits edits) {
           interpolation: cv.INTER_AREA,
         );
   try {
-    final out = finishPhoto(capped, warped, color: color, enhance: enhance);
+    final face = edits.faceBox == null || mask0 == null
+        ? null
+        : _faceInCrop(edits.faceBox!, mask0, edits, (capped.cols, capped.rows));
+    final out = finishPhoto(capped, warped, color: color, enhance: enhance, face: face);
     if (!identical(capped, page) && !identical(out, capped)) capped.dispose();
     return out;
   } finally {
     warped?.dispose();
+    mask0?.dispose();
   }
 }
 
@@ -3446,6 +3456,162 @@ cv.Mat _withoutFingers(cv.Mat page, PageEdits edits) {
   return out;
 }
 
+/// Round 11b, P1-14: the reference's `FACE_TARGET_L`, the Lab L the middle
+/// of the face is lifted to.
+const double faceTargetL = 64;
+
+/// The reference's `passport_brighten` (round 11b, P1-14): a natural lift
+/// of the person only, for passport photos. Stretches the person's
+/// lightness (black point kept, highlights lifted a little, never
+/// clipped), then a gamma that brings the middle of the face to L 64;
+/// gives the skin its colour back (+22 %) and sharpens eyes and hair a
+/// little. The background is untouched; no smoothing.
+/// [person]: 8-bit (255 = person) or float 0..1, the size of [bgr];
+/// [face]: (x0, y0, x1, y1) in [bgr]'s pixels. Always a new image.
+cv.Mat passportBrighten(cv.Mat bgr, cv.Mat person, (int, int, int, int) face) {
+  final tmp = <cv.Mat>[];
+  cv.Mat t(cv.Mat m) {
+    tmp.add(m);
+    return m;
+  }
+
+  try {
+    final (h, w) = (bgr.rows, bgr.cols);
+    final p = t(person.type == cv.MatType.CV_32FC1 ? person.clone() : person.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255));
+    final lab = t(cv.cvtColor(t(bgr.convertTo(cv.MatType.CV_32FC3, alpha: 1 / 255)), cv.COLOR_BGR2Lab));
+    final ch = cv.split(lab);
+    final (lL, la, lb) = (t(ch[0].clone()), t(ch[1].clone()), t(ch[2].clone()));
+    ch.dispose();
+    // L over the body (person > 0.5).
+    final n = h * w;
+    final lv = Float32List.fromList(lL.data.buffer.asFloat32List(lL.data.offsetInBytes, n));
+    final pv = Float32List.fromList(p.data.buffer.asFloat32List(p.data.offsetInBytes, n));
+    var count = 0;
+    for (var i = 0; i < n; i++) {
+      if (pv[i] > 0.5) lv[count++] = lv[i];
+    }
+    if (count < 100) return bgr.clone();
+    final body = Float32List.sublistView(lv, 0, count);
+    final lo = _percentileOf(body, 1);
+    final hi = _percentileOf(body, 99.5);
+    final hi2 = hi + 0.35 * (100 - hi);
+    final k = (hi2 - 3) / math.max(1e-3, hi - lo);
+    var ln = t(lL.convertTo(cv.MatType.CV_32FC1, alpha: k, beta: 3 - lo * k));
+    ln = t(cv.threshold(ln, 100, 0, cv.THRESH_TRUNC).$2);
+    ln = t(cv.threshold(ln, 0, 0, cv.THRESH_TOZERO).$2);
+    final (x0, y0, x1, y1) = face;
+    final fx0 = x0.clamp(0, w - 1);
+    final fy0 = y0.clamp(0, h - 1);
+    final fx1 = x1.clamp(fx0 + 1, w);
+    final fy1 = y1.clamp(fy0 + 1, h);
+    final faceL = t(ln.region(cv.Rect(fx0, fy0, fx1 - fx0, fy1 - fy0)).clone());
+    final fm = _median(Float32List.fromList(faceL.data.buffer.asFloat32List(faceL.data.offsetInBytes, faceL.rows * faceL.cols)));
+    if (fm < 1) return bgr.clone();
+    final g = (math.log(faceTargetL / 100) / math.log(fm / 100)).clamp(0.75, 1.0);
+    // Midtones up, black and white points kept.
+    ln = t(cv.pow(t(ln.convertTo(cv.MatType.CV_32FC1, alpha: 0.01)), g).convertTo(cv.MatType.CV_32FC1, alpha: 100));
+    // Lo = person · Ln + (1 − person) · L.
+    final lOut = t(cv.add(lL, t(cv.multiply(p, t(cv.subtract(ln, lL))))));
+    // Brightening greys skin: colour back +22 %.
+    final kc = t(p.convertTo(cv.MatType.CV_32FC1, alpha: 0.22, beta: 1));
+    final merged = t(cv.merge(cv.VecMat.fromList([lOut, t(cv.multiply(la, kc)), t(cv.multiply(lb, kc))])));
+    final out = t(t(cv.cvtColor(merged, cv.COLOR_Lab2BGR)).convertTo(cv.MatType.CV_32FC3, alpha: 255));
+    // Eyes, hair: out + 0.4 · (out − blur) · person.
+    final detail = t(cv.subtract(out, t(cv.gaussianBlur(out, (0, 0), 1.5))));
+    final p3 = t(cv.merge(cv.VecMat.fromList([p, p, p])));
+    final sharp = t(cv.add(out, t(t(cv.multiply(detail, p3)).convertTo(cv.MatType.CV_32FC3, alpha: 0.4))));
+    return sharp.convertTo(cv.MatType.CV_8UC3);
+  } finally {
+    for (final m in tmp) {
+      m.dispose();
+    }
+  }
+}
+
+/// A face box for [person] (8-bit, 255 = person) when ML Kit gave none:
+/// the middle of the head, from the person's top rows. Null when there's
+/// no person.
+(int, int, int, int)? faceBoxFromPerson(cv.Mat person) {
+  final (h, w) = (person.rows, person.cols);
+  final (_, bin) = cv.threshold(person, 127, 255, cv.THRESH_BINARY);
+  final rows = cv.reduce(bin, 1, cv.REDUCE_MAX);
+  bin.dispose();
+  var top = -1;
+  for (var y = 0; y < h; y++) {
+    if (rows.at<int>(y, 0) > 0) {
+      top = y;
+      break;
+    }
+  }
+  rows.dispose();
+  if (top < 0) return null;
+  // The head: from the top of the person, about a third of the photo down.
+  final y0 = (top + 0.12 * h).round().clamp(0, h - 1);
+  final y1 = (top + 0.38 * h).round().clamp(y0 + 1, h);
+  final band = person.region(cv.Rect(0, y0, w, y1 - y0));
+  final (_, bandBin) = cv.threshold(band, 127, 255, cv.THRESH_BINARY);
+  final cols = cv.reduce(bandBin, 0, cv.REDUCE_MAX);
+  bandBin.dispose();
+  band.dispose();
+  var left = -1;
+  var right = -1;
+  for (var x = 0; x < w; x++) {
+    if (cols.at<int>(0, x) > 0) {
+      if (left < 0) left = x;
+      right = x;
+    }
+  }
+  cols.dispose();
+  if (left < 0) return null;
+  final hw = right - left + 1;
+  return ((left + 0.25 * hw).round(), y0, (right - 0.25 * hw).round().clamp((left + 0.25 * hw).round() + 1, w), y1);
+}
+
+/// [box] (x0, y0, x1, y1 fractions of the upright photo) where it lands in
+/// the cropped and turned photo of size [size]: drawn into a mask of
+/// [like]'s size and cropped like the photo.
+(int, int, int, int)? _faceInCrop(List<double> box, cv.Mat like, PageEdits edits, (int, int) size) {
+  if (box.length != 4) return null;
+  final m = cv.Mat.zeros(like.rows, like.cols, cv.MatType.CV_8UC1);
+  cv.rectangle(
+    m,
+    cv.Rect(
+      (box[0] * like.cols).round(),
+      (box[1] * like.rows).round(),
+      math.max(1, ((box[2] - box[0]) * like.cols).round()),
+      math.max(1, ((box[3] - box[1]) * like.rows).round()),
+    ),
+    cv.Scalar.all(255),
+    thickness: -1,
+  );
+  final cropped = cropAndRotate(m, edits);
+  disposeUnless(m, cropped);
+  final sized = cv.resize(cropped, size, interpolation: cv.INTER_NEAREST);
+  cropped.dispose();
+  final (_, bin) = cv.threshold(sized, 127, 255, cv.THRESH_BINARY);
+  sized.dispose();
+  final rows = cv.reduce(bin, 1, cv.REDUCE_MAX);
+  final cols = cv.reduce(bin, 0, cv.REDUCE_MAX);
+  bin.dispose();
+  int? first(cv.Mat v, int n, bool row, {bool last = false}) {
+    for (var i = 0; i < n; i++) {
+      final j = last ? n - 1 - i : i;
+      if ((row ? v.at<int>(j, 0) : v.at<int>(0, j)) > 0) return j;
+    }
+    return null;
+  }
+
+  final (w, h) = size;
+  final y0 = first(rows, h, true);
+  final y1 = first(rows, h, true, last: true);
+  final x0 = first(cols, w, false);
+  final x1 = first(cols, w, false, last: true);
+  rows.dispose();
+  cols.dispose();
+  if (x0 == null || y0 == null || x1 == null || y1 == null || x1 - x0 < 8 || y1 - y0 < 8) return null;
+  return (x0, y0, x1 + 1, y1 + 1);
+}
+
 /// The long edge a passport photo is finished (enhanced, background
 /// changed) at, at most.
 const photoFinishLongEdge = 1600;
@@ -3453,26 +3619,39 @@ const photoFinishLongEdge = 1600;
 /// [enhancePhoto] then [replaceBackground] on [img] with [mask] (8-bit,
 /// 255 = person, any size, or null). Returns [img] itself when neither
 /// applies.
+///
+/// Round 11b, P1-14: Natural is [passportBrighten] after the background
+/// (with the [face] box in [img]'s pixels, else one found from the mask);
+/// Soft is the earlier soft touch-up ([enhancePhoto]) plus the same
+/// brightening. Without a person mask there's nothing to brighten.
 cv.Mat finishPhoto(
   cv.Mat img,
   cv.Mat? mask, {
   cv.Scalar? color,
   PhotoEnhance enhance = PhotoEnhance.off,
+  (int, int, int, int)? face,
 }) {
   var out = img;
-  if (enhance != PhotoEnhance.off) {
-    final sized = mask == null
-        ? null
-        : cv.resize(mask, (img.cols, img.rows), interpolation: cv.INTER_LINEAR);
-    out = enhancePhoto(img, sized, enhance);
+  final sized = mask == null ? null : cv.resize(mask, (img.cols, img.rows), interpolation: cv.INTER_LINEAR);
+  try {
+    if (enhance == PhotoEnhance.smooth) out = enhancePhoto(img, sized, enhance);
+    if (color != null && mask != null) {
+      final backed = replaceBackground(out, mask, color);
+      if (!identical(out, img)) out.dispose();
+      out = backed;
+    }
+    if (enhance != PhotoEnhance.off && sized != null) {
+      final box = face ?? faceBoxFromPerson(sized);
+      if (box != null) {
+        final bright = passportBrighten(out, sized, box);
+        if (!identical(out, img)) out.dispose();
+        out = bright;
+      }
+    }
+    return out;
+  } finally {
     sized?.dispose();
   }
-  if (color != null && mask != null) {
-    final backed = replaceBackground(out, mask, color);
-    if (!identical(out, img)) out.dispose();
-    out = backed;
-  }
-  return out;
 }
 
 /// Passport photo Enhance: what a photo studio does, kept natural.

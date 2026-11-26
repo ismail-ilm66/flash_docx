@@ -2845,7 +2845,7 @@ abstract class AppLocalizations {
   /// No description provided for @photoEnhanceNaturalHint.
   ///
   /// In en, this message translates to:
-  /// **'Fixes light and colour, sharpens the eyes and softens skin a little.'**
+  /// **'Brightens the face naturally and sharpens the eyes. No smoothing.'**
   String get photoEnhanceNaturalHint;
 
   /// No description provided for @photoEnhanceSmoothHint.

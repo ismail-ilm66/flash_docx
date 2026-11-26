@@ -14,6 +14,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/photo/domain/background_segmenter.dart';
+import 'package:flash_dox/features/photo/domain/face_locator.dart';
 import 'package:flash_dox/features/photo/domain/photo_frame.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/presentation/pages/camera_page.dart';
@@ -402,7 +403,7 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
     final placement = _placement;
     if (image == null || frame == null || placement == null) return;
     setState(() => _saving = true);
-    final edits = (widget.args.page?.edits ?? const PageEdits()).copyWith(
+    var edits = (widget.args.page?.edits ?? const PageEdits()).copyWith(
       crop: placement.cropFor(image, frame),
       quarterTurns: 0,
       filter: FilterType.original,
@@ -423,6 +424,12 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                 _enhance != PhotoEnhance.off)
         ? _mask
         : null;
+    // Round 11b, P1-14: the face box for Enhance's brightening, found
+    // while the crop is segmented.
+    // Never holds up saving: without it the box comes from the mask.
+    final face = _enhance == PhotoEnhance.off
+        ? Future<List<double>?>.value()
+        : getIt<FaceLocator>().faceBox(_photo).timeout(const Duration(seconds: 3), onTimeout: () => null);
     if (mask != null) {
       mask =
           await getIt<BackgroundSegmenter>().maskFor(
@@ -433,6 +440,8 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
           mask;
       if (!mounted) return;
     }
+    edits = edits.copyWith(faceBox: await face);
+    if (!mounted) return;
     final page = widget.args.page;
     if (page != null) {
       // Re-crop: same page, new frame; previews re-render.
