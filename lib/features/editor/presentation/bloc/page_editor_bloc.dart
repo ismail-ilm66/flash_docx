@@ -287,7 +287,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         );
         // A bent or self-crossing shape is rejected: the corner stays put.
         if (!q.isConvex || q.area < 0.01) return ed;
-        return ed.copyWith(crop: q);
+        return _placed(ed, q);
       },
       preview: false,
     );
@@ -297,8 +297,16 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     final q = e.quad.clamp01();
     // A bent, crossed or mirrored shape is rejected: the crop stays put.
     if (!q.isConvex || q.area < 0.01) return;
-    _updateCurrent(emit, (ed) => ed.copyWith(crop: q), preview: false);
+    _updateCurrent(emit, (ed) => _placed(ed, q), preview: false);
   }
+
+  /// Round 11: corners the user placed are kept exactly by the bent-page
+  /// warp (P0-14). A new crop also makes an earlier finger mask wrong.
+  static PageEdits _placed(PageEdits ed, Quad q) =>
+      _withoutFingerMask(ed.copyWith(crop: q, cornersFixed: true));
+
+  static PageEdits _withoutFingerMask(PageEdits ed) =>
+      ed.fingerMaskPath == null && !ed.fingersRemoved ? ed : ed.copyWith(fingersRemoved: false, fingerMaskPath: null);
 
   final Set<String> _snapsInFlight = {};
 
@@ -372,7 +380,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   void _onRotated(EditorRotated e, Emitter<PageEditorState> emit) {
     _updateCurrent(
       emit,
-      (ed) => e.clockwise ? ed.rotateRight() : ed.rotateLeft(),
+      (ed) => _withoutFingerMask(e.clockwise ? ed.rotateRight() : ed.rotateLeft()),
     );
   }
 
@@ -394,7 +402,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(pages: pages));
     _updateCurrent(
       emit,
-      (ed) => ed.copyWith(crop: quad ?? Quad.full(inset: 0.05)),
+      (ed) => _withoutFingerMask(ed.copyWith(crop: quad ?? Quad.full(inset: 0.05), cornersFixed: false)),
     );
   }
 

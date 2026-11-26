@@ -97,7 +97,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'work_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
+    'work_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.jpg',
   );
 
   /// The Auto filter of the page's cleaned preview (round 6; before that, of
@@ -109,7 +109,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.png',
+    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.png',
   );
 
   /// Round 6, P0-2: the page cropped, turned and cleaned once at
@@ -122,7 +122,7 @@ class FileStore {
     required bool card,
   }) => p.join(
     _captureTemp.path,
-    'clean_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, longEdge, card)}.png',
+    'clean_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, longEdge, card)}.png',
   );
 
   /// The cleaned base at preview size, written with it: Enhance's filters
@@ -134,7 +134,7 @@ class FileStore {
     required bool card,
   }) => p.join(
     _captureTemp.path,
-    'cleanprev_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, card)}.png',
+    'cleanprev_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, card)}.png',
   );
 
   /// Enhance's first image for one filter, before the cleaned base exists.
@@ -144,7 +144,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'instant_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, edits.filter)}.jpg',
+    'instant_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, edits.filter, edits.fingersRemoved)}.jpg',
   );
 
   /// Enhance preview for one filter (sliders are applied live, not baked).
@@ -154,7 +154,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'look_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect, edits.filter)}.jpg',
+    'look_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, edits.filter, edits.fingersRemoved)}.jpg',
   );
 
   /// The fast crop-only placeholder (P0-4) for one crop / rotation.
@@ -164,7 +164,7 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'quick_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}.jpg',
+    'quick_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.jpg',
   );
 
   /// One 160 px filter thumbnail for Enhance's filter strip.
@@ -175,7 +175,7 @@ class FileStore {
     FilterType filter,
   ) => p.join(
     _captureTemp.path,
-    'strip_${pageId}_${Object.hash(_stamp(originalPath), edits.crop, edits.normalizedTurns, edits.outputAspect)}_${filter.name}.jpg',
+    'strip_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}_${filter.name}.jpg',
   );
 
   /// Sign a document (feature 4): the page without its overlays, which the
@@ -361,9 +361,10 @@ class FileStore {
   }
 
   /// Bumped when the look of a rendered page changes (round 8: the border
-  /// clean-up). On the first launch after, the documents' cached page
+  /// clean-up; 9, round 11: shadow vs object rule, bent pages). On the
+  /// first launch after, the documents' cached page
   /// images are dropped and rebuild on demand ([clearCaches]).
-  static const int renderVersion = 8;
+  static const int renderVersion = 9;
 
   /// Export temp + processed/thumb caches. They rebuild on demand.
   Future<void> clearCaches() async {

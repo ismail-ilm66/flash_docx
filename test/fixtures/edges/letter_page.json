@@ -16,7 +16,7 @@
   0.865
  ],
  "source": "reference detect_document (owner photo)",
- "map": "edges",
+ "map": "edges/hull",
  "score": 0.6916,
  "reference_found": {
   "tl": [

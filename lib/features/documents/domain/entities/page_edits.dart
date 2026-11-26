@@ -45,6 +45,18 @@ abstract class PageEdits with _$PageEdits {
     @JsonKey(unknownEnumValue: PhotoEnhance.off)
     @Default(PhotoEnhance.off)
     PhotoEnhance photoEnhance,
+
+    /// Round 11, P0-14: the user placed the corners in Adjust edges, so the
+    /// bent-page warp keeps them exactly (only the sides may bend). Pages
+    /// saved before it existed read as true: their corners never move.
+    @JsonKey(defaultValue: true) @Default(false) bool cornersFixed,
+
+    /// Round 11, P1-11: "Remove" was tapped for the fingers found on this
+    /// page; [fingerMaskPath] is their mask (8-bit PNG, the cropped and
+    /// turned page at any size). Applied after the filter, so a filter
+    /// change keeps them removed.
+    @Default(false) bool fingersRemoved,
+    String? fingerMaskPath,
   }) = _PageEdits;
   const PageEdits._();
 
@@ -52,6 +64,10 @@ abstract class PageEdits with _$PageEdits {
       _$PageEditsFromJson(json);
 
   int get normalizedTurns => ((quarterTurns % 4) + 4) % 4;
+
+  /// What decides the cropped page's pixels (crop, bend, turns, card
+  /// shape): cache names of crop-level renders use it.
+  int get geometryKey => Object.hash(crop, normalizedTurns, outputAspect, cornersFixed);
 
   PageEdits rotateLeft() => copyWith(quarterTurns: normalizedTurns - 1);
   PageEdits rotateRight() => copyWith(quarterTurns: normalizedTurns + 1);
@@ -67,6 +83,10 @@ abstract class PageEdits with _$PageEdits {
   }
 
   bool get hasSliders => brightness != 0 || contrast != 0;
+
+  /// A Document page: not an ID card / passport side (forced card shape)
+  /// or a passport photo.
+  bool get isDocumentPage => outputAspect == null && photoWidthMm == null;
 
   /// Enhance-only settings (filter + sliders), used by "apply to all".
   PageEdits applyLook(PageEdits from) => copyWith(

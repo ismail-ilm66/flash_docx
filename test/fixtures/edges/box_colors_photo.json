@@ -16,24 +16,24 @@
   0.7458
  ],
  "source": "hand-marked true box corners (owner photo); reference_found = where the reference put them",
- "map": "edges",
- "score": 0.6118,
+ "map": "hough/lines",
+ "score": 0.66,
  "reference_found": {
   "tl": [
-   0.09325,
-   0.26875
+   0.0881,
+   0.215
   ],
   "tr": [
-   0.93248,
-   0.28
+   0.94158,
+   0.215
   ],
   "br": [
-   0.93248,
-   0.7525
+   0.94158,
+   0.75674
   ],
   "bl": [
-   0.06141,
-   0.73875
+   0.05586,
+   0.74393
   ]
  }
 }

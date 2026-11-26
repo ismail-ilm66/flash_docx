@@ -157,7 +157,8 @@ void main() {
       test(entry.key, () {
         final (path, expected) = entry.value();
         final img = pipe.readUpright(path);
-        final report = pipe.detectDocument(img);
+        // The detector itself; the "page fills the photo" rule is below.
+        final report = pipe.detectDocument(img, fillsFrame: false);
         img.dispose();
         expect(report.found, isTrue, reason: '$report');
         expectQuadClose(report.quad!, expected, reason: entry.key);
@@ -196,8 +197,27 @@ void main() {
 
     test('returns none on a flat image and on the bare frame', () {
       final flat = cv.Mat.fromScalar(800, 600, cv.MatType.CV_8UC3, cv.Scalar(200, 200, 200));
-      expect(pipe.detectDocument(flat).found, isFalse);
+      expect(pipe.detectDocument(flat, fillsFrame: false).found, isFalse);
+      expect(pipe.detectDocument(flat, aspectHint: CardMm.id1Aspect).found, isFalse);
       flat.dispose();
+    });
+
+    test('round 11, P0-5: a page that fills the photo is kept whole', () {
+      // A plain bright image is "paper" on every side: an import that was
+      // cropped before, or a page shot close up.
+      final flat = cv.Mat.fromScalar(800, 600, cv.MatType.CV_8UC3, cv.Scalar(200, 200, 200));
+      final r = pipe.detectDocument(flat);
+      expect(r.strategy, 'fills-frame');
+      expect(r.quad, Quad.full());
+      flat.dispose();
+      // The reference's rule also takes a page on a plain, light desk for
+      // one that fills the photo (3 bright, unsaturated sides).
+      final (path, _) = makeSample(tmp, name: 'lightdesk', bg: cv.Scalar(225, 225, 225), page: cv.Scalar(90, 80, 70), tiltDeg: -8);
+      final img = pipe.readUpright(path);
+      expect(pipe.detectDocument(img).strategy, 'fills-frame');
+      // Card modes never use the rule.
+      expect(pipe.detectDocument(img, aspectHint: CardMm.id1Aspect).strategy, isNot('fills-frame'));
+      img.dispose();
     });
   });
 

@@ -16,8 +16,8 @@
   0.67556
  ],
  "source": "reference corners, checked by eye on the overlay (owner photo)",
- "map": "bright",
- "score": 0.6924,
+ "map": "bright/hull",
+ "score": 0.6621,
  "reference_found": {
   "tl": [
    0.08831,

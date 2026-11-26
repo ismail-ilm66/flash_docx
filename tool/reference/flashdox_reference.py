@@ -73,6 +73,186 @@ def _quad_from_contour(c: np.ndarray) -> np.ndarray | None:
     return None
 
 
+def _edge_support(q: np.ndarray, gx: np.ndarray, gy: np.ndarray, mag: np.ndarray) -> tuple[float, float]:
+    """How much of the quad's outline lies on a real edge in the photo.
+    For each side, sample points (skipping the corners) and look up to 3 px across the
+    side for a strong gradient that points ACROSS the side. Returns (mean, min) of the
+    four sides' support, 0..1. Sides running along the photo border, across a table or
+    through the middle of a sheet get ~0; a real page edge gets ~0.6-1."""
+    h, w = mag.shape
+    thr = max(12.0, float(np.percentile(mag, 75)))
+    sides = []
+    for i in range(4):
+        a, b = q[i], q[(i + 1) % 4]
+        d = b - a
+        L = float(np.linalg.norm(d))
+        if L < 8:
+            sides.append(0.0); continue
+        t = d / L
+        n = np.array([-t[1], t[0]])
+        hits = tot = 0
+        for f in np.linspace(0.08, 0.92, 40):
+            p = a + d * f
+            tot += 1
+            for off in (0, -1, 1, -2, 2, -3, 3):
+                x, y = int(round(p[0] + n[0] * off)), int(round(p[1] + n[1] * off))
+                if 0 <= x < w and 0 <= y < h and mag[y, x] > thr:
+                    g = np.array([gx[y, x], gy[y, x]]) / (mag[y, x] + 1e-6)
+                    if abs(float(np.dot(g, n))) > 0.75:
+                        hits += 1
+                        break
+        sides.append(hits / max(1, tot))
+    return float(np.mean(sides)), float(min(sides))
+
+
+def _line_quads(c: np.ndarray, w: int, h: int, max_lines: int = 9):
+    """Quads made from 4 straight stretches of a region's outline, extended until they
+    meet. Finds the page when its region is merged with another paper behind it (one
+    corner hidden or stuck to the other sheet): the page's sides are still straight
+    stretches of the outline even though the outline as a whole is not a quad."""
+    peri = cv.arcLength(c, True)
+    poly = cv.approxPolyDP(c, 0.01 * peri, True).reshape(-1, 2).astype(np.float32)
+    n = len(poly)
+    if n < 4:
+        return []
+    segs = []
+    min_len = 0.10 * min(w, h)
+    for i in range(n):
+        a, b = poly[i], poly[(i + 1) % n]
+        L = float(np.linalg.norm(b - a))
+        if L >= min_len:
+            segs.append((i, a, b, L))
+    segs = sorted(segs, key=lambda s: -s[3])[:max_lines]
+    segs = sorted(segs, key=lambda s: s[0])          # keep outline order
+    if len(segs) < 4:
+        return []
+
+    def inter(s1, s2):
+        p, r = s1[1], s1[2] - s1[1]
+        q2, t2 = s2[1], s2[2] - s2[1]
+        den = r[0] * t2[1] - r[1] * t2[0]
+        if abs(den) < 1e-6:
+            return None
+        u = ((q2[0] - p[0]) * t2[1] - (q2[1] - p[1]) * t2[0]) / den
+        return p + u * r
+
+    out = []
+    from itertools import combinations
+    mx, my = 0.04 * w, 0.04 * h
+    for combo in combinations(range(len(segs)), 4):
+        ss = [segs[k] for k in combo]
+        pts = []
+        ok = True
+        for k in range(4):
+            pt = inter(ss[k], ss[(k + 1) % 4])
+            if pt is None or not (-mx <= pt[0] <= w - 1 + mx and -my <= pt[1] <= h - 1 + my):
+                ok = False; break
+            pts.append(pt)
+        if not ok:
+            continue
+        qq = np.array(pts, np.float32)
+        if not cv.isContourConvex(qq.reshape(-1, 1, 2)):
+            continue
+        qq[:, 0] = np.clip(qq[:, 0], 0, w - 1)
+        qq[:, 1] = np.clip(qq[:, 1], 0, h - 1)
+        out.append(qq)
+    return out
+
+
+def _side_contrast(q: np.ndarray, lab: np.ndarray, off: int = 8) -> float:
+    """Mean colour difference (Lab, 0..1 after /20) between just inside and just outside
+    the quad's sides. A real page edge separates paper from something else; a printed
+    rule or table line inside the page has paper on both sides (round 11)."""
+    h, w = lab.shape[:2]
+    cxy = q.mean(axis=0)
+    vals = []
+    for i in range(4):
+        a, b = q[i], q[(i + 1) % 4]
+        d = b - a
+        L = float(np.linalg.norm(d))
+        if L < 8:
+            vals.append(0.0); continue
+        n = np.array([-d[1], d[0]]) / L
+        if np.dot(cxy - (a + b) / 2, n) < 0:       # make n point inwards
+            n = -n
+        ins, outs = [], []
+        for f in np.linspace(0.1, 0.9, 25):
+            p = a + d * f
+            pi, po = p + n * off, p - n * off
+            xi, yi, xo, yo = int(pi[0]), int(pi[1]), int(po[0]), int(po[1])
+            if 0 <= xi < w and 0 <= yi < h and 0 <= xo < w and 0 <= yo < h:
+                ins.append(lab[yi, xi]); outs.append(lab[yo, xo])
+        if len(ins) < 5:
+            vals.append(0.0); continue            # side on the photo border: unknown
+        diff = np.abs(np.array(ins, np.float32) - np.array(outs, np.float32))
+        de = float(np.median(np.sqrt((diff ** 2).sum(1))))
+        vals.append(min(1.0, de / 20.0))
+    return float(np.mean(vals))
+
+
+def _hough_quads(gray_u8: np.ndarray, w: int, h: int, max_per_group: int = 6):
+    """Quads from the longest straight lines in the photo (2 roughly horizontal + 2
+    roughly vertical, extended until they meet). Round 11: finds a white page lying on a
+    pale folder or sheet, where every brightness/colour map merges page and folder into
+    one area but the page's own edges are still clear straight lines."""
+    edges = cv.Canny(gray_u8, 40, 120)
+    L = cv.HoughLinesP(edges, 1, np.pi / 180, 60, minLineLength=int(0.25 * min(w, h)), maxLineGap=15)
+    if L is None:
+        return []
+    hor, ver = [], []
+    for x1, y1, x2, y2 in L.reshape(-1, 4).astype(np.float32):
+        ang = np.degrees(np.arctan2(y2 - y1, x2 - x1)) % 180
+        seg = (np.array([x1, y1]), np.array([x2, y2]), float(np.hypot(x2 - x1, y2 - y1)), ang)
+        if ang < 35 or ang > 145:
+            hor.append(seg)
+        elif 55 < ang < 125:
+            ver.append(seg)
+
+    def merge(group, horizontal):
+        # keep the longest line of each "track" (lines closer than 2% are the same edge)
+        group = sorted(group, key=lambda g: -g[2])
+        out = []
+        for g in group:
+            mid = (g[0] + g[1]) / 2
+            pos = mid[1] if horizontal else mid[0]
+            if all(abs(pos - ((o[0] + o[1]) / 2)[1 if horizontal else 0]) > 0.02 * (h if horizontal else w) for o in out):
+                out.append(g)
+            if len(out) >= max_per_group:
+                break
+        return out
+
+    hor, ver = merge(hor, True), merge(ver, False)
+    if len(hor) < 2 or len(ver) < 2:
+        return []
+
+    def inter(a, b):
+        p, r = a[0], a[1] - a[0]
+        q, t = b[0], b[1] - b[0]
+        den = r[0] * t[1] - r[1] * t[0]
+        if abs(den) < 1e-6:
+            return None
+        u = ((q[0] - p[0]) * t[1] - (q[1] - p[1]) * t[0]) / den
+        return p + u * r
+
+    from itertools import combinations
+    out = []
+    mx, my = 0.04 * w, 0.04 * h
+    for t1, t2 in combinations(hor, 2):
+        top, bot = (t1, t2) if (t1[0][1] + t1[1][1]) < (t2[0][1] + t2[1][1]) else (t2, t1)
+        for v1, v2 in combinations(ver, 2):
+            lef, rig = (v1, v2) if (v1[0][0] + v1[1][0]) < (v2[0][0] + v2[1][0]) else (v2, v1)
+            pts = [inter(top, lef), inter(top, rig), inter(bot, rig), inter(bot, lef)]
+            if any(p is None or not (-mx <= p[0] <= w - 1 + mx and -my <= p[1] <= h - 1 + my) for p in pts):
+                continue
+            q = np.array(pts, np.float32)
+            if not cv.isContourConvex(q.reshape(-1, 1, 2)):
+                continue
+            q[:, 0] = np.clip(q[:, 0], 0, w - 1)
+            q[:, 1] = np.clip(q[:, 1], 0, h - 1)
+            out.append(q)
+    return out
+
+
 def _candidate_maps(small: np.ndarray) -> list[tuple[str, np.ndarray]]:
     """Several binary maps; each one finds documents in different conditions."""
     gray = cv.cvtColor(small, cv.COLOR_BGR2GRAY)
@@ -131,12 +311,37 @@ def _candidate_maps(small: np.ndarray) -> list[tuple[str, np.ndarray]]:
     return maps
 
 
-def detect_document(bgr: np.ndarray, mode: str = "document"):
+def page_fills_frame(bgr: np.ndarray, imported: bool = False) -> bool:
+    """True when the page already fills the photo: an image that was cropped before it
+    was imported, or a page photographed so close that its edges are outside the photo.
+    Then the whole image is the page; running the detector only finds lines INSIDE the
+    page (a header box, a table) and crops wrongly (round 11).
+
+    Test: a 3% strip along each side; a side is 'paper' when 60%+ of the strip is bright
+    (> 72% of the image's 90th-percentile brightness) and unsaturated (S < 60).
+    Imports need 2 paper sides, camera photos 3. Tested: 17 of 18 already-cropped pages
+    and 0 of 14 photos of pages on tables, cloth, folders or in a hand."""
+    s = 800.0 / max(bgr.shape[:2])
+    im = cv.resize(bgr, None, fx=s, fy=s, interpolation=cv.INTER_AREA) if s < 1 else bgr
+    hsv = cv.cvtColor(im, cv.COLOR_BGR2HSV)
+    V, S = hsv[:, :, 2].astype(np.float32), hsv[:, :, 1]
+    paper = (V > 0.72 * np.percentile(V, 90)) & (S < 60)
+    h, w = paper.shape
+    b = max(3, int(0.03 * min(h, w)))
+    sides = [paper[:b, :].mean(), paper[-b:, :].mean(), paper[:, :b].mean(), paper[:, -b:].mean()]
+    return sum(v >= 0.6 for v in sides) >= (2 if imported else 3)
+
+
+def detect_document(bgr: np.ndarray, mode: str = "document", imported: bool = False):
     """
     Returns (corners TL,TR,BR,BL in full-resolution pixel coords, score, source)
     or (None, 0, None) when nothing convincing is found.
+    `imported`: True for images picked from the gallery/files or shared into the app.
     """
     H, W = bgr.shape[:2]
+    if mode == "document" and page_fills_frame(bgr, imported):
+        full = np.array([[0, 0], [W - 1, 0], [W - 1, H - 1], [0, H - 1]], np.float32)
+        return full, 1.0, "fills-frame"
     scale = DETECT_LONG_EDGE / max(H, W)
     small = cv.resize(bgr, (int(W * scale), int(H * scale)), interpolation=cv.INTER_AREA) if scale < 1 else bgr.copy()
     if scale >= 1:
@@ -147,45 +352,106 @@ def detect_document(bgr: np.ndarray, mode: str = "document"):
     target = {"id": ID_ASPECT, "passport": PASSPORT_ASPECT}.get(mode)
     best, best_score, best_src = None, 0.0, None
 
-    for name, bmap in _candidate_maps(small):
+    gray = cv.GaussianBlur(cv.cvtColor(small, cv.COLOR_BGR2GRAY), (5, 5), 0).astype(np.float32)
+    gx, gy = cv.Sobel(gray, cv.CV_32F, 1, 0), cv.Sobel(gray, cv.CV_32F, 0, 1)
+    mag = cv.magnitude(gx, gy)
+
+    found = []
+    lab_small = cv.cvtColor(cv.GaussianBlur(small, (5, 5), 0), cv.COLOR_BGR2LAB).astype(np.float32)
+    maps = _candidate_maps(small)
+    # Straight-line quads (round 11), scored against the "paper-like" area (bright OR pale).
+    md = dict(maps)
+    paper = cv.bitwise_or(md.get("bright", np.zeros((h, w), np.uint8)), md.get("lowsat", np.zeros((h, w), np.uint8)))
+    for q in _hough_quads(cv.GaussianBlur(cv.cvtColor(small, cv.COLOR_BGR2GRAY), (5, 5), 0), w, h):
+        q = _order_corners(q)
+        qa = cv.contourArea(q)
+        frac = qa / img_area
+        if frac > 0.98 or frac < MIN_AREA_FRAC:
+            continue
+        rect = _corner_angles_score(q)
+        if rect < 0.55:
+            continue
+        m = 0.02 * max(w, h)
+        on_border = sum(1 for x, y in q if x < m or y < m or x > w - 1 - m or y > h - 1 - m)
+        qm = np.zeros((h, w), np.uint8)
+        cv.fillConvexPoly(qm, q.astype(np.int32), 255)
+        cover = float(cv.countNonZero(cv.bitwise_and(qm, paper))) / max(1.0, float(cv.countNonZero(qm)))
+        pre = frac ** 0.5 * rect * cover ** 2
+        if target:
+            pre *= max(0.05, 1.0 - abs(_aspect(q) - target) / target * 2.5)
+        found.append((pre, q, on_border, frac, "hough/lines"))
+
+    for name, bmap in maps:
         retr = cv.RETR_LIST if name == "edges" else cv.RETR_EXTERNAL
         contours, _ = cv.findContours(bmap, retr, cv.CHAIN_APPROX_SIMPLE)
         for c in contours:
             area = cv.contourArea(c)
             if area < MIN_AREA_FRAC * img_area:
                 continue
-            q = _quad_from_contour(c)
-            if q is None:
+            cands = []
+            q0 = _quad_from_contour(c)
+            if q0 is not None:
+                cands.append(("hull", q0))
+            # Region merged with something else (another sheet, a pale table corner):
+            # also try quads built from straight stretches of its outline.
+            if name != "edges":
+                cands += [("lines", qq) for qq in _line_quads(c, w, h)]
+            if not cands:
                 continue
-            q = _order_corners(q)
-            # Round 8 (P0-7): region quads are no longer pushed 2% outward; that
-            # pulled a strip of table into the crop. (Applied here from the fix
-            # list until the round 8 reference file arrives.)
-            qa = cv.contourArea(q)
-            frac = qa / img_area
-            if frac > 0.98:                    # that's just the photo border
-                continue
-            # Reject the photo frame itself: 3+ corners hugging the border.
-            m = 0.02 * max(w, h)
-            on_border = sum(1 for x, y in q if x < m or y < m or x > w - 1 - m or y > h - 1 - m)
-            if on_border >= 3:
-                continue
-            rect = _corner_angles_score(q)
-            if rect < 0.55:
-                continue
-            solidity = min(1.0, area / max(1.0, qa))
-            score = frac ** 0.5 * rect * (0.5 + 0.5 * solidity)
-            # Corners sitting on the photo border are usually the border itself
-            # (busy backgrounds merge with the frame) -> strong penalty per corner.
-            # Only the edge map has an artificial border line, so only penalise there;
-            # in region maps a page that really touches the photo edge is genuine.
-            if name == "edges":
-                score *= 0.45 ** on_border
-            if target:
-                a = _aspect(q)
-                score *= max(0.05, 1.0 - abs(a - target) / target * 2.5)
-            if score > best_score:
-                best, best_score, best_src = q, score, name
+            region = np.zeros((h, w), np.uint8)
+            cv.drawContours(region, [c], -1, 255, -1)
+            for kind, q in cands:
+                q = _order_corners(q)
+                if name != "edges" and kind == "hull":
+                    # Round 8: no longer pushed 2% outward. That pulled a strip of table
+                    # into the crop, which printed as black lines. A crop a hair inside
+                    # the paper is invisible; one outside is not. clean_page_border()
+                    # removes any sliver that is left.
+                    cxy = q.mean(axis=0)
+                    q = cxy + (q - cxy) * 1.0
+                    q[:, 0] = np.clip(q[:, 0], 0, w - 1)
+                    q[:, 1] = np.clip(q[:, 1], 0, h - 1)
+                qa = cv.contourArea(q)
+                frac = qa / img_area
+                if frac > 0.98 or frac < MIN_AREA_FRAC:   # the photo border / too small
+                    continue
+                # Corners hugging the photo border (checked again below).
+                m = 0.02 * max(w, h)
+                on_border = sum(1 for x, y in q if x < m or y < m or x > w - 1 - m or y > h - 1 - m)
+                rect = _corner_angles_score(q)
+                if rect < 0.55:
+                    continue
+                # How much of the quad is covered by the region (a quad that also takes in
+                # table or a second sheet is only partly covered).
+                qm = np.zeros((h, w), np.uint8)
+                cv.fillConvexPoly(qm, q.astype(np.int32), 255)
+                cover = float(cv.countNonZero(cv.bitwise_and(qm, region))) / max(1.0, float(cv.countNonZero(qm)))
+                if name == "edges":
+                    cover = min(1.0, area / max(1.0, qa))
+                pre = frac ** 0.5 * rect * cover ** 2
+                if name == "edges":
+                    pre *= 0.45 ** on_border   # the edge map has an artificial border line
+                if target:
+                    pre *= max(0.05, 1.0 - abs(_aspect(q) - target) / target * 2.5)
+                found.append((pre, q, on_border, frac, f"{name}/{kind}"))
+
+    # Edge support is the expensive part: only check the 16 best candidates.
+    for pre, q, on_border, frac, src in sorted(found, key=lambda t: -t[0])[:16]:
+        sup_mean, sup_min = _edge_support(q, gx, gy, mag)
+        # 3+ corners on the border is usually the photo frame itself. Keep it only when it
+        # is clearly smaller than the frame AND its outline follows real edges (a page
+        # photographed close up, running off one side).
+        if on_border >= 3 and (frac > 0.90 or sup_mean < 0.45):
+            continue
+        score = pre * (0.25 + 0.75 * sup_mean) * (0.6 + 0.4 * sup_min)
+        # Straight-line quads must also SEPARATE paper from something else on each side
+        # (not follow a printed line inside the page).
+        if src.startswith("hough"):
+            score *= 0.3 + 0.7 * _side_contrast(q, lab_small)
+        if DET_DEBUG:
+            print(f"    {src:22s} frac={frac:.2f} pre={pre:.3f} sup={sup_mean:.2f}/{sup_min:.2f} border={on_border} -> {score:.3f}")
+        if score > best_score:
+            best, best_score, best_src = q, score, src
 
     if best is None:
         return None, 0.0, None
@@ -219,6 +485,294 @@ def warp(bgr: np.ndarray, q: np.ndarray, mode: str = "document") -> np.ndarray:
     dst = np.array([[0, 0], [Wt - 1, 0], [Wt - 1, Ht - 1], [0, Ht - 1]], dtype=np.float32)
     M = cv.getPerspectiveTransform(q, dst)
     return cv.warpPerspective(bgr, M, (Wt, Ht), flags=cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+
+
+# ---------------------------------------------------------------------------
+# 2b. Bent page flattening (round 11b)
+#     A card or receipt held in the hand bends, so its edges are curves, not
+#     straight lines. After the normal 4-corner crop, trace the real page edges,
+#     fit a smooth curve to each side and stretch them straight (Coons patch).
+#     One cv.remap straight from the ORIGINAL photo -> no double blur.
+#     Document mode only (ID / passport cards are stiff). Skips itself when the
+#     edges are already straight or can't be traced reliably.
+# ---------------------------------------------------------------------------
+CURVE_MARGIN = 0.20        # look this far outside the 4-corner crop for the real edge
+CURVE_MIN_DEV = 0.004      # bend smaller than 0.4% of the page -> nothing to do
+CURVE_MAX_DEV = 0.10       # bend bigger than 10% of the page -> that side's tracing is unreliable: keep it straight
+CURVE_MAX_CORNER = 0.18    # a corner may move up to 18% of the page (fixes a detector corner that sits
+                           # inside the page) - only when the traced side is clean (see CURVE_MIN_INLIERS)
+CURVE_MIN_INLIERS = 0.7    # share of traced points that must agree with the fitted side
+CURVE_MAX_RMS = 2.0        # and their average distance from it (small-copy pixels)
+CURVE_MAX_INWARD = 0.03    # inwards (into the page) at most 3%: a coloured band along the page edge
+                           # looks like 'not paper' and must never get cropped off
+CURVE_MIN_VALID = 0.5      # at least half of each side must be traced
+CURVE_DEBUG = False
+
+
+def _skin_mask(bgr: np.ndarray) -> np.ndarray:
+    """Skin-coloured pixels (any skin tone; YCrCb rule)."""
+    ycc = cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb)
+    Y, Cr, Cb = cv.split(ycc)
+    m = ((Cr >= 135) & (Cr <= 180) & (Cb >= 77) & (Cb <= 127) & (Y > 50)).astype(np.uint8) * 255
+    m = cv.morphologyEx(m, cv.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    return cv.morphologyEx(m, cv.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+
+
+def _fit_side(u: np.ndarray, e: np.ndarray, pinned: bool = False):
+    """One side of the page: e(u) = c0 + c1*u + u(1-u)(c2 + c3*u), u in 0..1, e = pixels outwards
+    from the straight crop line. c0 / c0+c1 move the two corners, c2/c3 bend the middle.
+    pinned=True keeps both corners where the detector put them (c0 = c1 = 0).
+    Least squares, refit twice without outliers (finger, text, background leaks).
+    Dart: 4x4 (or 2x2) normal equations solved by hand; no library needed."""
+    cols = [u * (1 - u), u * u * (1 - u)] if pinned else [np.ones_like(u), u, u * (1 - u), u * u * (1 - u)]
+    A = np.stack(cols, 1)
+    keep = np.ones(len(u), bool)
+    c = None
+    for _ in range(3):
+        if keep.sum() < 8:
+            return None
+        c, *_ = np.linalg.lstsq(A[keep], e[keep], rcond=None)
+        r = np.abs(A @ c - e)
+        mad = np.median(r[keep]) + 1e-6
+        keep = r < max(1.5, 3.0 * mad)
+    if keep.sum() < 8:
+        return None
+    rms = float(np.sqrt(np.mean((A[keep] @ c - e[keep]) ** 2)))
+    c = np.concatenate([[0.0, 0.0], c]) if pinned else c
+    return c, float(keep.mean()), rms
+
+
+def _side_e(c, u):
+    return c[0] + c[1] * u + u * (1 - u) * (c[2] + c[3] * u)
+
+
+def _bend_only(c, u):
+    return u * (1 - u) * (c[2] + c[3] * u)
+
+
+def warp_curved(bgr: np.ndarray, q: np.ndarray, mode: str = "document", corners_fixed: bool = False) -> np.ndarray:
+    """Drop-in replacement for warp() in Document mode. Falls back to warp() when not needed.
+    Traces the real page edges just outside/inside the 4-corner crop, bends each side to match
+    and may move a detected corner OUTWARDS onto the real page corner (never into the page).
+    corners_fixed=True when the user dragged the corners in Adjust edges: their corners are
+    kept exactly, only the sides may bend."""
+    if mode != "document":
+        return warp(bgr, q, mode)
+    q = _order_corners(q).astype(np.float32)
+    Wt = int(max(np.linalg.norm(q[2] - q[3]), np.linalg.norm(q[1] - q[0])))
+    Ht = int(max(np.linalg.norm(q[1] - q[2]), np.linalg.norm(q[0] - q[3])))
+    # Trace on a small copy (long side 800); the final remap is full size.
+    s = min(1.0, 800.0 / max(Wt, Ht))
+    w, h = max(16, int(Wt * s)), max(16, int(Ht * s))
+    mx, my = int(w * CURVE_MARGIN) + 2, int(h * CURVE_MARGIN) + 2
+    dst = np.array([[mx, my], [mx + w - 1, my], [mx + w - 1, my + h - 1], [mx, my + h - 1]], np.float32)
+    Hm = cv.getPerspectiveTransform(q, dst)
+    size = (w + 2 * mx, h + 2 * my)
+    small = cv.warpPerspective(bgr, Hm, size, flags=cv.INTER_AREA, borderMode=cv.BORDER_CONSTANT, borderValue=(0, 0, 0))
+    valid = cv.warpPerspective(np.full(bgr.shape[:2], 255, np.uint8), Hm, size, flags=cv.INTER_NEAREST)
+
+    # Paper mask: close to the paper colour measured in the middle of the page,
+    # text holes closed, then only the region that holds the page centre.
+    lab = cv.cvtColor(small, cv.COLOR_BGR2LAB).astype(np.float32)
+    centre = lab[my + h // 5:my + 4 * h // 5, mx + w // 5:mx + 4 * w // 5].reshape(-1, 3)
+    centre = centre[centre[:, 0] >= np.percentile(centre[:, 0], 60)]
+    Lp, ap, bp = np.median(centre, axis=0)
+    dist = np.sqrt(((lab[..., 0] - Lp) * 0.5) ** 2 + (lab[..., 1] - ap) ** 2 + (lab[..., 2] - bp) ** 2)
+    paper = ((dist < 18) & (lab[..., 0] > Lp - 30) & (valid > 0)).astype(np.uint8) * 255
+    k = max(3, int(0.03 * min(w, h)) | 1)
+    paper = cv.morphologyEx(paper, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_ELLIPSE, (k, k)))
+    n, lbl, st, _ = cv.connectedComponentsWithStats(paper)
+    c_lbl = lbl[my + h // 2, mx + w // 2]
+    if c_lbl == 0:
+        return warp(bgr, q, mode)
+    page = (lbl == c_lbl)
+    skin = cv.dilate(_skin_mask(small), np.ones((9, 9), np.uint8)) > 0   # fingers hide the edge there
+
+    def side(name):
+        """Bend of one side in small-warp pixels (+ = outwards), or None."""
+        horiz = name in ("top", "bottom")
+        length = w if horiz else h
+        start = mx if horiz else my
+        straight = {"top": my, "bottom": my + h - 1, "left": mx, "right": mx + w - 1}[name]
+        reach = int(CURVE_MAX_CORNER * (h if horiz else w)) + 3   # search this far in and out
+        out_dir = -1 if name in ("top", "left") else 1
+        us, es = [], []
+        step = max(1, length // 120)
+        for t in range(start + length // 20, start + length - length // 20, step):
+            e = None
+            # walk from outside towards the page; the first paper pixel is the edge
+            for d in range(reach, -reach - 1, -1):
+                i = straight + out_dir * d
+                y, x = (i, t) if horiz else (t, i)
+                if not (0 <= y < size[1] and 0 <= x < size[0]) or not valid[y, x]:
+                    continue
+                if page[y, x]:
+                    e = d
+                    break
+            if e is None or e == reach:          # edge not seen / page runs past the search
+                continue
+            y, x = (straight + out_dir * e, t) if horiz else (t, straight + out_dir * e)
+            if skin[max(0, y - 4):y + 5, max(0, x - 4):x + 5].any():
+                continue
+            us.append((t - start) / (length - 1)); es.append(e)
+        if len(us) < CURVE_MIN_VALID * (length * 0.9) / step:
+            return None
+        other = h if horiz else w
+        U, E = np.array(us), np.array(es, np.float64)
+        r = _fit_side(U, E, pinned=corners_fixed)
+        if r is None:
+            return None
+        c, inl, rms = r
+        lo_c = min(c[0], c[0] + c[1])
+        if (max(c[0], c[0] + c[1]) > CURVE_MAX_CORNER * other or lo_c < -CURVE_MAX_INWARD * other
+                or inl < CURVE_MIN_INLIERS or rms > CURVE_MAX_RMS):
+            r = _fit_side(U, E, pinned=True)     # not clean enough to move corners: keep the detector's
+            if r is None or r[1] < CURVE_MIN_INLIERS or r[2] > CURVE_MAX_RMS:
+                return None                      # still not clean: keep this side straight
+            c = r[0]
+        tt = np.linspace(0, 1, 50)
+        peak = float(np.max(np.abs(_bend_only(c, tt))))
+        if peak > CURVE_MAX_DEV * other:
+            return None                          # unreliable: keep this side straight
+        if float(np.min(_side_e(c, tt))) < -CURVE_MAX_INWARD * other:
+            return None                          # would cut into the page: keep this side straight
+        change = max(peak, abs(c[0]), abs(c[0] + c[1]))
+        return c, change
+
+    bends, peaks = {}, []
+    for name in ("top", "bottom", "left", "right"):
+        r = side(name)
+        bends[name] = r[0] if r else np.zeros(4)
+        rel = (r[1] / (h if name in ("top", "bottom") else w)) if r else 0.0
+        peaks.append(rel)
+    if CURVE_DEBUG:
+        print("    side change (fraction of page):", [round(p, 4) for p in peaks])
+    if max(peaks) < CURVE_MIN_DEV:
+        return warp(bgr, q, mode)
+
+    # Corners (each may have moved a little outwards/inwards) and the 4 curves through them.
+    x0, x1, y0, y1 = mx, mx + w - 1, my, my + h - 1
+    eT, eB, eL, eR = (lambda t, n=n: _side_e(bends[n], t) for n in ("top", "bottom", "left", "right"))
+    TL = np.array([x0 - eL(0.0), y0 - eT(0.0)]); TR = np.array([x1 + eR(0.0), y0 - eT(1.0)])
+    BL = np.array([x0 - eL(1.0), y1 + eB(0.0)]); BR = np.array([x1 + eR(1.0), y1 + eB(1.0)])
+
+    # Output size from the curve lengths, at full resolution.
+    def arclen(xs, ys):
+        return float(np.sum(np.hypot(np.diff(xs), np.diff(ys))))
+    t = np.linspace(0, 1, 100)
+    Wo = int(round(max(arclen(TL[0] + t * (TR[0] - TL[0]), y0 - eT(t)), arclen(BL[0] + t * (BR[0] - BL[0]), y1 + eB(t))) / s))
+    Ho = int(round(max(arclen(x0 - eL(t), TL[1] + t * (BL[1] - TL[1])), arclen(x1 + eR(t), TR[1] + t * (BR[1] - TR[1]))) / s))
+
+    # Coons patch on a coarse grid (every 8 px of output), then resized to full maps -> fast.
+    gw, gh = max(2, Wo // 8), max(2, Ho // 8)
+    u = np.linspace(0, 1, gw)[None, :]; v = np.linspace(0, 1, gh)[:, None]
+    tx, ty = TL[0] + u * (TR[0] - TL[0]), y0 - eT(u)
+    bx, by = BL[0] + u * (BR[0] - BL[0]), y1 + eB(u)
+    lx, ly = x0 - eL(v), TL[1] + v * (BL[1] - TL[1])
+    rx, ry = x1 + eR(v), TR[1] + v * (BR[1] - TR[1])
+    X = (1 - v) * tx + v * bx + (1 - u) * lx + u * rx - ((1 - u) * (1 - v) * TL[0] + u * (1 - v) * TR[0] + (1 - u) * v * BL[0] + u * v * BR[0])
+    Y = (1 - v) * ty + v * by + (1 - u) * ly + u * ry - ((1 - u) * (1 - v) * TL[1] + u * (1 - v) * TR[1] + (1 - u) * v * BL[1] + u * v * BR[1])
+    # Small warped space -> original photo coordinates (one interpolation in total).
+    Hi = np.linalg.inv(Hm)
+    P = np.stack([X, Y, np.ones_like(X)], -1) @ Hi.T
+    mapx = cv.resize((P[..., 0] / P[..., 2]).astype(np.float32), (Wo, Ho), interpolation=cv.INTER_LINEAR)
+    mapy = cv.resize((P[..., 1] / P[..., 2]).astype(np.float32), (Wo, Ho), interpolation=cv.INTER_LINEAR)
+    return cv.remap(bgr, mapx, mapy, cv.INTER_CUBIC, borderMode=cv.BORDER_REPLICATE)
+
+
+# ---------------------------------------------------------------------------
+# 2c. Finger removal (round 11b)
+#     Fingers holding the page come in from its edge. find_fingers() runs on the
+#     cropped COLOUR page (before any filter); the app shows the result as a thin
+#     amber outline + "Fingers found · Remove". remove_fingers() runs only when the
+#     user taps Remove, on the FILTERED page, with the same mask.
+# ---------------------------------------------------------------------------
+FINGER_MIN_AREA = 0.002    # of the page
+FINGER_MAX_AREA = 0.20
+FINGER_MAX_SKIN = 0.25     # more skin than this -> the paper itself is skin-coloured: don't suggest
+FINGER_MAX_SPAN = 0.5      # touches at most half of the side it comes in from
+FINGER_MIN_DEPTH = 0.03    # reaches at least 3% of the short side into the page
+FINGER_MIN_DE = 12.0       # colour distance from the paper (Lab)
+FINGER_MIN_RED = 8.0       # skin is redder than paper (Lab a*), cream paper in warm light is not
+FINGER_MAX_RED = 35.0      # deep red cloth / print is not skin
+
+
+def find_fingers(page_bgr: np.ndarray) -> np.ndarray | None:
+    """Mask (uint8 0/255, page size) of fingers entering the page from its edge, or None.
+    A region counts only if it is
+      - skin-coloured (YCrCb rule) and clearly redder than the paper (Lab a*), not deep red cloth,
+      - clearly different from the paper colour (cream paper in warm light passes the skin rule),
+      - entering from one edge like a finger: touching it along at most half that side and
+        reaching into the page (not a thin band along the border)."""
+    H, W = page_bgr.shape[:2]
+    s = min(1.0, 1000.0 / max(H, W))
+    small = cv.resize(page_bgr, (int(W * s), int(H * s)), interpolation=cv.INTER_AREA) if s < 1 else page_bgr
+    h, w = small.shape[:2]
+    skin = _skin_mask(small)
+    if cv.countNonZero(skin) > FINGER_MAX_SKIN * h * w:
+        return None
+    lab = cv.cvtColor(small, cv.COLOR_BGR2LAB).astype(np.float32)
+    centre = lab[h // 5:4 * h // 5, w // 5:4 * w // 5].reshape(-1, 3)
+    centre = centre[centre[:, 0] >= np.percentile(centre[:, 0], 60)]
+    Lp, ap, bp = np.median(centre, axis=0)                 # paper colour
+    n, lbl, st, _ = cv.connectedComponentsWithStats(skin)
+    out = np.zeros((h, w), np.uint8)
+    m = 4
+    short = min(h, w)
+    for i in range(1, n):
+        x, y, bw, bh, a = st[i]
+        if not (FINGER_MIN_AREA * h * w < a < FINGER_MAX_AREA * h * w):
+            continue
+        comp = (lbl == i)
+        # which edge does it come in from, how wide is the contact, how deep does it reach?
+        touch = {"top": comp[:m, :].any(0), "bottom": comp[-m:, :].any(0),
+                 "left": comp[:, :m].any(1), "right": comp[:, -m:].any(1)}
+        edge = max(touch, key=lambda k: touch[k].sum())
+        span = touch[edge].sum() / float(len(touch[edge]))
+        if touch[edge].sum() < 0.02 * short:                # must really enter from the edge
+            continue
+        if span > FINGER_MAX_SPAN:                          # a band along the whole border
+            continue
+        depth = {"top": y + bh, "bottom": h - y, "left": x + bw, "right": w - x}[edge]
+        if depth < FINGER_MIN_DEPTH * short:
+            continue
+        L_, a_, b_ = lab[comp].mean(axis=0)
+        dE = float(np.sqrt((L_ - Lp) ** 2 + (a_ - ap) ** 2 + (b_ - bp) ** 2))
+        # 8-bit Lab (OpenCV and opencv_dart): a* is stored +128
+        if dE < FINGER_MIN_DE or (a_ - ap) < FINGER_MIN_RED or (a_ - 128.0) > FINGER_MAX_RED:
+            continue
+        out[comp] = 255
+    if not out.any():
+        return None
+    cnts, _ = cv.findContours(out, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    cv.drawContours(out, cnts, -1, 255, -1)    # fill nail / shading holes
+    k = max(5, int(0.02 * short) | 1)          # grow over the soft edge and the finger's shadow
+    out = cv.dilate(out, cv.getStructuringElement(cv.MORPH_ELLIPSE, (k, k)))
+    return cv.resize(out, (W, H), interpolation=cv.INTER_LINEAR) if s < 1 else out
+
+
+def finger_outline(mask: np.ndarray):
+    """Contours for the amber outline on screen (draw 1.5 dp, same amber as the camera outline)."""
+    cnts, _ = cv.findContours((mask > 127).astype(np.uint8), cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+    return cnts
+
+
+def remove_fingers(page_bgr: np.ndarray, mask: np.ndarray) -> np.ndarray:
+    """Fill the mask with the paper colour around it, soft-blended. Works on any filter's output."""
+    m = (mask > 127).astype(np.uint8) * 255
+    if not m.any():
+        return page_bgr
+    k = max(9, int(0.03 * min(m.shape)) | 1)
+    ring = cv.subtract(cv.dilate(m, np.ones((k, k), np.uint8)), m) > 0
+    g = cv.cvtColor(page_bgr, cv.COLOR_BGR2GRAY)
+    if not ring.any():
+        return page_bgr
+    sel = ring & (g >= np.percentile(g[ring], 40))   # paper pixels only, not ink
+    col = np.median(page_bgr[sel], axis=0) if sel.any() else np.array([255, 255, 255])
+    a = cv.GaussianBlur(m, (0, 0), max(2.0, 0.004 * min(m.shape))).astype(np.float32)[..., None] / 255.0
+    a = np.maximum(a, (m > 0)[..., None].astype(np.float32))   # inside: fully filled
+    fill = np.empty_like(page_bgr); fill[:] = col.astype(np.uint8)
+    return (page_bgr.astype(np.float32) * (1 - a) + fill.astype(np.float32) * a).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +848,7 @@ def denoise_preview(bgr: np.ndarray) -> np.ndarray:
     return cv.bilateralFilter(bgr, 5, float(np.clip(sigma * 6, 15, 40)), 3)
 
 
-def blurry_regions(warped_bgr: np.ndarray, grid: int = 3, ratio: float = 0.5):
+def blurry_regions(warped_bgr: np.ndarray, grid: int = 3, ratio: float = 0.4, min_cells: int = 2):
     """Find parts of a page that are much blurrier than its sharpest part (camera shake or
     focus fall-off). Returns (row, col) cells of a grid x grid split, or [] when the page is
     evenly sharp or has too little detail to judge. Run on the cropped page before filters.
@@ -323,7 +877,11 @@ def blurry_regions(warped_bgr: np.ndarray, grid: int = 3, ratio: float = 0.5):
     if len(scores) < 3:
         return []
     best = max(scores.values())
-    return sorted(k for k, v in scores.items() if v < ratio * best)
+    bad = sorted(k for k, v in scores.items() if v < ratio * best)
+    # Round 7: users got far too many warnings. Only warn when a clear part of the page
+    # (2+ cells of 9) is much softer than the sharpest part. A missed mild blur is better
+    # than nagging on every page.
+    return bad if len(bad) >= min_cells else []
 
 
 def _background(gray_or_ch: np.ndarray) -> np.ndarray:
@@ -338,20 +896,110 @@ def _background(gray_or_ch: np.ndarray) -> np.ndarray:
     return cv.resize(small, (w, h), interpolation=cv.INTER_CUBIC)
 
 
-def filter_auto_color(bgr: np.ndarray) -> np.ndarray:
-    """Default 'Auto': clean, bright page, colours kept. For paper documents.
-    IMPORTANT: every step after the denoise works in float and the image is rounded to
-    8-bit only once, at the end. Rounding between steps and then stretching contrast is
-    what makes the grey 'marble' / contour lines on plain paper."""
-    img = _denoise(bgr)
+DET_DEBUG = False
+BG_SIZE, BG_KERNEL, BG_SIGMA = 500.0, 7, 2.5
+BG_DEBUG = False
+
+
+def _paper_background(f: np.ndarray) -> np.ndarray:
+    """Paper brightness per channel (float, full size), following shadows closely.
+
+    Works at 500 px: a small dilate + median removes text, so the estimate follows the
+    soft edge of a phone/hand shadow instead of smearing it (the old 400 px / median 21
+    version left a grey blob where the phone's shadow was). Large dark areas that are not
+    shadow (photos, black boxes, the dark rim of a page) are filled from the surrounding
+    paper, so a photo on the page keeps its darkness instead of being washed out."""
+    h, w = f.shape[:2]
+    s = BG_SIZE / max(h, w)
+    sw, sh = max(1, int(w * s)), max(1, int(h * s))
+    small = cv.resize(np.clip(f, 0, 255).astype(np.uint8), (sw, sh), interpolation=cv.INTER_AREA)
+    kk = BG_KERNEL
+    k = cv.getStructuringElement(cv.MORPH_RECT, (kk, kk))
+    # CLOSE (dilate then erode), not just dilate: removes dark text but keeps the edge
+    # of a shadow where it is. A plain dilate moved shadow edges by half a kernel, which
+    # left a dark streak along every hard shadow (round 9).
+    bg = cv.medianBlur(cv.morphologyEx(small, cv.MORPH_CLOSE, k), kk + 2)
+    Y = cv.cvtColor(bg, cv.COLOR_BGR2GRAY).astype(np.float32)
+    P = float(np.percentile(Y, 90))
+    # Which dark areas are SHADOWS (divide them out) and which are OBJECTS such as a
+    # photo, a black headphone, a dark box (protect them: fill the background there from
+    # the paper around)? Per dark area (round 11, tested on real tube-light photos):
+    #   * shadow if it is nearly uniform inside (cvar < 0.10), or
+    #   * shadow if its outline is SOFT: a shadow fades out over a penumbra, an object has
+    #     a crisp outline. Measured on the text-free background: 90th percentile of the
+    #     gradient along the area's outline divided by the area's contrast to the paper.
+    #     Shadows (hand, phone, lamp; even hard ones) measured 0.02-0.19, objects on
+    #     packaging 0.22-0.52. Threshold 0.20.
+    # Ink-based rules (rounds 9-10) misjudged real photos: thin handwriting under a soft
+    # shadow was missed, and the edges of objects were counted as ink.
+    gm = cv.magnitude(cv.Sobel(Y, cv.CV_32F, 1, 0), cv.Sobel(Y, cv.CV_32F, 0, 1)) / 8.0
+    dark = (Y < 0.85 * P).astype(np.uint8)
+    n, lab, st, _ = cv.connectedComponentsWithStats(dark, connectivity=8)
+    hole = np.zeros_like(dark)
+    min_area = 0.004 * dark.size
+    k5 = np.ones((5, 5), np.uint8)
+    for i in range(1, n):
+        if st[i, cv.CC_STAT_AREA] < min_area:
+            continue
+        m = lab == i
+        mu8 = m.astype(np.uint8)
+        inner = cv.erode(mu8, k).astype(bool)
+        if inner.sum() < 20:
+            inner = m
+        vals = Y[inner]
+        cvar = float(vals.std() / max(1.0, vals.mean()))
+        band = (cv.dilate(mu8, k5) - cv.erode(mu8, k5)).astype(bool)
+        contrast = max(1.0, P - float(np.median(Y[m])))
+        edge_sharp = float(np.percentile(gm[band], 90)) / contrast if band.any() else 0.0
+        is_shadow = cvar < 0.10 or edge_sharp < 0.20
+        if BG_DEBUG:
+            print(f"    dark area {st[i, cv.CC_STAT_AREA] / dark.size:.1%}: cvar={cvar:.3f} edge={edge_sharp:.3f} -> {'shadow' if is_shadow else 'object'}")
+        if not is_shadow:
+            hole[m] = 255                                   # protect the whole object
+    hole = cv.morphologyEx(hole, cv.MORPH_OPEN, k)          # drop thin shadow-edge bands
+    hole = cv.dilate(hole, k)
+    if 0 < cv.countNonZero(hole) < 0.6 * hole.size:
+        bg = cv.inpaint(bg, hole, 15, cv.INPAINT_TELEA)
+    bg = cv.GaussianBlur(bg.astype(np.float32), (0, 0), BG_SIGMA)   # float + blur -> no steps
+    return cv.resize(bg, (w, h), interpolation=cv.INTER_CUBIC)
+
+
+def _text_page_strength(gray: np.ndarray) -> float:
+    """1.0 for a text page (paper + dark ink, few mid-tones), 0.0 for a photo-heavy page
+    (packaging, photos). Fades between, never a hard switch."""
+    g = cv.resize(gray, (max(1, gray.shape[1] // 4), max(1, gray.shape[0] // 4)), interpolation=cv.INTER_AREA)
+    p = float(np.percentile(g, 85))
+    mid = float(((g > 0.35 * p) & (g < 0.80 * p)).mean())
+    return float(np.clip((0.22 - mid) / 0.10, 0.0, 1.0))
+
+
+def flatten_page(bgr: np.ndarray, denoised: bool = False) -> np.ndarray:
+    """Shared first step of Auto, Color boost, Grayscale and B&W print (round 9):
+    denoise -> white balance -> shadow removal. Returns FLOAT32 BGR (0..255+), not rounded.
+    Pass denoised=True when `bgr` is already the cached cleaned base (round 6)."""
+    img = bgr if denoised else _denoise(bgr)
     f = img.astype(np.float32)
     # gray-world white balance (strength 0.6)
     mean = f.reshape(-1, 3).mean(0)
     f *= 1.0 + 0.6 * (mean.mean() / np.maximum(mean, 1.0) - 1.0)
-    # shadow removal: divide by the smooth background (clamped divisor), blend 75%
-    for ch in range(3):
-        bg = _background(np.clip(f[:, :, ch], 0, 255).astype(np.uint8))
-        f[:, :, ch] = 0.75 * (f[:, :, ch] / np.maximum(bg, 40.0) * 245.0) + 0.25 * f[:, :, ch]
+    # Shadow removal: divide by the paper background. Text pages get the full effect
+    # (shadows gone, like CamScanner); photo-heavy pages keep 25% of the original light.
+    bg = _paper_background(f)
+    flat = f / np.maximum(bg, 30.0) * 245.0
+    # Decide "text page or photo-heavy page" on the shadow-free image. (Round 9: deciding
+    # on the original let shadows count as mid-tones, so shadowed text pages were treated
+    # as photos and kept 25% of the shadow.)
+    doc = _text_page_strength(cv.cvtColor(np.clip(flat, 0, 255).astype(np.uint8), cv.COLOR_BGR2GRAY))
+    blend = 0.75 + 0.25 * doc
+    return blend * flat + (1.0 - blend) * f
+
+
+def filter_auto_color(bgr: np.ndarray, chroma: float = 1.10, denoised: bool = False) -> np.ndarray:
+    """Default 'Auto': clean, bright page, colours kept. For paper documents.
+    IMPORTANT: every step after the denoise works in float and the image is rounded to
+    8-bit only once, at the end. Rounding between steps and then stretching contrast is
+    what makes the grey 'marble' / contour lines on plain paper."""
+    f = flatten_page(bgr, denoised)
     # to float Lab (L 0..100)
     lab = cv.cvtColor(np.clip(f / 255.0, 0, 1), cv.COLOR_BGR2LAB)
     L = lab[:, :, 0]
@@ -359,11 +1007,54 @@ def filter_auto_color(bgr: np.ndarray) -> np.ndarray:
     L = np.clip((L - lo) / max(1e-3, hi - lo) * 99.0, 0, 100)        # global levels
     L, chroma_k = _whiten_paper(L, lab[:, :, 1], lab[:, :, 2])
     lab[:, :, 0] = L
-    lab[:, :, 1] *= chroma_k * 1.10                                   # neutral paper, +10% colour elsewhere
-    lab[:, :, 2] *= chroma_k * 1.10
+    lab[:, :, 1] *= chroma_k * chroma                                 # neutral paper, +10% colour elsewhere
+    lab[:, :, 2] *= chroma_k * chroma
     out = cv.cvtColor(lab, cv.COLOR_LAB2BGR) * 255.0
     out = np.clip(out + 0.35 * (out - cv.GaussianBlur(out, (0, 0), 1.2)), 0, 255)   # unsharp
     return (out + 0.5).astype(np.uint8)                               # the ONLY rounding
+
+
+def clean_page_border(bgr: np.ndarray, band: float = 0.05) -> np.ndarray:
+    """Remove the dark slivers of table/background left along the page edges.
+
+    Happens when the crop sits slightly outside the paper, and always with curled or wavy
+    page edges (no 4-corner crop can follow a curve). Printed, these slivers show as black
+    lines around the page. CamScanner hides them; so do we.
+
+    Dark areas that touch the image edge and stay within `band` (5%) of it are painted with
+    the paper colour. Dark areas that reach deeper than the band (a black header bar, a
+    photo printed to the edge) are page content and are left alone.
+    Run on the FILTERED page, Document mode only (not ID Card / Passport)."""
+    h, w = bgr.shape[:2]
+    gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
+    P = float(np.percentile(gray, 90))                 # paper brightness
+    dark = (gray < 0.80 * P).astype(np.uint8)
+    b = max(2, int(round(band * min(h, w))))
+    b2 = 2 * b
+    # distance of every pixel from the nearest image edge
+    yy, xx = np.mgrid[0:h, 0:w]
+    depth = np.minimum(np.minimum(xx, w - 1 - xx), np.minimum(yy, h - 1 - yy))
+    zone = (depth < b2).astype(np.uint8)
+    n, lab, st, _ = cv.connectedComponentsWithStats(dark & zone, connectivity=8)
+    if n <= 1:
+        return bgr
+    # max depth per component, and whether it touches the image edge
+    maxd = np.zeros(n, np.int32)
+    np.maximum.at(maxd, lab.ravel(), depth.ravel() * (lab.ravel() > 0))
+    touch = np.zeros(n, bool)
+    edge = np.concatenate([lab[0, :], lab[-1, :], lab[:, 0], lab[:, -1]])
+    touch[np.unique(edge)] = True
+    remove = touch & (maxd < b)
+    remove[0] = False
+    mask = remove[lab].astype(np.uint8) * 255
+    if not mask.any():
+        return bgr
+    mask = cv.dilate(mask, cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5)))   # include the soft rim
+    paper = bgr[gray >= 0.92 * P]
+    colour = np.median(paper, axis=0) if len(paper) else np.array([255, 255, 255])
+    out = bgr.copy()
+    out[mask > 0] = colour.astype(np.uint8)
+    return out
 
 
 WHITEN_DEBUG = False
@@ -422,14 +1113,28 @@ def filter_id_color(bgr: np.ndarray) -> np.ndarray:
     return _unsharp(img, 0.6, 1.0)
 
 
-def filter_bw_print(bgr: np.ndarray) -> np.ndarray:
-    """'B&W print': pure black text on white, for photocopies."""
-    gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY)
-    gray = cv.bilateralFilter(gray, 5, 30, 30)
-    bg = _background(gray).astype(np.float32)
-    norm = np.clip(gray.astype(np.float32) / np.maximum(bg, 40.0) * 255.0, 0, 255).astype(np.uint8)
+def filter_color_boost(bgr: np.ndarray, denoised: bool = False) -> np.ndarray:
+    """'Color boost': Auto with stronger colours (stamps, highlighter, coloured forms)."""
+    return filter_auto_color(bgr, chroma=1.35, denoised=denoised)
+
+
+def filter_grayscale(bgr: np.ndarray, denoised: bool = False) -> np.ndarray:
+    """'Grayscale': Auto without colour (same clean white paper, no shadows)."""
+    g = cv.cvtColor(filter_auto_color(bgr, chroma=0.0, denoised=denoised), cv.COLOR_BGR2GRAY)
+    return cv.cvtColor(g, cv.COLOR_GRAY2BGR)
+
+
+def filter_bw_print(bgr: np.ndarray, denoised: bool = False) -> np.ndarray:
+    """'B&W print': pure black text on white, for photocopies.
+    Round 9: starts from flatten_page() (shadows already removed) instead of its own
+    background estimate, so shadow edges no longer turn into black streaks."""
+    # Threshold the finished Grayscale page: paper is already pure white and faint shadow
+    # rims are already gone, so only real ink is dark. A pixel is ink if it is clearly
+    # darker than its neighbourhood (adaptive, C=18) AND darker than 200 overall.
+    gray = cv.cvtColor(filter_grayscale(bgr, denoised), cv.COLOR_BGR2GRAY)
     block = max(15, (min(gray.shape[:2]) // 40) | 1)
-    bw = cv.adaptiveThreshold(norm, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 12)
+    loc = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, block, 18)
+    bw = np.where((loc == 0) & (gray < 200), 0, 255).astype(np.uint8)
     return cv.cvtColor(cv.medianBlur(bw, 3), cv.COLOR_GRAY2BGR)
 
 
@@ -481,17 +1186,25 @@ def run(in_dir: str, out_dir: str, mode_default: str = "document"):
         cv.polylines(vis, [q.astype(np.int32)], True, (0, 220, 0) if found else (0, 0, 255), 4)
         for x, y in q.astype(int):
             cv.circle(vis, (int(x), int(y)), 9, (255, 255, 255), -1)
-        w = warp(img, q, mode)
+        w = warp_curved(img, q, mode) if found else warp(img, q, mode)   # round 11b: bent pages
+        fingers = find_fingers(w) if mode == "document" else None
+        crop_vis = w.copy()
+        if fingers is not None:
+            cv.drawContours(crop_vis, finger_outline(fingers), -1, (51, 194, 255), max(2, w.shape[1] // 300))
         tiles = [_label(_fit(vis, 420), f"{name}: {'found' if found else 'NOT found'} ({src})"),
-                 _label(_fit(w, 420), "Original (crop only)")]
+                 _label(_fit(crop_vis, 420), "Crop" + (" + fingers found" if fingers is not None else ""))]
         if mode == "id":
             tiles.append(_label(_fit(filter_id_color(w), 420), "ID colour"))
         else:
-            tiles.append(_label(_fit(filter_auto_color(w), 420), "Auto (colour)"))
-        tiles.append(_label(_fit(filter_bw_print(w), 420), "B&W print"))
+            auto = clean_page_border(filter_auto_color(w))
+            tiles.append(_label(_fit(auto, 420), "Auto (colour)"))
+            if fingers is not None:
+                tiles.append(_label(_fit(remove_fingers(auto, fingers), 420), "Auto + Remove fingers"))
+        tiles.append(_label(_fit(filter_bw_print(w) if mode == "id" else clean_page_border(filter_bw_print(w)), 420), "B&W print"))
         row = np.hstack([np.pad(t, ((6, 6), (6, 6), (0, 0)), constant_values=255) for t in tiles])
         rows.append(row)
-        print(f"{name:16s} mode={mode:9s} found={found} score={score:.3f} via={src} sharpness={sharpness(img):.0f}")
+        print(f"{name:16s} mode={mode:9s} found={found} score={score:.3f} via={src} sharpness={sharpness(img):.0f} "
+              f"crop={w.shape[1]}x{w.shape[0]} fingers={'yes' if fingers is not None else 'no'}")
     if rows:
         wmax = max(r.shape[1] for r in rows)
         rows = [np.pad(r, ((0, 0), (0, wmax - r.shape[1]), (0, 0)), constant_values=255) for r in rows]

@@ -39,6 +39,9 @@ _PageEdits _$PageEditsFromJson(Map<String, dynamic> json) => _PageEdits(
         unknownValue: PhotoEnhance.off,
       ) ??
       PhotoEnhance.off,
+  cornersFixed: json['cornersFixed'] as bool? ?? true,
+  fingersRemoved: json['fingersRemoved'] as bool? ?? false,
+  fingerMaskPath: json['fingerMaskPath'] as String?,
 );
 
 Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
@@ -55,6 +58,9 @@ Map<String, dynamic> _$PageEditsToJson(_PageEdits instance) =>
       'photoBackground': _$PhotoBackgroundEnumMap[instance.photoBackground]!,
       'backgroundMaskPath': instance.backgroundMaskPath,
       'photoEnhance': _$PhotoEnhanceEnumMap[instance.photoEnhance]!,
+      'cornersFixed': instance.cornersFixed,
+      'fingersRemoved': instance.fingersRemoved,
+      'fingerMaskPath': instance.fingerMaskPath,
     };
 
 const _$FilterTypeEnumMap = {
