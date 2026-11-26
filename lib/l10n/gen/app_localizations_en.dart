@@ -1003,6 +1003,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get folderReceipts => 'Receipts';
 
   @override
+  String get folderPhotos => 'Photos';
+
+  @override
   String get folderOther => 'Other';
 
   @override

@@ -55,8 +55,9 @@ abstract final class PhotoBackgrounds {
 enum PhotoEnhance { off, natural, smooth }
 
 /// Home folders (round 4, feature 3). Stored by index: append only (office
-/// came in round 5). Display order is `FolderChips.order`.
-enum DocFolder { other, bills, ids, education, receipts, office }
+/// came in round 5, photos in round 11). Display order is
+/// `FolderChips.order`.
+enum DocFolder { other, bills, ids, education, receipts, office, photos }
 
 extension ScanModeX on ScanMode {
   bool get supportsPrintLayout =>

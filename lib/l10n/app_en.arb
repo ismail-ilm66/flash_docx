@@ -540,6 +540,7 @@
   "folderIds": "IDs",
   "folderEducation": "Education",
   "folderReceipts": "Receipts",
+  "folderPhotos": "Photos",
   "folderOther": "Other",
   "folderEmpty": "Nothing in {folder} yet",
   "@folderEmpty": {

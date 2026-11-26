@@ -149,6 +149,7 @@ String folderLabel(BuildContext context, DocFolder f) {
     DocFolder.education => l.folderEducation,
     DocFolder.receipts => l.folderReceipts,
     DocFolder.office => l.folderOffice,
+    DocFolder.photos => l.folderPhotos,
     DocFolder.other => l.folderOther,
   };
 }

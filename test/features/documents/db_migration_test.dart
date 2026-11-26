@@ -97,6 +97,37 @@ void main() {
     });
   });
 
+  test('v4 → v5 moves passport photos from IDs to Photos (round 11, P0-4)', () async {
+    final raw = sqlite3.openInMemory();
+    v2.forEach(raw.execute);
+    raw
+      ..execute('ALTER TABLE "documents" ADD COLUMN "folder" INTEGER NOT NULL DEFAULT 0')
+      ..execute('ALTER TABLE "documents" ADD COLUMN "suggestion" TEXT NULL');
+    final now = DateTime(2026, 11, 26).toIso8601String();
+    for (final (id, mode, folder) in [
+      ('sheet', ScanMode.photo, DocFolder.ids),
+      ('card', ScanMode.idCard, DocFolder.ids),
+      ('doc', ScanMode.document, DocFolder.bills),
+    ]) {
+      raw.execute(
+        'INSERT INTO documents (id, title, mode, folder, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
+        [id, id, mode.index, folder.index, now, now],
+      );
+    }
+    raw.execute('PRAGMA user_version = 4;');
+    final db = AppDatabase.test(NativeDatabase.opened(raw, closeUnderlyingOnClose: false));
+    // v4 had the draft table already; drift creates it only from < 4.
+    await db.customStatement('CREATE TABLE IF NOT EXISTS draft_pages (id TEXT NOT NULL PRIMARY KEY)');
+    final rows = await db.select(db.documents).get();
+    expect({for (final r in rows) r.id: r.folder}, {
+      'sheet': DocFolder.photos,
+      'card': DocFolder.ids,
+      'doc': DocFolder.bills,
+    });
+    await db.close();
+    raw.close();
+  });
+
   test('v3 → v4 adds the draft table (round 7, P0-3), keeps the documents', () async {
     final raw = sqlite3.openInMemory();
     v2.forEach(raw.execute);
@@ -114,7 +145,7 @@ void main() {
     final db = AppDatabase.test(NativeDatabase.opened(raw, closeUnderlyingOnClose: false));
     expect(await db.select(db.documents).get(), hasLength(1));
     expect(await db.select(db.draftPages).get(), isEmpty);
-    expect(raw.select('PRAGMA user_version').first.values.first, 4);
+    expect(raw.select('PRAGMA user_version').first.values.first, 5);
 
     final fresh = sqlite3.openInMemory();
     final freshDb = AppDatabase.test(NativeDatabase.opened(fresh, closeUnderlyingOnClose: false));

@@ -201,7 +201,12 @@ class DocumentRepositoryImpl implements DocumentRepository {
 
   /// Card scans go straight to IDs (feature 3); documents wait for the
   /// smart-name suggestion.
-  static DocFolder folderForMode(ScanMode mode) => mode == ScanMode.document ? DocFolder.other : DocFolder.ids;
+  /// Round 11, P0-4: passport photos and photo sheets go to Photos.
+  static DocFolder folderForMode(ScanMode mode) => switch (mode) {
+    ScanMode.document => DocFolder.other,
+    ScanMode.photo => DocFolder.photos,
+    ScanMode.idCard || ScanMode.passport => DocFolder.ids,
+  };
 
   /// "Flash Scan - 05 Nov 2026", then "… (2)", "… (3)" on the same day.
   Future<String> _uniqueDefaultTitle(DateTime at) async {

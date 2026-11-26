@@ -1834,6 +1834,12 @@ abstract class AppLocalizations {
   /// **'Receipts'**
   String get folderReceipts;
 
+  /// No description provided for @folderPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'Photos'**
+  String get folderPhotos;
+
   /// No description provided for @folderOther.
   ///
   /// In en, this message translates to:

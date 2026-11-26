@@ -78,7 +78,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -101,6 +101,13 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 4) await m.createTable(draftPages);
+          if (from < 5) {
+            // Round 11, P0-4: passport photos were filed under IDs.
+            await customStatement(
+              'UPDATE documents SET folder = ${DocFolder.photos.index} '
+              'WHERE mode = ${ScanMode.photo.index}',
+            );
+          }
         },
         beforeOpen: (details) async {
           await customStatement('PRAGMA foreign_keys = ON');

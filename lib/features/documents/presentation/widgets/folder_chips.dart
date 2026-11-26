@@ -15,13 +15,15 @@ class FolderChips extends StatelessWidget {
   final DocFolder? selected;
   final ValueChanged<DocFolder?> onSelected;
 
-  /// All · Bills · IDs · Education · Receipts · Office · Other.
+  /// All · IDs · Photos · Office · Bills · Education · Receipts · Other
+  /// (round 11 order).
   static const List<DocFolder> order = [
-    DocFolder.bills,
     DocFolder.ids,
+    DocFolder.photos,
+    DocFolder.office,
+    DocFolder.bills,
     DocFolder.education,
     DocFolder.receipts,
-    DocFolder.office,
     DocFolder.other,
   ];
 
