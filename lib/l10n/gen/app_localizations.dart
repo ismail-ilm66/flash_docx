@@ -1627,7 +1627,7 @@ abstract class AppLocalizations {
   /// No description provided for @cameraHintCard.
   ///
   /// In en, this message translates to:
-  /// **'Fit the card in the frame · move back if it\'s blurry'**
+  /// **'Fit the card in the frame'**
   String get cameraHintCard;
 
   /// No description provided for @enhanceAdjust.
@@ -2187,6 +2187,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Page found · hold still'**
   String get cameraPageFound;
+
+  /// No description provided for @cameraHoldFlat.
+  ///
+  /// In en, this message translates to:
+  /// **'Hold the phone flat'**
+  String get cameraHoldFlat;
+
+  /// No description provided for @cameraPointAtPage.
+  ///
+  /// In en, this message translates to:
+  /// **'Point at a page'**
+  String get cameraPointAtPage;
+
+  /// No description provided for @cameraHdSlow.
+  ///
+  /// In en, this message translates to:
+  /// **'HD uses more memory and may be slow on this phone.'**
+  String get cameraHdSlow;
 
   /// No description provided for @cameraAutoShort.
   ///

@@ -594,6 +594,23 @@ bool pageFillsFrame(cv.Mat bgr, {bool imported = false}) {
   }
 }
 
+/// Reference `detect_live` (round 11b, P0-15): the same detector as a
+/// photo on a small camera frame (scaled to [liveSize] long side if it is
+/// bigger). Normalised corners, or null.
+Quad? detectLive(cv.Mat smallBgr, {int liveSize = 320}) {
+  final long = math.max(smallBgr.rows, smallBgr.cols);
+  final m = long > liveSize + 8
+      ? cv.resize(smallBgr, (smallBgr.cols * liveSize ~/ long, smallBgr.rows * liveSize ~/ long), interpolation: cv.INTER_AREA)
+      : smallBgr;
+  try {
+    final r = detectDocument(m);
+    if (r.quad == null || r.score <= 0) return null;
+    return r.quad;
+  } finally {
+    disposeUnless(m, smallBgr);
+  }
+}
+
 /// numpy's `round` (half to even), which the reference uses for pixel
 /// positions.
 int _roundHalfEven(double v) {
@@ -1567,14 +1584,28 @@ cv.Mat warpCurved(cv.Mat src, Quad quad, {bool cornersFixed = false}) {
   final labels = cv.Mat.empty();
   final stats = cv.Mat.empty();
   final centroids = cv.Mat.empty();
-  cv.connectedComponentsWithStats(closed, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
+  final nLbl = cv.connectedComponentsWithStats(closed, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
   closed.dispose();
   stats.dispose();
   centroids.dispose();
   final lbl = Int32List.fromList(labels.data.buffer.asInt32List(labels.data.offsetInBytes, sw * sh));
   labels.dispose();
-  final cLbl = lbl[(my + h ~/ 2) * sw + mx + w ~/ 2];
-  if (cLbl == 0) {
+  // Round 11b: the page is the paper region covering most of the page's
+  // middle half (one centre pixel is often on text, in no region).
+  final counts = Int32List(nLbl);
+  var midSize = 0;
+  for (var y = my + h ~/ 4; y < my + 3 * h ~/ 4; y++) {
+    for (var x = mx + w ~/ 4; x < mx + 3 * w ~/ 4; x++) {
+      counts[lbl[y * sw + x]]++;
+      midSize++;
+    }
+  }
+  counts[0] = 0;
+  var cLbl = 0;
+  for (var i = 1; i < nLbl; i++) {
+    if (counts[i] > counts[cLbl]) cLbl = i;
+  }
+  if (counts[cLbl] < 0.3 * midSize) {
     skinM.dispose();
     return plain();
   }
@@ -2719,6 +2750,11 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   stretched.dispose();
   final w = whitenPaper(l, labCh[1], labCh[2]);
   if (!identical(w.l, l)) l.dispose();
+  // Round 11b: dim-light grain, on text pages only.
+  final mag = cv.magnitude(labCh[1], labCh[2]);
+  final wl = despeckleL(w.l, w.strength, mag);
+  mag.dispose();
+  if (!identical(wl, w.l)) w.l.dispose();
   // Neutral paper, [chroma] × colour elsewhere.
   final cA = w.chroma == null
       ? labCh[1].convertTo(cv.MatType.CV_32FC1, alpha: chroma)
@@ -2727,8 +2763,8 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
       ? labCh[2].convertTo(cv.MatType.CV_32FC1, alpha: chroma)
       : cv.multiply(labCh[2], w.chroma!, scale: chroma);
   w.chroma?.dispose();
-  final lab2 = cv.merge(cv.VecMat.fromList([w.l, cA, cB]));
-  for (final x in [w.l, cA, cB]) {
+  final lab2 = cv.merge(cv.VecMat.fromList([wl, cA, cB]));
+  for (final x in [wl, cA, cB]) {
     x.dispose();
   }
   labCh.dispose();
@@ -2746,14 +2782,86 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   return out;
 }
 
+/// Reference `_despeckle_L` (round 11b): dim-light photos leave small grey
+/// sensor-noise dots on the paper after whitening. On text pages
+/// ([strength] > 0) and neutral grey pixels ([chroma] < 12) only:
+/// 1. faint grain — light grey (L 75..100) not near ink (L < 60 within
+///    0.25 % of the page) goes towards white;
+/// 2. specks — tiny isolated non-white dots (≤ 0.0025 % of the page) whose
+///    darkest pixel is still light (L > 40) go towards white.
+/// Text, i-dots, commas and pen strokes are darker or bigger. Float L
+/// (0..100) in; a new Mat out, or [l] itself when [strength] is 0.
+cv.Mat despeckleL(cv.Mat l, double strength, cv.Mat chroma) {
+  if (strength <= 0) return l;
+  final h = l.rows;
+  final w = l.cols;
+  final n = h * w;
+  final lv = _floats(l);
+  final cr = _floats(chroma);
+  // 1) Faint grain.
+  final ink = _below(l, 60);
+  final r = math.max(2, (0.0025 * math.max(h, w)).toInt());
+  final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1));
+  final near = _dilate(ink, k);
+  ink.dispose();
+  k.dispose();
+  final nd = Uint8List.fromList(near.data);
+  near.dispose();
+  for (var i = 0; i < n; i++) {
+    final v = lv[i];
+    if (v > 75 && v < 100 && nd[i] == 0 && cr[i] < 12) lv[i] = v + strength * (100 - v);
+  }
+  // 2) Darker specks.
+  final l1 = _matOf(lv, h, w);
+  final notWhite = _below(l1, 92);
+  l1.dispose();
+  final labels = cv.Mat.empty();
+  final stats = cv.Mat.empty();
+  final centroids = cv.Mat.empty();
+  final count = cv.connectedComponentsWithStats(notWhite, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
+  notWhite.dispose();
+  centroids.dispose();
+  if (count > 1) {
+    final lab = Int32List.fromList(labels.data.buffer.asInt32List(labels.data.offsetInBytes, n));
+    final amax = math.max(4, (2.5e-5 * h * w).toInt());
+    final mins = Float32List(count)..fillRange(0, count, 100);
+    for (var i = 0; i < n; i++) {
+      final c = lab[i];
+      if (lv[i] < mins[c]) mins[c] = lv[i];
+    }
+    final speck = List<bool>.generate(count, (c) => c > 0 && stats.at<int>(c, cv.CC_STAT_AREA) <= amax && mins[c] > 40);
+    if (speck.contains(true)) {
+      for (var i = 0; i < n; i++) {
+        if (speck[lab[i]] && cr[i] < 12) lv[i] = lv[i] + strength * (100 - lv[i]);
+      }
+    }
+  }
+  labels.dispose();
+  stats.dispose();
+  return _matOf(lv, h, w);
+}
+
+/// 8-bit mask (1 where the float [m] is below [t]).
+cv.Mat _below(cv.Mat m, double t) {
+  // THRESH_BINARY_INV marks v <= t; just under t gives v < t.
+  final (_, f) = cv.threshold(m, t - 1e-4, 1, cv.THRESH_BINARY_INV);
+  final out = f.convertTo(cv.MatType.CV_8UC1);
+  f.dispose();
+  return out;
+}
+
+/// A float one-channel Mat holding [v].
+cv.Mat _matOf(Float32List v, int h, int w) => cv.Mat.fromList(h, w, cv.MatType.CV_32FC1, v);
+
 /// Reference `_whiten_paper` (P0-2), on float Lab channels: if the page is
 /// mostly plain paper with dark text (few mid-tones), push the paper to pure
 /// white with a smoothstep from 70 % of the paper level, so there's no
 /// visible edge or step; text below that keeps its weight. Photos and
 /// packaging have many mid-tones, and the effect fades out (never a hard
-/// switch). Returns the new L and the chroma multiplier (null = unchanged).
+/// switch). Returns the new L, the chroma multiplier (null = unchanged) and
+/// the strength (0..1, round 11b: [despeckleL] uses it).
 /// Statistics come from a ≤ 1000 px sample; the curve runs at full size.
-({cv.Mat l, cv.Mat? chroma}) whitenPaper(cv.Mat l, cv.Mat a, cv.Mat b) {
+({cv.Mat l, cv.Mat? chroma, double strength}) whitenPaper(cv.Mat l, cv.Mat a, cv.Mat b) {
   final chroma = cv.magnitude(a, b);
   final ls = _sample(l);
   final cs = _sample(chroma);
@@ -2764,7 +2872,7 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   ]);
   if (paper.isEmpty) {
     chroma.dispose();
-    return (l: l, chroma: null);
+    return (l: l, chroma: null, strength: 0.0);
   }
   final pL = _percentileOf(paper, 15);
   var midCount = 0;
@@ -2775,7 +2883,7 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   final strength = ((0.10 - mid) / 0.03).clamp(0.0, 1.0);
   if (strength == 0) {
     chroma.dispose();
-    return (l: l, chroma: null);
+    return (l: l, chroma: null, strength: 0.0);
   }
   final t0 = 0.70 * pL;
   final span = math.max(1e-3, pL - t0);
@@ -2800,7 +2908,7 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   for (final m in [chroma, xr, x, x2, term, s, room, lift, pale, sPale]) {
     m.dispose();
   }
-  return (l: l2, chroma: k);
+  return (l: l2, chroma: k, strength: strength);
 }
 
 /// Clamps a float Mat to [lo, hi].

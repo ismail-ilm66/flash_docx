@@ -27,6 +27,7 @@ class PrefsService {
   static const _tiltGuide = 'camera_tilt_guide';
   static const _grid = 'camera_grid';
   static const _autoCrop = 'camera_auto_crop';
+  static const _hdWarned = 'camera_hd_warned';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -65,6 +66,10 @@ class PrefsService {
   bool get grid => _prefs.getBool(_grid) ?? false;
   Future<void> setGrid(bool v) => _prefs.setBool(_grid, v);
   bool get autoCrop => _prefs.getBool(_autoCrop) ?? true;
+
+  /// Round 11b, P0-20: "HD uses more memory…" was shown.
+  bool get hdWarned => _prefs.getBool(_hdWarned) ?? false;
+  Future<void> setHdWarned() => _prefs.setBool(_hdWarned, true);
   Future<void> setAutoCrop(bool v) => _prefs.setBool(_autoCrop, v);
 
   String? get defaultQuality => _prefs.getString(_defaultQuality);

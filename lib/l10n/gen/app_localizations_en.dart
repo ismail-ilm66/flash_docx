@@ -879,8 +879,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get adjustBlurry => 'This page looks blurry';
 
   @override
-  String get cameraHintCard =>
-      'Fit the card in the frame · move back if it\'s blurry';
+  String get cameraHintCard => 'Fit the card in the frame';
 
   @override
   String get enhanceAdjust => 'Adjust';
@@ -1208,6 +1207,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cameraPageFound => 'Page found · hold still';
+
+  @override
+  String get cameraHoldFlat => 'Hold the phone flat';
+
+  @override
+  String get cameraPointAtPage => 'Point at a page';
+
+  @override
+  String get cameraHdSlow =>
+      'HD uses more memory and may be slow on this phone.';
 
   @override
   String get cameraAutoShort => 'A';

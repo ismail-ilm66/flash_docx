@@ -488,6 +488,88 @@ def warp(bgr: np.ndarray, q: np.ndarray, mode: str = "document") -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# 1b. LIVE outline for the camera preview (round 11b)
+#     Same detector as the captured photo, but on a SMALL colour frame (long side 320).
+#     Tested on all 16 test photos: same page as the full-size detection (overlap 0.92-0.99),
+#     ~70 ms per frame in Python. Running it on full camera frames is what made the live
+#     outline slow and the whole app sluggish on the Tecno KC2.
+#     Frame -> small BGR: take the YUV420 frame, scale Y to 320 long side and the U/V planes
+#     to the same size, convert YUV->BGR (cheap at this size). One frame in flight at a time.
+# ---------------------------------------------------------------------------
+LIVE_SIZE = 320
+
+
+def detect_live(small_bgr: np.ndarray, mode: str = "document"):
+    """small_bgr: camera frame already scaled to LIVE_SIZE long side (do the scaling while
+    converting from YUV, never on the full frame). Returns corners in small_bgr coordinates
+    or None. Scale them to preview coordinates in the UI."""
+    h, w = small_bgr.shape[:2]
+    if max(h, w) > LIVE_SIZE + 8:
+        s = LIVE_SIZE / float(max(h, w))
+        small_bgr = cv.resize(small_bgr, (int(w * s), int(h * s)), interpolation=cv.INTER_AREA)
+    else:
+        s = 1.0
+    q, score, _ = detect_document(small_bgr, mode)
+    if q is None or score <= 0:
+        return None
+    return q / s
+
+
+class LiveOutline:
+    """Smoothing + stability for the camera outline and auto capture (round 11b).
+    Call update(quad_or_None, t_seconds, phone_still) for every analysed frame.
+    - outline: corners moved 30% towards each new detection (no shaking)
+    - shown only after 2 frames in a row with a page; hidden after 4 frames without
+    - 'stable' when every corner stayed within 2% of the frame diagonal for 0.8 s and the
+      phone is still; a small wobble (2-5%) PAUSES the timer instead of restarting it;
+      only a real move (> 5%) or losing the page restarts it."""
+    def __init__(self, frame_w, frame_h, hold=0.8):
+        self.diag = float(np.hypot(frame_w, frame_h))
+        self.hold = hold
+        self.q = None
+        self.hits = 0
+        self.miss = 0
+        self.anchor = None
+        self.t_still = 0.0
+        self.t_pause = 0.0
+        self.t_last = None
+
+    def update(self, quad, t, phone_still=True):
+        dt = 0.0 if self.t_last is None else max(0.0, t - self.t_last)
+        self.t_last = t
+        if quad is None:
+            self.miss += 1
+            self.hits = 0
+            if self.miss >= 4:
+                self.q, self.anchor, self.t_still = None, None, 0.0
+            return self.state()
+        self.miss = 0
+        self.hits += 1
+        quad = np.asarray(quad, np.float32)
+        self.q = quad if self.q is None else self.q + 0.3 * (quad - self.q)
+        if self.anchor is None:
+            self.anchor, self.t_still = self.q.copy(), 0.0
+            return self.state()
+        move = float(np.max(np.linalg.norm(self.q - self.anchor, axis=1))) / self.diag
+        if move > 0.05:                               # real move: start again
+            self.anchor, self.t_still, self.t_pause = self.q.copy(), 0.0, 0.0
+        elif move <= 0.02 and phone_still:
+            self.t_still += dt                        # steady: count up
+            self.t_pause = 0.0
+        else:
+            # 0.02..0.05 or phone moving: pause (keep the time already counted) ...
+            self.t_pause += dt
+            if self.t_pause > 0.4 and phone_still:    # ... but a lasting offset is a new spot
+                self.anchor, self.t_still, self.t_pause = self.q.copy(), 0.0, 0.0
+        return self.state()
+
+    def state(self):
+        shown = self.q is not None and (self.hits >= 2 or self.miss > 0)
+        progress = 0.0 if not shown else min(1.0, self.t_still / self.hold)
+        return {"outline": self.q if shown else None, "progress": progress, "capture": progress >= 1.0}
+
+
+# ---------------------------------------------------------------------------
 # 2b. Bent page flattening (round 11b)
 #     A card or receipt held in the hand bends, so its edges are curves, not
 #     straight lines. After the normal 4-corner crop, trace the real page edges,
@@ -582,8 +664,13 @@ def warp_curved(bgr: np.ndarray, q: np.ndarray, mode: str = "document", corners_
     k = max(3, int(0.03 * min(w, h)) | 1)
     paper = cv.morphologyEx(paper, cv.MORPH_CLOSE, cv.getStructuringElement(cv.MORPH_ELLIPSE, (k, k)))
     n, lbl, st, _ = cv.connectedComponentsWithStats(paper)
-    c_lbl = lbl[my + h // 2, mx + w // 2]
-    if c_lbl == 0:
+    # The page = the paper region that covers most of the page's middle (not one centre pixel:
+    # that pixel is often on text and then belongs to no region).
+    mid = lbl[my + h // 4:my + 3 * h // 4, mx + w // 4:mx + 3 * w // 4]
+    counts = np.bincount(mid.ravel(), minlength=n)
+    counts[0] = 0
+    c_lbl = int(np.argmax(counts))
+    if counts[c_lbl] < 0.3 * mid.size:
         return warp(bgr, q, mode)
     page = (lbl == c_lbl)
     skin = cv.dilate(_skin_mask(small), np.ones((9, 9), np.uint8)) > 0   # fingers hide the edge there
@@ -1005,7 +1092,9 @@ def filter_auto_color(bgr: np.ndarray, chroma: float = 1.10, denoised: bool = Fa
     L = lab[:, :, 0]
     lo, hi = np.percentile(L, (1, 99.5))
     L = np.clip((L - lo) / max(1e-3, hi - lo) * 99.0, 0, 100)        # global levels
-    L, chroma_k = _whiten_paper(L, lab[:, :, 1], lab[:, :, 2])
+    L, chroma_k, wstrength = _whiten_paper(L, lab[:, :, 1], lab[:, :, 2])
+    L = _despeckle_L(L, wstrength,                                    # round 11b: dim-light grain
+                     np.sqrt(lab[:, :, 1] ** 2 + lab[:, :, 2] ** 2))
     lab[:, :, 0] = L
     lab[:, :, 1] *= chroma_k * chroma                                 # neutral paper, +10% colour elsewhere
     lab[:, :, 2] *= chroma_k * chroma
@@ -1061,7 +1150,7 @@ WHITEN_DEBUG = False
 
 
 def _whiten_paper(L: np.ndarray, a: np.ndarray, b: np.ndarray):
-    """Float Lab in, (new L, chroma multiplier) out. If the page is mostly plain paper,
+    """Float Lab in, (new L, chroma multiplier, strength 0..1) out. If the page is mostly plain paper,
     push the paper to pure white with a soft ramp so no edge or step is visible. Text
     and coloured areas are kept. Small brightness waves left on paper otherwise show
     as grey 'marble' patches."""
@@ -1075,7 +1164,7 @@ def _whiten_paper(L: np.ndarray, a: np.ndarray, b: np.ndarray):
     if WHITEN_DEBUG:
         print(f"    whiten: mid={mid:.3f} strength={strength:.2f}")
     if strength == 0.0:
-        return L, np.ones_like(L)
+        return L, np.ones_like(L), 0.0
     t0 = 0.70 * pL
     # Smoothstep from t0 (unchanged) to pL (white). Below t0: unchanged, so text keeps its
     # weight. The curve and its slope are continuous -> no contour lines.
@@ -1084,7 +1173,49 @@ def _whiten_paper(L: np.ndarray, a: np.ndarray, b: np.ndarray):
     s *= strength
     L2 = L + s * (100.0 - L)
     k = 1.0 - 0.8 * s * (chroma < 20)          # fade paper tint to neutral
-    return L2, k
+    return L2, k, strength
+
+
+SPECK_MAX_AREA = 2.5e-5    # of the page (about 30 px on a 1300 x 2000 page)
+SPECK_MIN_L = 40.0         # a speck is light grey: none of its pixels darker than this (Lab L 0..100)
+
+
+def _despeckle_L(L: np.ndarray, strength: float, chroma: np.ndarray | None = None) -> np.ndarray:
+    """Round 11b. Dim-light photos leave small grey sensor-noise dots on the paper after
+    whitening (they are darker than the whitening ramp start and then get sharpened).
+    Remove tiny, LIGHT-grey, isolated dots: text, i-dots, commas and pen strokes are darker
+    (min L < 40) or bigger and are never touched. Float L (0..100) in and out.
+    Only on text pages (strength = the whitening strength, 0..1), and only on NEUTRAL grey
+    pixels (chroma < 12): highlighter, stamps and coloured print are never touched."""
+    if strength <= 0.0:
+        return L
+    h, w = L.shape
+    # 1) faint grain: light grey (L > 75) and not next to ink (no pixel darker than 60
+    #    within ~0.25% of the page) -> paper. Anti-aliased text edges are next to ink: kept.
+    ink = (L < 60.0).astype(np.uint8)
+    r = max(2, int(0.0025 * max(h, w)))
+    near_ink = cv.dilate(ink, cv.getStructuringElement(cv.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))) > 0
+    neutral = np.ones_like(L, bool) if chroma is None else (chroma < 12.0)
+    grain = (L > 75.0) & (L < 100.0) & ~near_ink & neutral
+    L = L.copy()
+    L[grain] = L[grain] + strength * (100.0 - L[grain])
+    # 2) darker specks: tiny isolated dots that are still light-ish (min L > 40)
+    notwhite = (L < 92.0).astype(np.uint8)
+    n, lbl, st, _ = cv.connectedComponentsWithStats(notwhite, connectivity=8)
+    if n <= 1:
+        return L
+    amax = max(4, int(SPECK_MAX_AREA * h * w))
+    small = st[:, cv.CC_STAT_AREA] <= amax
+    small[0] = False
+    # darkest pixel of each component (one pass: min L per label)
+    mins = np.full(n, 100.0, np.float32)
+    np.minimum.at(mins, lbl.ravel(), L.ravel().astype(np.float32))
+    speck = small & (mins > SPECK_MIN_L)
+    if not speck.any():
+        return L
+    m = speck[lbl] & neutral
+    L[m] = L[m] + strength * (100.0 - L[m])
+    return L
 
 
 def _levels_L(bgr: np.ndarray, lo_pct: float, hi_pct: float) -> np.ndarray:
@@ -1155,6 +1286,38 @@ def sharpness(bgr: np.ndarray) -> float:
     s = 1000.0 / max(h, w)
     g = cv.cvtColor(cv.resize(bgr, (int(w * s), int(h * s))), cv.COLOR_BGR2GRAY)
     return float(cv.Laplacian(g, cv.CV_64F).var())
+
+
+# ---------------------------------------------------------------------------
+# 5. Passport photo: natural face brightening (round 11b)
+#     After the background swap. person = selfie-segmentation mask (float 0..1),
+#     face_box = ML Kit face detection box (x0, y0, x1, y1). Background untouched.
+#     No beauty filter, no skin smoothing: official photos must look natural.
+# ---------------------------------------------------------------------------
+FACE_TARGET_L = 64.0       # Lab L (0..100) of the middle of the face
+
+
+def passport_brighten(bgr: np.ndarray, person: np.ndarray, face_box) -> np.ndarray:
+    x0, y0, x1, y1 = [int(v) for v in face_box]
+    lab = cv.cvtColor(bgr.astype(np.float32) / 255.0, cv.COLOR_BGR2LAB)
+    L, a, b = cv.split(lab)
+    body = person > 0.5
+    if body.sum() < 100:
+        return bgr
+    lo = float(np.percentile(L[body], 1))
+    hi = float(np.percentile(L[body], 99.5))
+    hi2 = hi + 0.35 * (100.0 - hi)                    # highlights: lift a little, never clip
+    Ln = np.clip((L - lo) / max(1e-3, hi - lo) * (hi2 - 3.0) + 3.0, 0, 100)
+    fm = float(np.median(Ln[y0:y1, x0:x1]))
+    if fm < 1.0:
+        return bgr
+    g = float(np.clip(np.log(FACE_TARGET_L / 100.0) / np.log(fm / 100.0), 0.75, 1.0))
+    Ln = 100.0 * np.power(Ln / 100.0, g)              # midtones up, black and white points kept
+    Lo = person * Ln + (1.0 - person) * L
+    k = 1.0 + 0.22 * person                           # brightening greys skin: colour back +22%
+    out = cv.cvtColor(np.dstack([Lo, a * k, b * k]).astype(np.float32), cv.COLOR_LAB2BGR) * 255.0
+    out = out + 0.4 * (out - cv.GaussianBlur(out, (0, 0), 1.5)) * person[..., None]   # eyes, hair
+    return np.clip(out + 0.5, 0, 255).astype(np.uint8)
 
 
 # ---------------------------------------------------------------------------

@@ -467,7 +467,7 @@
   "cameraHoldStill": "Hold still…",
   "cameraLowLight": "Low light: turn on flash",
   "adjustBlurry": "This page looks blurry",
-  "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
+  "cameraHintCard": "Fit the card in the frame",
   "enhanceAdjust": "Adjust",
   "enhanceEdges": "Edges",
   "enhanceZoomIn": "Zoom in",
@@ -644,6 +644,9 @@
     }
   },
   "cameraPageFound": "Page found · hold still",
+  "cameraHoldFlat": "Hold the phone flat",
+  "cameraPointAtPage": "Point at a page",
+  "cameraHdSlow": "HD uses more memory and may be slow on this phone.",
   "cameraAutoShort": "A",
   "cameraHdShort": "HD",
   "dateToday": "Today",

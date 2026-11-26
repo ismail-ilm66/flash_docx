@@ -54,6 +54,17 @@ abstract final class PreviewGeometry {
     return Offset(x.clamp(0, 1), y.clamp(0, 1));
   }
 
+  /// The inverse of [viewportToPhoto]: a photo point (fractions) as
+  /// fractions of the [viewport] the photo is cover-fitted to.
+  static Offset photoToViewport(Offset p, {required double photoAspect, required Size viewport}) {
+    final vw = viewport.width;
+    final vh = viewport.height;
+    final k = math.max(vw / photoAspect, vh);
+    final shownW = photoAspect * k;
+    final shownH = k;
+    return Offset(((vw - shownW) / 2 + p.dx * shownW) / vw, ((vh - shownH) / 2 + p.dy * shownH) / vh);
+  }
+
   /// The guide frame in photo coordinates, as a [Quad].
   static Quad guideQuad(
     double aspect, {
