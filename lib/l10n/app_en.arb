@@ -538,6 +538,7 @@
   "folderEducation": "Education",
   "folderReceipts": "Receipts",
   "folderPhotos": "Photos",
+  "viewerInsertAfter": "Insert after this page",
   "folderOther": "Other",
   "folderEmpty": "Nothing in {folder} yet",
   "@folderEmpty": {

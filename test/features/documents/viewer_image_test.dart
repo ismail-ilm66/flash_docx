@@ -1,12 +1,12 @@
 import 'dart:io';
 
-import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/core/services/file_store.dart';
+import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
-import 'package:mocktail/mocktail.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:path/path.dart' as p;
 
 /// Round 10, P0-3: the viewer never shows the original photo or an

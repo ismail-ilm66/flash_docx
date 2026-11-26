@@ -1864,6 +1864,12 @@ abstract class AppLocalizations {
   /// **'Photos'**
   String get folderPhotos;
 
+  /// No description provided for @viewerInsertAfter.
+  ///
+  /// In en, this message translates to:
+  /// **'Insert after this page'**
+  String get viewerInsertAfter;
+
   /// No description provided for @folderOther.
   ///
   /// In en, this message translates to:

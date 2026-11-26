@@ -13,8 +13,10 @@ import 'package:go_router/go_router.dart';
 
 enum PageSource { camera, photos, files }
 
-/// Asks where new pages come from (Camera / Photos / Files).
-Future<PageSource?> pickPageSource(BuildContext context, {bool camera = true}) {
+/// Asks where new pages come from (Camera / Photos / Files). With
+/// [insertAfter] (the viewer, round 11 P0-11) it also offers "Insert after
+/// this page"; off means at the end.
+Future<PageSource?> pickPageSource(BuildContext context, {bool camera = true, ValueNotifier<bool>? insertAfter}) {
   final l = context.l10n;
   return AppBottomSheet.show<PageSource>(
     context,
@@ -23,6 +25,16 @@ Future<PageSource?> pickPageSource(BuildContext context, {bool camera = true}) {
       padding: const EdgeInsets.fromLTRB(Space.x2, 0, Space.x2, Space.x4),
       child: Column(
         children: [
+          if (insertAfter != null)
+            ValueListenableBuilder<bool>(
+              valueListenable: insertAfter,
+              builder: (_, on, _) => SwitchListTile.adaptive(
+                value: on,
+                onChanged: (v) => insertAfter.value = v,
+                title: Text(l.viewerInsertAfter),
+                contentPadding: const EdgeInsets.symmetric(horizontal: Space.x3),
+              ),
+            ),
           if (camera)
             SheetAction(
               label: l.addFromCamera,
@@ -47,8 +59,8 @@ Future<PageSource?> pickPageSource(BuildContext context, {bool camera = true}) {
 
 /// Source sheet → capture or import → the same prepare pipeline as every
 /// other entry point. Resolves the new draft pages, or null if cancelled.
-Future<List<ScanPage>?> collectNewPages(BuildContext context, {required ScanMode mode}) async {
-  final source = await pickPageSource(context);
+Future<List<ScanPage>?> collectNewPages(BuildContext context, {required ScanMode mode, ValueNotifier<bool>? insertAfter}) async {
+  final source = await pickPageSource(context, insertAfter: insertAfter);
   if (source == null || !context.mounted) return null;
   final captureMode = mode;
   if (source == PageSource.camera) {

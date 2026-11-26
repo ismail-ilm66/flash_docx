@@ -167,6 +167,36 @@ class ViewerCubit extends Cubit<ViewerState> {
   Future<Failure?> addPages(List<ScanPage> pages) async =>
       (await _addPages(state.document!.id, pages)).fold((f) => f, (_) => null);
 
+  /// The filter most of [pages] use (round 11, P0-11: added pages start
+  /// with it), or null for none.
+  static FilterType? documentFilter(List<ScanPage> pages) {
+    final n = <FilterType, int>{};
+    for (final p in pages) {
+      n[p.edits.filter] = (n[p.edits.filter] ?? 0) + 1;
+    }
+    if (n.isEmpty) return null;
+    return n.entries.reduce((a, b) => b.value > a.value ? b : a).key;
+  }
+
+  /// Round 11, P0-11: the pages [ids] were just added (at the end). Moves
+  /// them after [after] if given, and shows the first of them.
+  Future<void> placeNewPages(List<String> ids, {String? after}) async {
+    bool has(ViewerState s) => s.document != null && ids.every((id) => s.document!.pages.any((p) => p.id == id));
+    if (!has(state)) {
+      await stream.firstWhere(has).timeout(const Duration(seconds: 10), onTimeout: () => state);
+    }
+    if (!has(state) || isClosed) return;
+    var order = [for (final p in state.pages) p.id];
+    if (after != null && order.contains(after)) {
+      final rest = [for (final id in order) if (!ids.contains(id)) id];
+      final at = rest.indexOf(after) + 1;
+      order = [...rest.sublist(0, at), ...ids, ...rest.sublist(at)];
+      final err = await reorder(order);
+      if (err != null || isClosed) return;
+    }
+    emit(state.copyWith(index: order.indexOf(ids.first)));
+  }
+
   Future<Failure?> reorder(List<String> ids) async =>
       (await _reorder(state.document!.id, ids)).fold((f) => f, (_) => null);
 

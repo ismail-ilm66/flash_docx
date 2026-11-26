@@ -1010,6 +1010,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get folderPhotos => 'Photos';
 
   @override
+  String get viewerInsertAfter => 'Insert after this page';
+
+  @override
   String get folderOther => 'Other';
 
   @override

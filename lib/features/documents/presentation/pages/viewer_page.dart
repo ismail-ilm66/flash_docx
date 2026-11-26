@@ -198,12 +198,27 @@ class _ViewerViewState extends State<_ViewerView> {
               size: e?.photoWidthMm != null && e?.photoHeightMm != null ? PhotoSize(e!.photoWidthMm!, e.photoHeightMm!) : null,
             );
           }
-          final added = await collectNewPages(context, mode: doc.mode);
+          // Round 11, P0-11: new pages go through Adjust edges and Enhance
+          // like a new scan (only they), starting with the document's
+          // filter; Done comes back here on the first new page.
+          final insertAfter = ValueNotifier(false);
+          final openPage = s.current?.id;
+          final added = await collectNewPages(context, mode: doc.mode, insertAfter: pages.length > 1 ? insertAfter : null);
           if (added == null || added.isEmpty || !context.mounted) return;
-          final err = await cubit.addPages(added);
-          if (err != null && context.mounted) {
-            context.showSnack(failureMessage(context, err), error: true);
-          }
+          final filter = ViewerCubit.documentFilter(pages);
+          final saved = await context.push<bool>(
+            Routes.adjust,
+            extra: EditorArgs(
+              pages: [
+                for (final pg in added) filter == null ? pg : pg.withEdits(pg.edits.copyWith(filter: filter)),
+              ],
+              mode: doc.mode,
+              documentId: doc.id,
+              addingPages: true,
+            ),
+          );
+          if (saved != true || !context.mounted) return;
+          await cubit.placeNewPages([for (final pg in added) pg.id], after: insertAfter.value ? openPage : null);
         }
 
         return AppScaffold(

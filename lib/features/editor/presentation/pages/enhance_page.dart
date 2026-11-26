@@ -95,10 +95,11 @@ class _EnhanceViewState extends State<_EnhanceView> {
         });
       }
     } else {
-      // Pop Enhance and Adjust edges back to the viewer.
+      // Pop Enhance and Adjust edges back to the viewer; added pages
+      // (round 11, P0-11) tell it they were saved.
       context
         ..pop()
-        ..pop();
+        ..pop(s.args.addingPages ? true : null);
     }
   }
 
