@@ -1021,6 +1021,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewerMove => 'Move';
 
   @override
+  String savedTo(String folder) {
+    return 'Saved to $folder';
+  }
+
+  @override
+  String get saveOpen => 'Open';
+
+  @override
+  String get saveNeedsStorageTitle => 'Allow saving to your phone';
+
+  @override
+  String get saveNeedsStorageBody =>
+      'Flash Dox needs storage access to put the file in your Pictures or Download folder.';
+
+  @override
   String get viewerDeleteWholeTitle => 'Delete the whole document?';
 
   @override
@@ -1157,6 +1172,21 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reduceSaveAnyway => 'Make it anyway';
+
+  @override
+  String get reduceSmallestHint =>
+      'This is the smallest at this size. For smaller, choose fewer pixels.';
+
+  @override
+  String get reduceDone => 'Done!';
+
+  @override
+  String reduceSmaller(int percent) {
+    return '$percent% smaller';
+  }
+
+  @override
+  String get reduceAnother => 'Reduce another file';
 
   @override
   String get reducePdfWarningTitle => 'Text won\'t be selectable';

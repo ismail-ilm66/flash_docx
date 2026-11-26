@@ -17,6 +17,7 @@ export 'option_chip.dart';
 export 'page_dots.dart';
 export 'page_thumb.dart';
 export 'quick_action_tile.dart';
+export 'save_feedback.dart';
 export 'scan_fab.dart';
 export 'segmented_pills.dart';
 export 'selection_action_bar.dart';

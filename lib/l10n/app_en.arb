@@ -542,6 +542,17 @@
   "folderPhotos": "Photos",
   "viewerInsertAfter": "Insert after this page",
   "viewerMove": "Move",
+  "savedTo": "Saved to {folder}",
+  "@savedTo": {
+    "placeholders": {
+      "folder": {
+        "type": "String"
+      }
+    }
+  },
+  "saveOpen": "Open",
+  "saveNeedsStorageTitle": "Allow saving to your phone",
+  "saveNeedsStorageBody": "Flash Dox needs storage access to put the file in your Pictures or Download folder.",
   "viewerDeleteWholeTitle": "Delete the whole document?",
   "viewerPageDeleted": "Page {number} deleted",
   "@viewerPageDeleted": {
@@ -629,6 +640,17 @@
     }
   },
   "reduceSaveAnyway": "Make it anyway",
+  "reduceSmallestHint": "This is the smallest at this size. For smaller, choose fewer pixels.",
+  "reduceDone": "Done!",
+  "reduceSmaller": "{percent}% smaller",
+  "@reduceSmaller": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "reduceAnother": "Reduce another file",
   "reducePdfWarningTitle": "Text won't be selectable",
   "reducePdfWarningBody": "Reducing turns each page into an image. Text in this PDF won't be selectable afterwards.",
   "reduceContinue": "Continue",

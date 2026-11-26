@@ -1,12 +1,18 @@
 package com.swtnoa.flashdox
 
+import android.Manifest
 import android.app.ActivityManager
 import android.app.UiModeManager
+import android.content.ContentValues
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
 import android.os.StatFs
+import android.provider.MediaStore
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -24,6 +30,9 @@ class MainActivity : FlutterActivity() {
 
     private var pendingPaths: List<String>? = null
     private var eventSink: EventChannel.EventSink? = null
+
+    /// A save waiting for the storage permission (Android 9 and below).
+    private var pendingSave: Pair<MethodChannel.Result, () -> Unit>? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -65,6 +74,52 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // Round 11b, I3: "Save to phone" without a permission. Android 10+
+        // writes through MediaStore into Pictures/Flash Dox (images) or
+        // Download/Flash Dox (PDFs); Android 9 and below asks for the storage
+        // permission first and writes into the same public folders.
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.swtnoa.flashdox/save")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "needsPermission" -> result.success(
+                        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
+                            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED,
+                    )
+                    "save" -> {
+                        val path = call.argument<String>("path")!!
+                        val name = call.argument<String>("name")!!
+                        val mime = call.argument<String>("mime")!!
+                        val image = call.argument<Boolean>("image") ?: true
+                        val run = {
+                            try {
+                                result.success(saveFile(path, name, mime, image))
+                            } catch (e: Exception) {
+                                result.error("save", e.message, null)
+                            }
+                        }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q ||
+                            checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                        ) {
+                            run()
+                        } else {
+                            pendingSave = result to run
+                            requestPermissions(arrayOf(Manifest.permission.WRITE_EXTERNAL_STORAGE), SAVE_REQUEST)
+                        }
+                    }
+                    "open" -> try {
+                        val uri = Uri.parse(call.argument<String>("uri")!!)
+                        val view = Intent(Intent.ACTION_VIEW).apply {
+                            setDataAndType(uri, call.argument<String>("mime"))
+                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        startActivity(Intent.createChooser(view, null).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         // The Android 12+ system splash is drawn before Flutter starts, so it
         // can only match the in-app theme if Android already knows it. The
         // app night mode is persisted by the OS and used for the next launch.
@@ -95,6 +150,63 @@ class MainActivity : FlutterActivity() {
                     eventSink = null
                 }
             })
+    }
+
+    /// Writes [path] into Pictures/Flash Dox or Download/Flash Dox; returns
+    /// the content uri and the folder shown to the user.
+    private fun saveFile(path: String, name: String, mime: String, image: Boolean): Map<String, String> {
+        val folder = if (image) "${Environment.DIRECTORY_PICTURES}/Flash Dox" else "${Environment.DIRECTORY_DOWNLOADS}/Flash Dox"
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val values = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+                put(MediaStore.MediaColumns.MIME_TYPE, mime)
+                put(MediaStore.MediaColumns.RELATIVE_PATH, folder)
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+            val collection = if (image) {
+                MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            } else {
+                MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+            }
+            val uri = contentResolver.insert(collection, values) ?: throw IllegalStateException("insert failed")
+            contentResolver.openOutputStream(uri)!!.use { out -> File(path).inputStream().use { it.copyTo(out) } }
+            values.clear()
+            values.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            contentResolver.update(uri, values, null, null)
+            return mapOf("uri" to uri.toString(), "folder" to folder)
+        }
+        @Suppress("DEPRECATION")
+        val base = Environment.getExternalStoragePublicDirectory(if (image) Environment.DIRECTORY_PICTURES else Environment.DIRECTORY_DOWNLOADS)
+        val dir = File(base, "Flash Dox").apply { mkdirs() }
+        var out = File(dir, name)
+        var n = 2
+        while (out.exists()) {
+            out = File(dir, "${name.substringBeforeLast('.')} ($n).${name.substringAfterLast('.')}")
+            n++
+        }
+        File(path).copyTo(out)
+        var scanned: Uri? = null
+        val lock = Object()
+        MediaScannerConnection.scanFile(this, arrayOf(out.absolutePath), arrayOf(mime)) { _, uri ->
+            synchronized(lock) {
+                scanned = uri
+                lock.notifyAll()
+            }
+        }
+        synchronized(lock) { if (scanned == null) lock.wait(2000) }
+        return mapOf("uri" to (scanned?.toString() ?: ""), "folder" to folder)
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != SAVE_REQUEST) return
+        val (result, run) = pendingSave ?: return
+        pendingSave = null
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) run() else result.error("permission", "denied", null)
+    }
+
+    companion object {
+        private const val SAVE_REQUEST = 4711
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

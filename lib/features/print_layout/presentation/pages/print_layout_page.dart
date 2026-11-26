@@ -83,7 +83,7 @@ class _PrintViewState extends State<_PrintView> {
       listener: (context, s) {
         final st = s.status;
         if (st is PrintDone && st.target == ExportTarget.saveToPhone) {
-          context.showSnack(l.shareSaved);
+          showSaved(context);
         }
         if (st is PrintFailed) {
           context.showSnack(failureMessage(context, st.failure), error: true);
@@ -310,7 +310,11 @@ class _PrintViewState extends State<_PrintView> {
                         child: SecondaryButton(
                           label: l.shareSaveToPhone,
                           dense: true,
-                          onPressed: working ? null : () => cubit.run(ExportTarget.saveToPhone),
+                          onPressed: working
+                              ? null
+                              : () async {
+                                  if (await readyToSave(context)) await cubit.run(ExportTarget.saveToPhone);
+                                },
                         ),
                       ),
                       const SizedBox(width: 10),

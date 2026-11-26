@@ -16,7 +16,10 @@
          merger also implies READ_EXTERNAL_STORAGE from the write permission.
          Gallery import uses the system photo picker and needs none of them. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" tools:node="remove" />
+    <!-- Round 11b, I3: Save to phone on Android 9 and below writes into the
+         public Pictures / Download folders, which needs this there (asked
+         with a reason first). Android 10+ uses MediaStore: no permission. -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" tools:node="replace" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" tools:node="remove" />
 
     <application

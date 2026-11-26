@@ -82,6 +82,8 @@ class _SharePanelState extends State<SharePanel> {
       context.read<ExportBloc>().add(ExportOptionsChanged(o));
 
   Future<void> _go(ExportTarget target) async {
+    if (target == ExportTarget.saveToPhone && !await readyToSave(context)) return;
+    if (!mounted) return;
     final bloc = context.read<ExportBloc>();
     _update(bloc.state.options.copyWith(fileName: _name.text));
     final needed = bloc.state.requiredUnlock;
@@ -107,7 +109,7 @@ class _SharePanelState extends State<SharePanel> {
         final st = s.status;
         if (st is ExportDone) {
           if (st.target == ExportTarget.saveToPhone) {
-            context.showSnack(l.shareSaved);
+            showSaved(context);
           }
           if (!widget.inline) Navigator.of(context).pop();
         } else if (st is ExportFailed) {

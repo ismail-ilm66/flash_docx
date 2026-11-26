@@ -148,6 +148,8 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
       v == v.roundToDouble() ? '${v.round()}' : v.toStringAsFixed(1);
 
   Future<void> _export({required bool share}) async {
+    if (!share && !await readyToSave(context)) return;
+    if (!mounted) return;
     final doc = _doc;
     final photos = _photos;
     if (doc == null || photos == null) return;
@@ -193,7 +195,7 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
         },
         (_) {
           unawaited(getIt<LogActivity>()(doc.id, ActivityType.photoSheet));
-          if (!share) context.showSnack(l.shareSaved);
+          if (!share) showSaved(context);
         },
       );
     } on Object {

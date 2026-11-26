@@ -1888,6 +1888,30 @@ abstract class AppLocalizations {
   /// **'Move'**
   String get viewerMove;
 
+  /// No description provided for @savedTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved to {folder}'**
+  String savedTo(String folder);
+
+  /// No description provided for @saveOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get saveOpen;
+
+  /// No description provided for @saveNeedsStorageTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow saving to your phone'**
+  String get saveNeedsStorageTitle;
+
+  /// No description provided for @saveNeedsStorageBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Flash Dox needs storage access to put the file in your Pictures or Download folder.'**
+  String get saveNeedsStorageBody;
+
   /// No description provided for @viewerDeleteWholeTitle.
   ///
   /// In en, this message translates to:
@@ -2097,6 +2121,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Make it anyway'**
   String get reduceSaveAnyway;
+
+  /// No description provided for @reduceSmallestHint.
+  ///
+  /// In en, this message translates to:
+  /// **'This is the smallest at this size. For smaller, choose fewer pixels.'**
+  String get reduceSmallestHint;
+
+  /// No description provided for @reduceDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Done!'**
+  String get reduceDone;
+
+  /// No description provided for @reduceSmaller.
+  ///
+  /// In en, this message translates to:
+  /// **'{percent}% smaller'**
+  String reduceSmaller(int percent);
+
+  /// No description provided for @reduceAnother.
+  ///
+  /// In en, this message translates to:
+  /// **'Reduce another file'**
+  String get reduceAnother;
 
   /// No description provided for @reducePdfWarningTitle.
   ///

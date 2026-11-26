@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flash_dox/app/di/injection.dart';
@@ -10,6 +11,7 @@ import 'package:flash_dox/core/services/share_service.dart';
 import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/watch_documents.dart';
+import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/reduce/data/reduce_service.dart';
 import 'package:flash_dox/features/reduce/domain/reduce_options.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
@@ -179,7 +181,7 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
 
   Future<void> _save() async {
     final res = _result;
-    if (res == null) return;
+    if (res == null || !await readyToSave(context)) return;
     final files = [for (final f in res.files) File(f)];
     final svc = getIt<SaveService>();
     final pdf = files.length == 1 && files.single.path.endsWith('.pdf');
@@ -189,7 +191,7 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
       (f) {
         if (f is! CancelledFailure) context.showSnack(failureMessage(context, f), error: true);
       },
-      (_) => context.showSnack(context.l10n.shareSaved),
+      (_) => showSaved(context),
     );
   }
 
@@ -300,6 +302,23 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
     final l = context.l10n;
     final c = context.colors;
     final res = _result;
+    // Round 11b, I1 (design ReduceDone): a success screen once there are
+    // files.
+    if (res != null && res.files.isNotEmpty) {
+      return AppScaffold(
+        topBar: AppTopBar(title: l.reduceTitle),
+        body: _ReduceDone(
+          result: res,
+          images: _images,
+          onSave: _save,
+          onShare: _share,
+          onAnother: () {
+            context.pop();
+            startReduceSize(context);
+          },
+        ),
+      );
+    }
     final custom = !reduceSizePresets.contains(_maxBytes);
     final customPixels = !PixelSize.presets.contains(_pixels);
     Widget chips<T>(List<T> values, T selected, String Function(T) label, void Function(T) pick, {VoidCallback? onCustom, bool customOn = false, String? customLabel}) => Wrap(
@@ -350,40 +369,218 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
           const SizedBox(height: Space.x6),
           PrimaryButton(label: _working ? l.reduceWorking : l.reduceGo, onPressed: _working ? null : _reduce),
           if (_working) const Padding(padding: EdgeInsets.only(top: Space.x4), child: Center(child: CircularProgressIndicator())),
-          if (res != null) ...[
+          // The target can't be met and nothing was made yet: an amber
+          // note (red is for real errors only), and Make it anyway.
+          if (res != null && res.files.isEmpty) ...[
             const SizedBox(height: Space.x6),
-            Container(
-              padding: const EdgeInsets.all(Space.x4),
-              decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(16), border: Border.all(color: c.border)),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    '${l.reduceBeforeAfter(formatBytes(res.bytesBefore), formatBytes(res.bytesAfter))} · '
-                    '${_images ? l.reduceImages(res.count) : l.reducePages(res.count)}',
-                    style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-                  ),
-                  if (!res.fits) ...[
-                    const SizedBox(height: Space.x2),
-                    Text(l.reduceSmallest(formatBytes(res.bytesAfter)), style: context.text.bodyMedium?.copyWith(color: c.danger)),
-                  ],
-                  const SizedBox(height: Space.x4),
-                  if (res.files.isEmpty)
-                    SecondaryButton(label: l.reduceSaveAnyway, onPressed: () => _reduce(anyway: true))
-                  else
-                    Row(
-                      children: [
-                        Expanded(child: SecondaryButton(label: l.shareSaveToPhone, icon: AppIcons.save, onPressed: _save)),
-                        const SizedBox(width: Space.x3),
-                        Expanded(child: PrimaryButton(label: l.viewerShare, icon: AppIcons.share, onPressed: _share)),
-                      ],
-                    ),
-                ],
-              ),
-            ),
+            _SmallestNote(text: l.reduceSmallest(formatBytes(res.bytesAfter))),
+            const SizedBox(height: Space.x3),
+            SecondaryButton(label: l.reduceSaveAnyway, onPressed: () => _reduce(anyway: true)),
           ],
         ],
       ),
     );
   }
+}
+
+/// "This is the smallest at this size…" in amber (round 11b, I2).
+class _SmallestNote extends StatelessWidget {
+  const _SmallestNote({required this.text});
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final l = context.l10n;
+    return Container(
+      padding: const EdgeInsets.all(Space.x3),
+      decoration: BoxDecoration(color: c.accentSoft, borderRadius: BorderRadius.circular(12)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppIcon(AppIcons.info, size: 18, color: c.accentText),
+          const SizedBox(width: Space.x2),
+          Expanded(
+            child: Text(
+              '$text\n${l.reduceSmallestHint}',
+              style: context.text.bodyMedium?.copyWith(color: c.accentText, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Round 11b, I1 (design ReduceDone): a green tick that pops in (0.45 s)
+/// with the tick drawn after it, "Done!", before → after, "31% smaller",
+/// the new file, Save to phone · Share and "Reduce another file". A short
+/// haptic tick when it appears.
+class _ReduceDone extends StatefulWidget {
+  const _ReduceDone({required this.result, required this.images, required this.onSave, required this.onShare, required this.onAnother});
+
+  final ReduceResult result;
+  final bool images;
+  final VoidCallback onSave;
+  final VoidCallback onShare;
+  final VoidCallback onAnother;
+
+  @override
+  State<_ReduceDone> createState() => _ReduceDoneState();
+}
+
+class _ReduceDoneState extends State<_ReduceDone> with SingleTickerProviderStateMixin {
+  late final AnimationController _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 750))..forward();
+  ({int width, int height})? _size;
+
+  static const _green = Color(0xFF22C55E);
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(HapticFeedback.lightImpact());
+    final first = widget.result.files.first;
+    if (widget.images && widget.result.files.length == 1) {
+      getIt<ImageProcessor>().imageSize(first).then((s) {
+        if (mounted) setState(() => _size = s);
+      }, onError: (Object _) {});
+    }
+  }
+
+  @override
+  void dispose() {
+    _anim.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    final r = widget.result;
+    final saved = r.bytesBefore <= 0 ? 0 : ((1 - r.bytesAfter / r.bytesBefore) * 100).round();
+    final file = r.files.first;
+    final ext = p.extension(file).replaceFirst('.', '').toUpperCase();
+    final count = widget.images ? l.reduceImages(r.files.length) : l.reducePages(r.count);
+    final details = [count, if (_size != null) '${_size!.width} × ${_size!.height}', ext].join(' · ');
+    final pop = CurvedAnimation(parent: _anim, curve: const Interval(0, 0.6, curve: Curves.easeOutBack));
+    final tick = CurvedAnimation(parent: _anim, curve: const Interval(0.5, 1, curve: Curves.easeOut));
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(Space.x5, Space.x8, Space.x5, Space.x8),
+      children: [
+        Center(
+          child: ScaleTransition(
+            scale: pop,
+            child: Container(
+              width: 104,
+              height: 104,
+              decoration: BoxDecoration(
+                color: _green,
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: _green.withValues(alpha: 0.25), spreadRadius: 10)],
+              ),
+              child: AnimatedBuilder(
+                animation: tick,
+                builder: (_, _) => CustomPaint(painter: _TickPainter(tick.value)),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: Space.x6),
+        Text(l.reduceDone, textAlign: TextAlign.center, style: context.text.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+        const SizedBox(height: Space.x2),
+        Text(
+          l.reduceBeforeAfter(formatBytes(r.bytesBefore), formatBytes(r.bytesAfter)),
+          textAlign: TextAlign.center,
+          style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        if (saved > 0) ...[
+          const SizedBox(height: Space.x3),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: Space.x3, vertical: 6),
+              decoration: BoxDecoration(color: _green.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(20)),
+              child: Text(
+                l.reduceSmaller(saved),
+                style: context.text.labelLarge?.copyWith(color: const Color(0xFF15803D), fontWeight: FontWeight.w800),
+              ),
+            ),
+          ),
+        ],
+        if (!r.fits) ...[
+          const SizedBox(height: Space.x4),
+          _SmallestNote(text: l.reduceSmallest(formatBytes(r.bytesAfter))),
+        ],
+        const SizedBox(height: Space.x6),
+        Container(
+          padding: const EdgeInsets.all(Space.x3),
+          decoration: BoxDecoration(color: c.surface, borderRadius: BorderRadius.circular(14), border: Border.all(color: c.border)),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 44,
+                height: 56,
+                child: widget.images
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.file(File(file), fit: BoxFit.cover, cacheWidth: 120),
+                      )
+                    : Center(child: AppIcon(AppIcons.pdf, size: 28, color: c.accentText)),
+              ),
+              const SizedBox(width: Space.x3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(p.basename(file), maxLines: 2, overflow: TextOverflow.ellipsis, style: context.text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 2),
+                    Text(details, style: context.text.bodySmall?.copyWith(color: c.muted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: Space.x3),
+        Text(l.reduceOriginalKept, textAlign: TextAlign.center, style: context.text.bodySmall?.copyWith(color: c.muted)),
+        const SizedBox(height: Space.x6),
+        Row(
+          children: [
+            Expanded(child: SecondaryButton(label: l.shareSaveToPhone, icon: AppIcons.save, onPressed: widget.onSave)),
+            const SizedBox(width: Space.x3),
+            Expanded(child: PrimaryButton(label: l.viewerShare, icon: AppIcons.share, onPressed: widget.onShare)),
+          ],
+        ),
+        const SizedBox(height: Space.x3),
+        Center(child: TextButton(onPressed: widget.onAnother, child: Text(l.reduceAnother))),
+      ],
+    );
+  }
+}
+
+class _TickPainter extends CustomPainter {
+  _TickPainter(this.t);
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    final path = Path()
+      ..moveTo(size.width * 0.28, size.height * 0.52)
+      ..lineTo(size.width * 0.44, size.height * 0.67)
+      ..lineTo(size.width * 0.73, size.height * 0.36);
+    final metric = path.computeMetrics().first;
+    canvas.drawPath(
+      metric.extractPath(0, metric.length * t),
+      Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 8
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_TickPainter old) => old.t != t;
 }
