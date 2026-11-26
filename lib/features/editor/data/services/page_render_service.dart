@@ -20,12 +20,13 @@ import 'package:path/path.dart' as p;
 /// from their cleaned base ([CleanBaseService]), never cleaned again.
 @lazySingleton
 class PageRenderService {
-  PageRenderService(this._processor, this._files, this._repo, this._bases);
+  PageRenderService(this._processor, this._files, this._repo, this._bases, this._previews);
 
   final ImageProcessor _processor;
   final FileStore _files;
   final DocumentRepository _repo;
   final CleanBaseService _bases;
+  final PreviewCache _previews;
 
   final Set<String> _inFlight = {};
 
@@ -36,6 +37,7 @@ class PageRenderService {
   /// screen) first, then the default Share pages.
   Future<void> ensureCaches(ScanDocument doc, {String? first}) async {
     final pages = [...doc.sortedPages]..sort((a, b) => (a.id == first ? 0 : 1).compareTo(b.id == first ? 0 : 1));
+    await _quickThumbs(pages, card: isCard(doc.mode));
     for (final page in pages) {
       await ensurePageCache(page, card: isCard(doc.mode));
     }
@@ -176,6 +178,40 @@ class PageRenderService {
     }
   }
 
+  /// Round 11, P0-7: every page without a thumbnail gets one first, from
+  /// what Enhance showed or a 300 px render of its cleaned preview, so the
+  /// viewer never shows a blank page or a placeholder while the display
+  /// images are made. Pages with neither wait for [ensurePageCache].
+  Future<void> _quickThumbs(List<ScanPage> pages, {required bool card}) async {
+    for (final page in pages) {
+      final thumb = page.thumbPath;
+      if (thumb != null && File(thumb).existsSync()) continue;
+      try {
+        final out = _files.newCachePaths(page.documentId, page.id).thumb;
+        final look = _files.lookPath(page.id, page.originalPath, page.edits);
+        final shown = _previews.handedOff(page) ?? (PreviewCache.lookCovers(page.edits) && File(look).existsSync() ? look : null);
+        final clean = _bases.previewPath(page, card: card);
+        if (shown != null) {
+          await _thumbFrom(shown, out, priority: JobPriority.interactive);
+        } else if (CleanBaseService.covers(page.edits) && File(clean).existsSync()) {
+          await _processor.renderFromClean(
+            clean,
+            page.edits,
+            outputPath: out,
+            maxLongEdge: RenderPx.thumbLongEdge,
+            jpegQuality: Limits.thumbJpegQuality,
+            priority: JobPriority.interactive,
+          );
+        } else {
+          continue;
+        }
+        await _repo.updatePage(page.copyWith(thumbPath: out));
+      } on Object catch (e) {
+        debugPrint('[cache] quick thumb ${page.id}: $e');
+      }
+    }
+  }
+
   Future<void> _displayFrom(String base, ScanPage page, String out) => _processor.renderFromClean(
     base,
     page.edits,
@@ -186,12 +222,13 @@ class PageRenderService {
   );
 
   /// The thumbnail from an already filtered page image: just shrunk.
-  Future<void> _thumbFrom(String processed, String thumb) => _processor.render(
+  Future<void> _thumbFrom(String processed, String thumb, {JobPriority priority = JobPriority.background}) => _processor.render(
     processed,
     const PageEdits(filter: FilterType.original),
     size: RenderSize.thumb,
     outputPath: thumb,
     jpegQuality: Limits.thumbJpegQuality,
+    priority: priority,
   );
 
   /// An export page at [size] (round 6, P0-2): from the page's cleaned base,

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:injectable/injectable.dart';
 import 'package:path/path.dart' as p;
@@ -156,6 +157,26 @@ class FileStore {
     _captureTemp.path,
     'look_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, edits.filter, edits.fingersRemoved)}.jpg',
   );
+
+  /// Round 11, P1-11: the fingers found on one crop / rotation of a page
+  /// (temporary, until the user taps Remove).
+  String fingerMaskTempPath(
+    String pageId,
+    String originalPath,
+    PageEdits edits,
+  ) => p.join(
+    _captureTemp.path,
+    'fingers_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.png',
+  );
+
+  /// Keeps a finger mask the page now uses (Remove was tapped): it must
+  /// outlive the capture temp folder. Returns its new path.
+  Future<String> keepFingerMask(String pageId, String tempPath) async {
+    final out = p.join(_root.path, 'fingers', '${pageId}_${newId()}.png');
+    await File(out).parent.create(recursive: true);
+    await File(tempPath).copy(out);
+    return out;
+  }
 
   /// The fast crop-only placeholder (P0-4) for one crop / rotation.
   String quickPath(
@@ -352,6 +373,14 @@ class FileStore {
       }
     }
     await pruneOcrImages(docId, pageId);
+    final masks = Directory(p.join(_root.path, 'fingers'));
+    if (masks.existsSync()) {
+      await for (final f in masks.list()) {
+        if (f is File && p.basename(f.path).startsWith('${pageId}_')) {
+          await f.delete().catchError((_) => f);
+        }
+      }
+    }
   }
 
   Future<void> deleteFile(String? path) async {

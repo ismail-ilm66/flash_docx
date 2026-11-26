@@ -44,6 +44,19 @@ class PreviewCache {
     }
   }
 
+  /// Round 11, P0-7: the images Enhance showed, handed to the viewer on
+  /// Done (page id → the edits they show, and the file).
+  final _handedOff = <String, (PageEdits, String)>{};
+
+  void handOff(String pageId, PageEdits edits, String path) => _handedOff[pageId] = (edits, path);
+
+  /// What Enhance showed for exactly [page]'s look, if the file still exists.
+  String? handedOff(ScanPage page) {
+    final h = _handedOff[page.id];
+    if (h == null || h.$1 != page.edits || !File(h.$2).existsSync()) return null;
+    return h.$2;
+  }
+
   /// The quick crop-only preview (600 px, no filter) for [page]; rendered on
   /// the interactive lane the first time.
   Future<String> quick(ScanPage page) {

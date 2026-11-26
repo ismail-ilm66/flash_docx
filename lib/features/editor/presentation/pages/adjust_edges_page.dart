@@ -112,7 +112,10 @@ class _AdjustView extends StatelessWidget {
                   label: l.adjustNext,
                   onPressed: page == null
                       ? null
-                      : () => context.push(Routes.enhance, extra: bloc),
+                      : () {
+                          bloc.prepareEnhance();
+                          context.push(Routes.enhance, extra: bloc);
+                        },
                 ),
               ],
             ),

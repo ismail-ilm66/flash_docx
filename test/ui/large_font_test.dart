@@ -721,7 +721,7 @@ void main() {
     );
     final mask = saved.pages.single.edits.backgroundMaskPath!;
     expect(p.isWithin(getIt<FileStore>().docDir(saved.id).path, mask), isTrue, reason: 'the mask is kept with the document');
-    expect(saved.folder, DocFolder.ids);
+    expect(saved.folder, DocFolder.photos);
     final e = saved.pages.single.edits;
     expect((e.photoWidthMm, e.photoHeightMm), (35.0, 45.0));
     final crop = e.crop!;

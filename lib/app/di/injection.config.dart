@@ -266,6 +266,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i626.FileStore>(),
         gh<_i132.DocumentRepository>(),
         gh<_i32.CleanBaseService>(),
+        gh<_i769.PreviewCache>(),
       ),
     );
     gh.lazySingleton<_i108.SmartNamer>(

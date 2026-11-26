@@ -760,4 +760,65 @@ void main() {
       }
     });
   });
+
+  test('round 11, P0-12: Enhance opens on page 1, then where the user was', () async {
+    final pages = [for (var i = 0; i < 3; i++) page.copyWith(id: 'p$i', order: i)];
+    final args = EditorArgs(pages: pages, mode: ScanMode.document, initialIndex: 2);
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args);
+    expect(bloc.state.index, 2, reason: 'Adjust edges ended on the last page');
+    expect(bloc.prepareEnhance(), 0);
+    await settle();
+    expect(bloc.state.index, 0);
+    bloc.add(const EditorPageSelected(1));
+    await settle();
+    // Back to Adjust edges and Next again: the same page.
+    expect(bloc.prepareEnhance(), 1);
+    expect(bloc.state.index, 1);
+    await bloc.close();
+  });
+
+  test('round 11, P1-11: fingers are found on Enhance; Remove keeps the mask, Undo brings them back', () async {
+    PageEditorBloc.fingersUndoShown = const Duration(milliseconds: 400);
+    when(
+      () => proc.findFingers(any(), any(), workPath: any(named: 'workPath'), maskOut: any(named: 'maskOut'), priority: any(named: 'priority'), cancel: any(named: 'cancel')),
+    ).thenAnswer((inv) async {
+      File(inv.namedArguments[#maskOut] as String)
+        ..parent.createSync(recursive: true)
+        ..writeAsBytesSync([1]);
+      return [
+        [const Pt(0.5, 1), const Pt(0.6, 0.8), const Pt(0.7, 1)],
+      ];
+    });
+    final bloc = build();
+    await settle();
+    await enhance(bloc);
+    await settle();
+    expect(bloc.state.currentFingers?.outline, hasLength(1));
+    expect(bloc.state.edits.fingersRemoved, isFalse, reason: 'never automatic');
+
+    bloc.add(const EditorFingersRemoved(remove: true));
+    await settle();
+    final mask = bloc.state.edits.fingerMaskPath!;
+    expect(bloc.state.edits.fingersRemoved, isTrue);
+    expect(p.isWithin(p.join(files.root.path, 'fingers'), mask), isTrue, reason: 'kept outside the temp folder');
+    expect(File(mask).existsSync(), isTrue);
+    expect(bloc.state.fingersUndoPage, page.id, reason: '"Fingers removed · Undo"');
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    expect(bloc.state.fingersUndoPage, isNull, reason: 'the chip goes after its time');
+
+    bloc.add(const EditorFingersRemoved(remove: false));
+    await settle();
+    expect(bloc.state.edits.fingersRemoved, isFalse);
+
+    // A new crop: the user placed the corners (P0-14), the old mask is gone.
+    bloc.add(const EditorFingersRemoved(remove: true));
+    await settle();
+    expect(bloc.state.edits.fingersRemoved, isTrue);
+    bloc.add(const EditorCornerMoved(0, Pt(0.12, 0.12)));
+    await settle();
+    expect(bloc.state.edits.cornersFixed, isTrue);
+    expect(bloc.state.edits.fingersRemoved, isFalse);
+    expect(bloc.state.edits.fingerMaskPath, isNull);
+    await bloc.close();
+  });
 }

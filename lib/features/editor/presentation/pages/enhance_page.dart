@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' show ImageFilter;
 
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/app_router.dart';
@@ -46,10 +47,11 @@ class _EnhanceView extends StatefulWidget {
 class _EnhanceViewState extends State<_EnhanceView> {
   bool _comparing = false;
   bool _adjustOpen = false;
-  late int _shownIndex = context.read<PageEditorBloc>().state.index;
+  // Round 11, P0-12: page 1 the first time, then where the user was.
+  late int _shownIndex = context.read<PageEditorBloc>().enhanceEntry;
   final ZoomController _zoom = ZoomController();
   late final PageController _pages = PageController(
-    initialPage: context.read<PageEditorBloc>().state.index,
+    initialPage: context.read<PageEditorBloc>().enhanceEntry,
   );
 
   // Local slider values so the thumb follows the finger at 60 fps; the
@@ -151,14 +153,41 @@ class _EnhanceViewState extends State<_EnhanceView> {
           final path = isCurrent && _comparing
               ? (s.comparePreview ?? s.previewFor(p))
               : s.previewFor(p);
-          if (path == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final image = Image.file(
-            File(path),
-            gaplessPlayback: true,
-            fit: BoxFit.contain,
-          );
+          // Round 11, P0-8: no big spinner. Until the quick image is made
+          // (a moment), the crop shows softened; the small ring says more
+          // is coming.
+          final waiting = path == null ? s.quickFor(p) : null;
+          if (path == null && waiting == null) return const SizedBox.expand();
+          final fingers = isCurrent && !_comparing && !p.edits.fingersRemoved
+              ? s.currentFingers
+              : null;
+          final Widget image = waiting != null
+              ? ImageFiltered(
+                  imageFilter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                  child: Image.file(
+                    File(waiting),
+                    gaplessPlayback: true,
+                    fit: BoxFit.contain,
+                  ),
+                )
+              : Stack(
+                  children: [
+                    Image.file(
+                      File(path!),
+                      gaplessPlayback: true,
+                      fit: BoxFit.contain,
+                    ),
+                    if (fingers != null)
+                      Positioned.fill(
+                        child: CustomPaint(
+                          painter: FingerOutlinePainter(
+                            fingers.outline,
+                            color: c.accent,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
           return Padding(
             padding: const EdgeInsets.fromLTRB(
               Space.x6,
@@ -252,33 +281,57 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                   ),
                                 ),
                               ),
-                            if (s.rendering && !_comparing)
-                              Positioned(
-                                top: Space.x2,
-                                right: Space.x4,
-                                child: SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: c.accent,
+                            // Round 11, P1-12: Compare at the top right, the
+                            // one small progress ring beside it (P0-8).
+                            Positioned(
+                              top: Space.x1,
+                              right: Space.x2,
+                              child: Row(
+                                children: [
+                                  if (s.rendering && !_comparing)
+                                    Padding(
+                                      padding: const EdgeInsets.only(
+                                        right: Space.x2,
+                                      ),
+                                      child: SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: c.accent,
+                                        ),
+                                      ),
+                                    ),
+                                  _CompareButton(
+                                    comparing: _comparing,
+                                    onChanged: (v) =>
+                                        setState(() => _comparing = v),
                                   ),
-                                ),
+                                ],
                               ),
+                            ),
                             Positioned(
                               left: 12,
                               bottom: 12,
                               child: _ZoomPill(zoom: _zoom),
                             ),
-                            Positioned(
-                              right: 12,
-                              bottom: 12,
-                              child: _CompareButton(
-                                comparing: _comparing,
-                                onChanged: (v) =>
-                                    setState(() => _comparing = v),
+                            if (page != null && !_comparing)
+                              Positioned(
+                                right: 12,
+                                bottom: 12,
+                                child: _FingersChip(
+                                  found: s.currentFingers != null &&
+                                      !page.edits.fingersRemoved,
+                                  undo: s.fingersUndoPage == page.id &&
+                                      page.edits.fingersRemoved,
+                                  onRemove: () => bloc.add(
+                                    const EditorFingersRemoved(remove: true),
+                                  ),
+                                  onUndo: () => bloc.add(
+                                    const EditorFingersRemoved(remove: false),
+                                  ),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                       ),
@@ -411,11 +464,9 @@ class _EnhanceViewState extends State<_EnhanceView> {
                                     if (multi) ...[
                                       const SizedBox(width: Space.x2),
                                       Expanded(
-                                        flex: 16,
+                                        flex: 20,
                                         child: _AllPagesSwitch(
-                                          label: l.enhanceAllPages(
-                                            s.pages.length,
-                                          ),
+                                          label: l.enhanceAllPagesShort,
                                           on: s.applyAll,
                                           onChanged: (v) => bloc.add(
                                             EditorApplyAllToggled(v),
@@ -613,13 +664,15 @@ class _AllPagesSwitch extends StatelessWidget {
           child: SizedBox(
             height: 44,
             child: Padding(
-              padding: const EdgeInsets.only(left: 14, right: 6),
+              padding: const EdgeInsets.only(left: 12, right: 6),
               child: Row(
                 children: [
+                  // Round 11, P1-2: one line, never cut.
                   Expanded(
-                    child: Text(
+                    child: FitText(
                       label,
-                      maxLines: 2,
+                      maxLines: 1,
+                      textAlign: TextAlign.start,
                       style: context.text.labelLarge?.copyWith(
                         fontSize: 13,
                         height: 1.1,
@@ -629,8 +682,8 @@ class _AllPagesSwitch extends StatelessWidget {
                   ),
                   AnimatedContainer(
                     duration: Motion.fast,
-                    width: 44,
-                    height: 28,
+                    width: 38,
+                    height: 24,
                     padding: const EdgeInsets.all(3),
                     alignment: on
                         ? Alignment.centerRight
@@ -640,8 +693,8 @@ class _AllPagesSwitch extends StatelessWidget {
                       borderRadius: BorderRadius.circular(14),
                     ),
                     child: Container(
-                      width: 22,
-                      height: 22,
+                      width: 18,
+                      height: 18,
                       decoration: BoxDecoration(
                         color: on ? c.onAccent : c.muted,
                         shape: BoxShape.circle,
@@ -668,39 +721,157 @@ class _CompareButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final l = context.l10n;
     final c = context.colors;
+    // Round 11, P1-12: "◐ Compare", hold to see the crop without filter
+    // or finger removal; 48 dp touch target.
     return Semantics(
       button: true,
       label: l.enhanceHoldToCompare,
       excludeSemantics: true,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTapDown: (_) => onChanged(true),
         onTapUp: (_) => onChanged(false),
         onTapCancel: () => onChanged(false),
-        child: AnimatedContainer(
-          duration: Motion.fast,
-          height: 40,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: comparing ? 0.24 : 0.12),
-            borderRadius: Radii.pillR,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIcon(AppIcons.compare, size: 16, color: c.text),
-              const SizedBox(width: 6),
-              Text(
-                comparing ? l.filterOriginal : l.enhanceHoldToCompare,
-                style: context.text.labelMedium?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+        child: SizedBox(
+          height: 48,
+          child: Center(
+            child: AnimatedContainer(
+              duration: Motion.fast,
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: comparing ? 0.8 : 0.55),
+                borderRadius: Radii.pillR,
               ),
-            ],
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(AppIcons.compare, size: 16, color: c.text),
+                  const SizedBox(width: 6),
+                  MediaQuery.withClampedTextScaling(
+                    maxScaleFactor: 1.3,
+                    child: Text(
+                      comparing ? l.filterOriginal : l.enhanceCompare,
+                      maxLines: 1,
+                      style: context.text.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+/// Round 11, P1-11: "Fingers found · Remove", then "Fingers removed ·
+/// Undo" for 4 s.
+class _FingersChip extends StatelessWidget {
+  const _FingersChip({
+    required this.found,
+    required this.undo,
+    required this.onRemove,
+    required this.onUndo,
+  });
+
+  final bool found;
+  final bool undo;
+  final VoidCallback onRemove;
+  final VoidCallback onUndo;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    return AnimatedSwitcher(
+      duration: Motion.fast,
+      child: !found && !undo
+          ? const SizedBox.shrink()
+          : ConstrainedBox(
+              key: ValueKey(undo),
+              constraints: BoxConstraints(
+                maxWidth: MediaQuery.sizeOf(context).width - 160,
+              ),
+              child: Material(
+                color: Colors.black.withValues(alpha: 0.78),
+                shape: const StadiumBorder(),
+                clipBehavior: Clip.antiAlias,
+                child: InkWell(
+                  onTap: undo ? onUndo : onRemove,
+                  child: SizedBox(
+                    height: 40,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: MediaQuery.withClampedTextScaling(
+                          maxScaleFactor: 1.3,
+                          child: Text.rich(
+                            TextSpan(
+                              style: context.text.labelMedium?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: undo ? l.fingersRemoved : l.fingersFound,
+                                ),
+                                const TextSpan(text: ' · '),
+                                TextSpan(
+                                  text: undo ? l.commonUndo : l.fingersRemove,
+                                  style: TextStyle(
+                                    color: c.accent,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            maxLines: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+/// The fingers' outline over the page: thin amber (1.5 dp), the same line
+/// as the camera's page outline. [outline] is normalised to the page.
+class FingerOutlinePainter extends CustomPainter {
+  FingerOutlinePainter(this.outline, {required this.color});
+
+  final List<List<Pt>> outline;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeJoin = StrokeJoin.round;
+    for (final c in outline) {
+      if (c.length < 2) continue;
+      final path = Path()
+        ..moveTo(c.first.x * size.width, c.first.y * size.height);
+      for (final pt in c.skip(1)) {
+        path.lineTo(pt.x * size.width, pt.y * size.height);
+      }
+      canvas.drawPath(path..close(), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(FingerOutlinePainter old) =>
+      old.outline != outline || old.color != color;
 }
 
 /// A filter preset drawn as a tiny page in that filter's paper and ink.

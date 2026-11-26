@@ -125,7 +125,7 @@ class ViewerCubit extends Cubit<ViewerState> {
     final versions = {...state.quickVersions};
     for (final p in doc.pages) {
       if (state.imageFor(p) != null) continue;
-      final ready = _previews.lookIfReady(p);
+      final ready = _previews.lookIfReady(p) ?? _previews.handedOff(p);
       if (ready == null) continue;
       quick[p.id] = ready;
       versions[p.id] = ViewerState.versionOf(p);

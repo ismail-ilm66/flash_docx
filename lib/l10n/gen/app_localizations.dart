@@ -388,6 +388,36 @@ abstract class AppLocalizations {
   /// **'Hold to compare'**
   String get enhanceHoldToCompare;
 
+  /// No description provided for @enhanceCompare.
+  ///
+  /// In en, this message translates to:
+  /// **'Compare'**
+  String get enhanceCompare;
+
+  /// No description provided for @enhanceAllPagesShort.
+  ///
+  /// In en, this message translates to:
+  /// **'All pages'**
+  String get enhanceAllPagesShort;
+
+  /// No description provided for @fingersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Fingers found'**
+  String get fingersFound;
+
+  /// No description provided for @fingersRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get fingersRemove;
+
+  /// No description provided for @fingersRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Fingers removed'**
+  String get fingersRemoved;
+
   /// No description provided for @enhanceDone.
   ///
   /// In en, this message translates to:
@@ -1611,12 +1641,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edges'**
   String get enhanceEdges;
-
-  /// No description provided for @enhanceAllPages.
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 page} other{All {count} pages}}'**
-  String enhanceAllPages(int count);
 
   /// No description provided for @enhanceZoomIn.
   ///

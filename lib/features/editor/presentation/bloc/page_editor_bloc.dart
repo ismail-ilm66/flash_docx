@@ -92,6 +92,9 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorFilterThumbsRequested>(_onFilterThumbs);
     on<EditorSnapsRequested>(_onSnapsRequested);
     on<EditorStripThumbsRequested>(_onStripThumbs, transformer: droppable());
+    on<EditorFingersRequested>(_onFingersRequested);
+    on<EditorFingersRemoved>(_onFingersRemoved);
+    on<EditorFingersChipHidden>((_, emit) => emit(state.copyWith(clearFingersUndo: true)));
     // Imports never passed the camera: their draft starts here.
     if (_keepsDraft) unawaited(_drafts.save(args.mode, args.pages));
   }
@@ -153,8 +156,24 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     unawaited(_drafts.save(state.args.mode, state.pages));
   }
 
+  /// Round 11, P0-12: Enhance opens on the first page the first time, then
+  /// on the page the user was on. Call just before opening it; Enhance
+  /// starts at [enhanceEntry].
+  int prepareEnhance() {
+    final start = _enhanceVisited ? state.index : 0;
+    _enhanceVisited = true;
+    if (start != state.index) add(EditorPageSelected(start));
+    return enhanceEntry = start;
+  }
+
+  bool _enhanceVisited = false;
+  int enhanceEntry = 0;
+
+  Timer? _fingersUndoTimer;
+
   @override
   Future<void> close() {
+    _fingersUndoTimer?.cancel();
     _prefetchCancel?.cancel();
     for (final t in _blurryTimers.values) {
       t.cancel();
@@ -592,6 +611,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         if (!done.isCompleted) done.complete();
       }
     }
+    add(EditorFingersRequested(cur.id));
     await _prefetchNeighbours(emit);
   }
 
@@ -718,6 +738,67 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     }
   }
 
+  // ---------- fingers (round 11, P1-11) ----------
+
+  /// Document pages only: an ID card, passport or passport photo would put
+  /// a face at risk.
+  bool _fingersApply(ScanPage p) => state.args.mode == ScanMode.document && p.edits.isDocumentPage;
+
+  final Set<String> _fingersInFlight = {};
+
+  Future<void> _onFingersRequested(EditorFingersRequested e, Emitter<PageEditorState> emit) async {
+    final page = state.pages.where((p) => p.id == e.pageId).firstOrNull;
+    if (page == null || !_fingersApply(page)) return;
+    final key = PageEditorState.fingerKey(page);
+    if (state.fingers.containsKey(key) || !_fingersInFlight.add(key)) return;
+    try {
+      final mask = _files.fingerMaskTempPath(page.id, page.originalPath, page.edits);
+      final outline = await _processor.findFingers(
+        page.originalPath,
+        page.edits,
+        workPath: _files.workPath(page.id, page.originalPath, page.edits),
+        maskOut: mask,
+        priority: JobPriority.interactive,
+      );
+      if (isClosed) return;
+      emit(state.copyWith(fingers: {...state.fingers, key: outline == null ? null : (maskPath: mask, outline: outline)}));
+    } on Object catch (err) {
+      debugPrint('[editor] fingers: $err');
+    } finally {
+      _fingersInFlight.remove(key);
+    }
+  }
+
+  /// Remove fills the fingers with paper on the page as filtered now (and
+  /// after any later filter change); Undo brings them back. Never
+  /// automatic, and only for this page ("All pages" leaves them alone).
+  Future<void> _onFingersRemoved(EditorFingersRemoved e, Emitter<PageEditorState> emit) async {
+    final cur = state.current;
+    if (cur == null) return;
+    _fingersUndoTimer?.cancel();
+    if (!e.remove) {
+      _updateCurrent(emit, (ed) => ed.copyWith(fingersRemoved: false));
+      emit(state.copyWith(clearFingersUndo: true));
+      return;
+    }
+    final find = state.currentFingers;
+    if (find == null) return;
+    final key = PageEditorState.fingerKey(cur);
+    final kept = await _files.keepFingerMask(cur.id, find.maskPath);
+    // The crop changed (or another page is open) meanwhile: that mask is
+    // not this page's any more.
+    final now = state.current;
+    if (isClosed || now == null || now.id != cur.id || PageEditorState.fingerKey(now) != key) return;
+    _updateCurrent(emit, (ed) => ed.copyWith(fingersRemoved: true, fingerMaskPath: kept));
+    emit(state.copyWith(fingersUndoPage: cur.id));
+    _fingersUndoTimer = Timer(fingersUndoShown, () {
+      if (!isClosed) add(const EditorFingersChipHidden());
+    });
+  }
+
+  @visibleForTesting
+  static Duration fingersUndoShown = const Duration(seconds: 4);
+
   Future<String> _renderLookFromClean(
     ScanPage p, {
     JobPriority priority = JobPriority.interactive,
@@ -826,6 +907,12 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
         popAllowed = true;
         _draftTimer?.cancel();
         if (_keepsDraft) unawaited(_drafts.finished());
+        // Round 11, P0-7: the viewer shows Enhance's images at once while
+        // the display images are made.
+        for (final pg in pages) {
+          final shown = state.exactPreviewFor(pg);
+          if (shown != null && PreviewCache.lookCovers(pg.edits)) _previews.handOff(pg.id, pg.edits, shown);
+        }
         emit(
           state.copyWith(status: EditorStatus.saved, savedDocumentId: docId),
         );

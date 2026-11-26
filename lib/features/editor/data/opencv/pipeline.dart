@@ -4494,6 +4494,34 @@ cv.Mat _workImage(
   return work;
 }
 
+/// Round 11, P1-11: [findFingers] on the page's preview-size crop (the
+/// Enhance work image, before any filter). Writes the mask to [maskOut]
+/// (PNG) and returns its outlines, or null when no finger was found.
+List<List<Pt>>? findFingersOnPage(
+  String originalPath,
+  PageEdits edits, {
+  required String workPath,
+  required int previewLongEdge,
+  required String maskOut,
+  StepTimer? timer,
+}) {
+  final work = _workImage(originalPath, edits, workPath, previewLongEdge, timer);
+  try {
+    final mask = findFingers(work);
+    timer?.lap('find fingers');
+    if (mask == null) return null;
+    try {
+      File(maskOut).parent.createSync(recursive: true);
+      cv.imwrite(maskOut, mask);
+      return fingerOutline(mask);
+    } finally {
+      mask.dispose();
+    }
+  } finally {
+    work.dispose();
+  }
+}
+
 /// Round 6, P0-2: Enhance's first image, before the page's cleaned base is
 /// ready. The work image with the reference's instant bilateral clean-up
 /// ([denoisePreview]) and the filter. Never the raw photo (except for the

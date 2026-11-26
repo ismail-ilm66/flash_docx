@@ -98,6 +98,22 @@ class OpenCvImageProcessor implements ImageProcessor {
   );
 
   @override
+  Future<List<List<Pt>>?> findFingers(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String maskOut,
+    JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
+  }) => _runner.run(
+    fingersInIsolate,
+    LookMsg(originalPath, edits, workPath, maskOut),
+    debugLabel: 'fingers',
+    priority: priority,
+    cancel: cancel,
+  );
+
+  @override
   Future<String> renderInstantLook(
     String originalPath,
     PageEdits edits, {
@@ -630,6 +646,13 @@ String cleanBaseInIsolate(CleanBaseMsg m) {
   } finally {
     clean.dispose();
   }
+}
+
+List<List<Pt>>? fingersInIsolate(LookMsg m) {
+  final t = StepTimer('fingers');
+  final out = pipe.findFingersOnPage(m.path, m.edits, workPath: m.workPath, previewLongEdge: RenderPx.previewLongEdge, maskOut: m.out, timer: t);
+  t.report();
+  return out;
 }
 
 String instantLookInIsolate(LookMsg m) {

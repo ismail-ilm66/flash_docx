@@ -10,6 +10,7 @@ import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/repositories/document_repository.dart';
 import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
+import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -77,7 +78,7 @@ void main() {
     final repo = _Repo();
     when(() => repo.updatePage(any())).thenAnswer((_) async => const Right(unit));
     bases = CleanBaseService(proc, files, DeviceProfile(), PrefsService(await SharedPreferences.getInstance()));
-    service = PageRenderService(proc, files, repo, bases);
+    service = PageRenderService(proc, files, repo, bases, PreviewCache(proc, files));
     cleanJobs = 0;
     cleanJob = (_) async {};
     when(

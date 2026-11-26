@@ -24,6 +24,8 @@ class PageEditorState extends Equatable {
     bool? applyAll,
     this.filterThumbs = const {},
     Set<String>? blurryPages,
+    this.fingers = const {},
+    this.fingersUndoPage,
   }) : applyAll = applyAll ?? args.isNewDocument,
        blurryPages = blurryPages ?? args.blurryPages;
 
@@ -57,6 +59,18 @@ class PageEditorState extends Equatable {
   /// Pages whose shot came out partly blurry and the user hasn't chosen
   /// Keep or Retake yet (round 6, P1-1).
   final Set<String> blurryPages;
+
+  /// Round 11, P1-11: fingers found per page crop ([fingerKey]): their
+  /// mask file and outlines, or null when the page has none.
+  final Map<String, FingerFind?> fingers;
+
+  /// The page whose "Fingers removed · Undo" chip is showing (4 s).
+  final String? fingersUndoPage;
+
+  static String fingerKey(ScanPage p) => '${p.id}:${shapeOf(p)}';
+
+  /// Fingers found on the current page, if any.
+  FingerFind? get currentFingers => current == null ? null : fingers[fingerKey(current!)];
 
   /// Adjust edges offers a retake for the current page.
   bool get currentBlurry => current != null && blurryPages.contains(current!.id);
@@ -110,17 +124,16 @@ class PageEditorState extends Equatable {
 
   /// Crop, rotation and output shape: what a page's previews look like
   /// before the filter. In-memory keys only (not stable across launches).
-  static int shapeOf(ScanPage p) => Object.hash(
-    p.originalPath,
-    p.edits.crop,
-    p.edits.normalizedTurns,
-    p.edits.outputAspect,
-  );
+  static int shapeOf(ScanPage p) => Object.hash(p.originalPath, p.edits.geometryKey);
 
   /// Sliders are excluded: they are applied live on the GPU, so moving them
   /// never needs a new render.
   static String _previewKey(ScanPage p) =>
-      '${p.id}:${shapeOf(p)}:${p.edits.filter.name}';
+      '${p.id}:${shapeOf(p)}:${p.edits.filter.name}${p.edits.fingersRemoved ? ':nofingers' : ''}';
+
+  /// [p]'s own Enhance image (its look, else its instant image), for the
+  /// viewer right after Done (round 11, P0-7).
+  String? exactPreviewFor(ScanPage p) => enhancePreviews[_previewKey(p)] ?? enhancePreviews[_instantKey(p)];
 
   /// The instant image shown while [p]'s cleaned base is being made.
   static String _instantKey(ScanPage p) => '${_previewKey(p)}~instant';
@@ -141,6 +154,9 @@ class PageEditorState extends Equatable {
     bool? applyAll,
     Map<String, Map<FilterType, String>>? filterThumbs,
     Set<String>? blurryPages,
+    Map<String, FingerFind?>? fingers,
+    String? fingersUndoPage,
+    bool clearFingersUndo = false,
   }) {
     return PageEditorState(
       args: args,
@@ -158,6 +174,8 @@ class PageEditorState extends Equatable {
       applyAll: applyAll ?? this.applyAll,
       filterThumbs: filterThumbs ?? this.filterThumbs,
       blurryPages: blurryPages ?? this.blurryPages,
+      fingers: fingers ?? this.fingers,
+      fingersUndoPage: clearFingersUndo ? null : fingersUndoPage ?? this.fingersUndoPage,
     );
   }
 
@@ -177,5 +195,11 @@ class PageEditorState extends Equatable {
     applyAll,
     filterThumbs,
     blurryPages,
+    fingers,
+    fingersUndoPage,
   ];
 }
+
+/// Fingers found on a page (round 11, P1-11): the mask (temp PNG) and its
+/// outlines, normalised to the cropped page.
+typedef FingerFind = ({String maskPath, List<List<Pt>> outline});

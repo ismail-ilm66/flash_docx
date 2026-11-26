@@ -64,6 +64,19 @@ abstract interface class ImageProcessor {
     CancelToken? cancel,
   });
 
+  /// Round 11, P1-11: fingers holding the page, found on [edits]' cropped
+  /// page at preview size (the Enhance work image at [workPath]) before any
+  /// filter. Writes their mask to [maskOut] and returns their outlines
+  /// (normalised to the page), or null when there are none.
+  Future<List<List<Pt>>?> findFingers(
+    String originalPath,
+    PageEdits edits, {
+    required String workPath,
+    required String maskOut,
+    JobPriority priority = JobPriority.background,
+    CancelToken? cancel,
+  });
+
   /// Enhance's first image while the cleaned base is being made: the
   /// preview-size page with a quick bilateral clean-up and the filter.
   /// Interactive lane.

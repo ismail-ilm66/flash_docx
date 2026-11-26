@@ -30,6 +30,23 @@ class EditorBlurryHidden extends PageEditorEvent {
   final String pageId;
 }
 
+/// Round 11, P1-11: look for fingers on the page with [pageId] (Enhance).
+class EditorFingersRequested extends PageEditorEvent {
+  const EditorFingersRequested(this.pageId);
+  final String pageId;
+}
+
+/// "Remove" ([remove] true) or "Undo" on the current page's fingers.
+class EditorFingersRemoved extends PageEditorEvent {
+  const EditorFingersRemoved({required this.remove});
+  final bool remove;
+}
+
+/// The "Fingers removed · Undo" chip's 4 s are over.
+class EditorFingersChipHidden extends PageEditorEvent {
+  const EditorFingersChipHidden();
+}
+
 /// Enhance was closed (back to Adjust edges).
 class EditorEnhanceClosed extends PageEditorEvent {
   const EditorEnhanceClosed();

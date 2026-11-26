@@ -63,6 +63,11 @@
   "enhanceContrast": "Contrast",
   "enhanceAppliedAll": "Applied to all pages",
   "enhanceHoldToCompare": "Hold to compare",
+  "enhanceCompare": "Compare",
+  "enhanceAllPagesShort": "All pages",
+  "fingersFound": "Fingers found",
+  "fingersRemove": "Remove",
+  "fingersRemoved": "Fingers removed",
   "enhanceDone": "Done",
   "enhanceReset": "Reset",
   "filterOriginal": "Original",
@@ -465,14 +470,6 @@
   "cameraHintCard": "Fit the card in the frame · move back if it's blurry",
   "enhanceAdjust": "Adjust",
   "enhanceEdges": "Edges",
-  "enhanceAllPages": "{count, plural, =1{1 page} other{All {count} pages}}",
-  "@enhanceAllPages": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "enhanceZoomIn": "Zoom in",
   "enhanceZoomOut": "Zoom out",
   "sharePreparingPages": "Preparing… {done}/{total} pages",

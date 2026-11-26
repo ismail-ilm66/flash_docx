@@ -168,6 +168,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get enhanceHoldToCompare => 'Hold to compare';
 
   @override
+  String get enhanceCompare => 'Compare';
+
+  @override
+  String get enhanceAllPagesShort => 'All pages';
+
+  @override
+  String get fingersFound => 'Fingers found';
+
+  @override
+  String get fingersRemove => 'Remove';
+
+  @override
+  String get fingersRemoved => 'Fingers removed';
+
+  @override
   String get enhanceDone => 'Done';
 
   @override
@@ -872,17 +887,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get enhanceEdges => 'Edges';
-
-  @override
-  String enhanceAllPages(int count) {
-    String _temp0 = intl.Intl.pluralLogic(
-      count,
-      locale: localeName,
-      other: 'All $count pages',
-      one: '1 page',
-    );
-    return '$_temp0';
-  }
 
   @override
   String get enhanceZoomIn => 'Zoom in';
