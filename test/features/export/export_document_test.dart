@@ -103,8 +103,6 @@ void main() {
       () => proc.stampFooter(
         any(),
         footerPng: any(named: 'footerPng'),
-        artLogoPx: any(named: 'artLogoPx'),
-        left: any(named: 'left'),
         outputPath: any(named: 'outputPath'),
         jpegQuality: any(named: 'jpegQuality'),
       ),
@@ -282,30 +280,17 @@ void main() {
       expect(pdfOptions().footer, isFalse);
     });
 
-    test('stamped into JPG pages, moved left past a signature', () async {
-      final signed = doc.copyWith(
-        pages: [
-          doc.sortedPages.first.withEdits(
-            const PageEdits(
-              overlays: [PageOverlay(id: 's', kind: OverlayKind.signature, imagePath: '/s.png', left: 0.6, top: 0.85, width: 0.3, height: 0.1)],
-            ),
-          ),
-          ...doc.sortedPages.skip(1),
-        ],
-      );
-      final r = await export.prepare(signed, const ExportOptions(format: ExportFormat.jpg));
+    test('added under every JPG page', () async {
+      final r = await export.prepare(doc, const ExportOptions(format: ExportFormat.jpg));
       expect(r.getOrElse((_) => throw StateError('')).files.map((f) => p.basename(f.path)), ['page_1_footer.jpg', 'page_2_footer.jpg', 'page_3_footer.jpg']);
-      final lefts = verify(
+      verify(
         () => proc.stampFooter(
           any(),
           footerPng: 'footer.png',
-          artLogoPx: any(named: 'artLogoPx'),
-          left: captureAny(named: 'left'),
           outputPath: any(named: 'outputPath'),
           jpegQuality: any(named: 'jpegQuality'),
         ),
-      ).captured;
-      expect(lefts, [true, false, false]);
+      ).called(3);
     });
   });
 

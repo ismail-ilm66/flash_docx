@@ -71,9 +71,7 @@ abstract class PdfOptions with _$PdfOptions {
     @Default(PdfPageSize.auto) PdfPageSize pageSize,
     String? title,
 
-    /// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
-    /// moves it away from a signature.
+    /// Draw the Flash Dox footer in its own band under each page (round 11).
     @Default(false) bool footer,
-    @Default(<bool>[]) List<bool> footerLeft,
   }) = _PdfOptions;
 }

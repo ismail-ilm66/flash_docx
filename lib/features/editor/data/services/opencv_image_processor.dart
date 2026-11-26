@@ -265,11 +265,9 @@ class OpenCvImageProcessor implements ImageProcessor {
   Future<String> stampFooter(
     String src, {
     required String footerPng,
-    required double artLogoPx,
-    required bool left,
     required String outputPath,
     int jpegQuality = 92,
-  }) => _runner.run(footerInIsolate, (src, footerPng, artLogoPx, left, outputPath, jpegQuality), debugLabel: 'footer');
+  }) => _runner.run(footerInIsolate, (src, footerPng, outputPath, jpegQuality), debugLabel: 'footer');
 
   @override
   Future<void> writeGrayImage(Uint8List data, int width, int height, String outputPath) =>
@@ -851,16 +849,16 @@ String photoSheetInIsolate(
   }
 }
 
-String footerInIsolate((String, String, double, bool, String, int) m) {
+String footerInIsolate((String, String, String, int) m) {
   final page = cv.imread(m.$1);
   final art = cv.imread(m.$2, flags: cv.IMREAD_UNCHANGED);
   try {
     if (page.isEmpty || art.isEmpty || art.channels != 4) throw StateError('Could not read ${m.$1} / ${m.$2}');
-    final out = pipe.stampFooter(page, art, artLogoPx: m.$3, left: m.$4);
+    final out = pipe.stampFooter(page, art);
     try {
-      File(m.$5).parent.createSync(recursive: true);
-      pipe.writeJpeg(out, m.$5, quality: m.$6);
-      return m.$5;
+      File(m.$3).parent.createSync(recursive: true);
+      pipe.writeJpeg(out, m.$3, quality: m.$4);
+      return m.$3;
     } finally {
       out.dispose();
     }

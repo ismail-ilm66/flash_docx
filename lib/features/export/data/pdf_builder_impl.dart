@@ -29,7 +29,7 @@ class PdfBuilderImpl implements PdfBuilder {
     final art = options.footer ? await footerArt() : null;
     final bytes = await _runner.run(
       _buildPages,
-      _PagesMsg(imagePaths, options.pageSize, options.title, art, options.footerLeft),
+      _PagesMsg(imagePaths, options.pageSize, options.title, art),
       debugLabel: 'pdfPages',
       priority: JobPriority.interactive,
     );
@@ -69,13 +69,15 @@ class PdfBuilderImpl implements PdfBuilder {
     return _write(bytes, outputPath, t);
   }
 
-  /// The footer's font (Manrope SemiBold) and logo, read once from the app
-  /// bundle here: the worker isolate can't (round 10, P1-6).
+  /// The footer's fonts (Manrope ExtraBold and SemiBold) and the white
+  /// mark, read once from the app bundle here: the worker isolate can't.
   static Future<FooterArt>? _art;
   static Future<FooterArt> footerArt() => _art ??= () async {
-    final font = await rootBundle.load('assets/fonts/Manrope-600.ttf');
-    final svg = await rootBundle.loadString('assets/images/footer_mark.svg');
-    return (font: font.buffer.asUint8List(font.offsetInBytes, font.lengthInBytes), svg: svg);
+    Uint8List bytes(ByteData d) => d.buffer.asUint8List(d.offsetInBytes, d.lengthInBytes);
+    final bold = await rootBundle.load('assets/fonts/Manrope-800.ttf');
+    final semi = await rootBundle.load('assets/fonts/Manrope-600.ttf');
+    final svg = await rootBundle.loadString('assets/images/flashdox_mark_white.svg');
+    return (bold: bytes(bold), semi: bytes(semi), svg: svg);
   }();
 
   static Future<File> _write(Uint8List bytes, String outputPath, StepTimer t) async {
@@ -90,53 +92,50 @@ class PdfBuilderImpl implements PdfBuilder {
 }
 
 /// What the footer is drawn with.
-typedef FooterArt = ({Uint8List font, String svg});
+typedef FooterArt = ({Uint8List bold, Uint8List semi, String svg});
 
 class _PagesMsg {
-  const _PagesMsg(this.paths, this.size, this.title, this.footer, this.footerLeft);
+  const _PagesMsg(this.paths, this.size, this.title, this.footer);
   final List<String> paths;
   final PdfPageSize size;
   final String? title;
   final FooterArt? footer;
-  final List<bool> footerLeft;
 }
 
-/// "Scanned with Flash Dox: Document Scanner" (round 10, P1-6): logo 4 mm,
-/// 7 pt Manrope SemiBold in #8A8A8A, on a white pill (85 %) so it reads on
-/// any content; the whole of it links to the store page. Vector, on top of
-/// the page image.
-pw.Widget pdfFooter(pw.Font font, String svg) => pw.UrlLink(
+/// The footer badge (round 11, artboard *FooterBadge*): a 6 mm black
+/// rounded square with the white mark (4.4 mm) in it, then "Flash Dox:
+/// Document Scanner" in 9 pt #111111 (ExtraBold, then SemiBold). Vector;
+/// the whole of it links to the store page.
+pw.Widget pdfFooter(FooterFonts fonts, String markSvg) => pw.UrlLink(
   destination: PageFooter.url,
-  child: pw.Stack(
+  child: pw.Row(
+    mainAxisSize: pw.MainAxisSize.min,
     children: [
-      pw.Positioned.fill(
-        child: pw.Opacity(
-          opacity: PageFooter.pillOpacity,
-          child: pw.Container(
-            decoration: const pw.BoxDecoration(
-              color: PdfColors.white,
-              borderRadius: pw.BorderRadius.all(pw.Radius.circular(PageFooter.pillRadiusMm * _mm)),
-            ),
-          ),
+      pw.Container(
+        width: PageFooter.squareMm * _mm,
+        height: PageFooter.squareMm * _mm,
+        alignment: pw.Alignment.center,
+        decoration: const pw.BoxDecoration(
+          color: PdfColor.fromInt(PageFooter.squareColor),
+          borderRadius: pw.BorderRadius.all(pw.Radius.circular(PageFooter.squareRadiusMm * _mm)),
         ),
+        child: pw.SvgImage(svg: markSvg, width: PageFooter.markMm * _mm),
       ),
-      pw.Padding(
-        padding: const pw.EdgeInsets.symmetric(vertical: PageFooter.pillPadVMm * _mm, horizontal: PageFooter.pillPadHMm * _mm),
-        child: pw.Row(
-          mainAxisSize: pw.MainAxisSize.min,
+      pw.SizedBox(width: PageFooter.gapMm * _mm),
+      pw.RichText(
+        text: pw.TextSpan(
+          style: const pw.TextStyle(fontSize: PageFooter.textPt, color: PdfColor.fromInt(PageFooter.textColor)),
           children: [
-            pw.SvgImage(svg: svg, height: PageFooter.logoMm * _mm),
-            pw.SizedBox(width: PageFooter.gapMm * _mm),
-            pw.Text(
-              PageFooter.text,
-              style: pw.TextStyle(font: font, fontSize: PageFooter.textPt, color: const PdfColor.fromInt(PageFooter.color)),
-            ),
+            pw.TextSpan(text: PageFooter.brand, style: pw.TextStyle(font: fonts.bold)),
+            pw.TextSpan(text: PageFooter.tagline, style: pw.TextStyle(font: fonts.semi)),
           ],
         ),
       ),
     ],
   ),
 );
+
+typedef FooterFonts = ({pw.Font bold, pw.Font semi});
 
 const double _mm = PdfPageFormat.mm;
 
@@ -149,7 +148,13 @@ const double _mm = PdfPageFormat.mm;
 ///   width (receipts, ID cards, book pages).
 /// * A4 / Letter: as Auto when close, else the image fits inside, centred.
 /// * Fit to image: always the image's shape, at A4 width.
-(PdfPageFormat, pw.BoxFit) pdfPageLayout(int imgW, int imgH, PdfPageSize size) {
+///
+/// Round 11 (footer in its own [band] under the page, points): a full A4 /
+/// Letter page keeps its size and the image gets the space above the band
+/// (210 × 287 mm on A4), filling it when within 3.5 % of its shape, else
+/// fitted inside; an image-shaped page grows by the band. Returns the
+/// page, how the image sits, and the image area's height.
+(PdfPageFormat, pw.BoxFit, double) pdfPageLayout(int imgW, int imgH, PdfPageSize size, {double band = 0}) {
   final landscape = imgW > imgH;
   var base = size == PdfPageSize.letter ? PdfPageFormat.letter : PdfPageFormat.a4;
   if (landscape) base = base.landscape;
@@ -157,11 +162,16 @@ const double _mm = PdfPageFormat.mm;
   final pageRatio = base.height / base.width;
   final close = (imgRatio - pageRatio).abs() / pageRatio <= 0.06;
   final full = PdfPageFormat(base.width, base.height);
-  final imageShaped = PdfPageFormat(base.width, base.width * imgRatio);
+  final shapedH = base.width * imgRatio;
+  final imageShaped = PdfPageFormat(base.width, shapedH + band);
+  // On a full page with a band, the image area is a little shorter.
+  final areaRatio = (base.height - band) / base.width;
+  final fillsArea = band == 0 ? close : (imgRatio - areaRatio).abs() / areaRatio <= 0.035;
+  final fullFit = fillsArea ? pw.BoxFit.fill : pw.BoxFit.contain;
   return switch (size) {
-    PdfPageSize.auto => (close ? full : imageShaped, pw.BoxFit.fill),
-    PdfPageSize.fit => (imageShaped, pw.BoxFit.fill),
-    PdfPageSize.a4 || PdfPageSize.letter => (full, close ? pw.BoxFit.fill : pw.BoxFit.contain),
+    PdfPageSize.auto => close ? (full, band == 0 ? pw.BoxFit.fill : fullFit, base.height - band) : (imageShaped, pw.BoxFit.fill, shapedH),
+    PdfPageSize.fit => (imageShaped, pw.BoxFit.fill, shapedH),
+    PdfPageSize.a4 || PdfPageSize.letter => (full, band == 0 ? (close ? pw.BoxFit.fill : pw.BoxFit.contain) : fullFit, base.height - band),
   };
 }
 
@@ -170,30 +180,38 @@ Future<Uint8List> _buildPages(_PagesMsg m) async {
   var reading = 0;
   final doc = pw.Document(title: m.title, creator: 'Flash Dox', compress: true);
   final art = m.footer;
-  final font = art == null ? null : pw.Font.ttf(ByteData.sublistView(art.font));
-  for (final (i, path) in m.paths.indexed) {
+  final fonts = art == null
+      ? null
+      : (bold: pw.Font.ttf(ByteData.sublistView(art.bold)), semi: pw.Font.ttf(ByteData.sublistView(art.semi)));
+  const band = PageFooter.bandMm * _mm;
+  for (final path in m.paths) {
     final read = Stopwatch()..start();
     final bytes = File(path).readAsBytesSync();
     final image = pw.MemoryImage(bytes);
     reading += read.elapsedMilliseconds;
-    final (format, fit) = pdfPageLayout(image.width ?? 1000, image.height ?? 1414, m.size);
+    final (format, fit, areaH) = pdfPageLayout(image.width ?? 1000, image.height ?? 1414, m.size, band: fonts == null ? 0 : band);
     doc.addPage(
       pw.Page(
         pageFormat: format,
         margin: pw.EdgeInsets.zero,
         build: (_) {
-          final page = pw.Center(child: pw.Image(image, fit: fit, width: format.width, height: format.height));
-          if (font == null) return page;
-          const edge = PageFooter.marginMm * _mm;
-          final left = i < m.footerLeft.length && m.footerLeft[i];
-          return pw.Stack(
+          final page = pw.SizedBox(
+            width: format.width,
+            height: areaH,
+            child: pw.Center(child: pw.Image(image, fit: fit, width: format.width, height: areaH)),
+          );
+          if (fonts == null) return page;
+          // Round 11: the footer in its own white band, never over the scan.
+          return pw.Column(
             children: [
               page,
-              pw.Positioned(
-                left: left ? edge : null,
-                right: left ? null : edge,
-                bottom: edge,
-                child: pdfFooter(font, art!.svg),
+              pw.Container(
+                width: format.width,
+                height: format.height - areaH,
+                color: PdfColors.white,
+                alignment: pw.Alignment.centerRight,
+                padding: const pw.EdgeInsets.only(right: PageFooter.rightMm * _mm),
+                child: pdfFooter(fonts, art!.svg),
               ),
             ],
           );

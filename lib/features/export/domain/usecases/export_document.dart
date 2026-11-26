@@ -79,7 +79,6 @@ class ExportDocument {
     pageSize: o.pageSize,
     title: doc.title,
     footer: footerOn(doc, o),
-    footerLeft: [for (final pg in doc.sortedPages) PageFooter.onLeft(pg.edits)],
   );
 
   /// True when the document is a two-sided card and the user asked for both
@@ -313,12 +312,10 @@ class ExportDocument {
       if (footerOn(doc, options)) {
         try {
           final art = await _footer.png();
-          for (final (i, page) in pages.indexed) {
+          for (var i = 0; i < pages.length; i++) {
             rendered[i] = await _processor.stampFooter(
               rendered[i],
               footerPng: art,
-              artLogoPx: FooterArtwork.logoPx,
-              left: PageFooter.onLeft(page.edits),
               outputPath: p.join(staging, 'page_${i + 1}_footer.${options.extension}'),
               jpegQuality: jpegQ,
             );

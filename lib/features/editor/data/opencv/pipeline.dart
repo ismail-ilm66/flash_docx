@@ -12,6 +12,7 @@ import 'dart:typed_data';
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/export/domain/entities/page_footer.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:opencv_dart/opencv.dart' as cv;
@@ -4676,26 +4677,34 @@ void writeJpeg(cv.Mat img, String path, {int quality = 90}) {
   if (!ok) throw StateError('Could not write $path');
 }
 
-/// Round 10, P1-6: the Flash Dox footer into an exported page image.
-/// [footer] is the BGRA artwork (pill, logo, text) drawn with a logo
-/// [artLogoPx] high; it's scaled so the logo is [logoFraction] of the page
-/// height, and placed one and a half logo heights from the bottom-right
-/// corner (bottom-left when [left]). Returns a new Mat.
-cv.Mat stampFooter(cv.Mat page, cv.Mat footer, {required double artLogoPx, required bool left, double logoFraction = 0.016}) {
-  final logo = page.rows * logoFraction;
-  final k = logo / artLogoPx;
-  final fw = math.max(1, (footer.cols * k).round());
-  final fh = math.max(1, (footer.rows * k).round());
-  final margin = (1.5 * logo).round();
-  final x = left ? margin : page.cols - margin - fw;
-  final y = page.rows - margin - fh;
-  final out = page.clone();
-  if (x < 0 || y < 0 || x + fw > page.cols) return out; // too small a page
-  final art = cv.resize(footer, (fw, fh), interpolation: k < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
+/// Round 11 (footer in its own strip): [page] with a white strip
+/// [stripFraction] of its height added underneath, and the footer badge
+/// ([badge], BGRA, the height of its square) in it as in the PDF band:
+/// the square 60 % of the strip high, right-aligned 60 % of the strip from
+/// the right edge, centred top to bottom. Returns a new Mat.
+cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
+  final strip = math.max(12, (page.rows * stripFraction).round());
+  final out = cv.Mat.fromScalar(page.rows + strip, page.cols, cv.MatType.CV_8UC3, cv.Scalar.all(255));
+  final top = out.region(cv.Rect(0, 0, page.cols, page.rows));
+  page.copyTo(top);
+  top.dispose();
+  const squareShare = PageFooter.squareMm / PageFooter.bandMm;
+  var k = strip * squareShare / badge.rows;
+  var margin = (strip * PageFooter.rightMm / PageFooter.bandMm).round();
+  // A very narrow page: shrink the badge to fit.
+  if (badge.cols * k + 2 * margin > page.cols) {
+    k = (page.cols - 2 * margin) / badge.cols;
+    if (k <= 0) return out;
+  }
+  final fw = math.max(1, (badge.cols * k).round());
+  final fh = math.max(1, (badge.rows * k).round());
+  margin = math.min(margin, page.cols - fw);
+  final x = page.cols - margin - fw;
+  final y = page.rows + ((strip - fh) / 2).round();
+  final art = cv.resize(badge, (fw, fh), interpolation: k < 1 ? cv.INTER_AREA : cv.INTER_LINEAR);
   final ch = cv.split(art);
   final rgb = cv.merge(cv.VecMat.fromList([ch[0], ch[1], ch[2]]));
-  final alpha8 = ch[3];
-  final alpha = alpha8.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
+  final alpha = ch[3].convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
   final alpha3 = cv.merge(cv.VecMat.fromList([alpha, alpha, alpha]));
   final roi = out.region(cv.Rect(x, y, fw, fh));
   final bgF = roi.convertTo(cv.MatType.CV_32FC3);

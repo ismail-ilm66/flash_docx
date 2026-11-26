@@ -1,38 +1,42 @@
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 
-/// Round 10, P1-6: "Scanned with Flash Dox: Document Scanner" in the
-/// bottom-right corner of every exported document page, like CamScanner. On
-/// by default and free to turn off. Drawn only at export, never on the
-/// stored page, so turning it off works on old documents too.
+/// The "Flash Dox: Document Scanner" footer on exported document pages
+/// (round 10, P1-6; round 11 style, artboard *FooterBadge*). It sits in its
+/// own white band under the page, so it never covers the scan: a black
+/// rounded square with the white logo mark and the name beside it,
+/// right-aligned. On by default and free to turn off. Drawn only at export,
+/// never on the stored page.
 abstract final class PageFooter {
-  static const text = 'Scanned with Flash Dox: Document Scanner';
+  static const brand = 'Flash Dox';
+  static const tagline = ': Document Scanner';
+  static const text = '$brand$tagline';
 
   /// The store page. (The fix list wrote `com.swatnoa…`; the app id is
   /// `com.swtnoa.flashdox`.)
   static const url = 'https://play.google.com/store/apps/details?id=com.swtnoa.flashdox';
 
-  static const double logoMm = 4;
-  static const double textPt = 7;
-  static const double marginMm = 6;
-  static const double gapMm = 1.5;
-  static const int color = 0xFF8A8A8A;
+  /// PDF: the band under the page content.
+  static const double bandMm = 10;
 
-  /// The white pill behind it, so it reads on any content.
-  static const double pillRadiusMm = 2;
-  static const double pillPadVMm = 1.5;
-  static const double pillPadHMm = 3;
-  static const double pillOpacity = 0.85;
+  /// The black rounded square and the white mark inside it.
+  static const double squareMm = 6;
+  static const double squareRadiusMm = 1.6;
+  static const double markMm = 4.4;
+  static const int squareColor = 0xFF111111;
 
-  /// Logo height in a JPG / PNG page: 1.6 % of the image height; the rest
-  /// scales with it.
-  static const double imageLogoFraction = 0.016;
+  /// Text beside the square: 9 pt, ExtraBold "Flash Dox", SemiBold the rest.
+  static const double gapMm = 2;
+  static const double textPt = 9;
+  static const int textColor = 0xFF111111;
+
+  /// From the right edge of the page.
+  static const double rightMm = 6;
+
+  /// JPG / PNG: a white strip this share of the image height goes under it;
+  /// the badge keeps the PDF band's proportions inside it.
+  static const double imageStripFraction = 0.04;
 
   /// Document pages only: never ID cards or passports (people hand those to
   /// offices), passport photos or extracted text.
   static bool appliesTo(ScanDocument doc) => doc.mode == ScanMode.document;
-
-  /// A signature (or a date) where the footer goes moves it to the
-  /// bottom-left. The footer covers about the right 45 % of the width and
-  /// the bottom 8 % of the height.
-  static bool onLeft(PageEdits e) => e.overlays.any((o) => o.left + o.width > 0.55 && o.top + o.height > 0.92);
 }

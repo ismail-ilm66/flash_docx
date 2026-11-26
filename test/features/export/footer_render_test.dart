@@ -45,23 +45,30 @@ void main() {
     return path;
   }
 
-  testWidgets('a JPG page gets the footer bottom-right at 1.6 % of its height, on a white pill', (tester) async {
+  testWidgets('round 11: a JPG page gets a white strip (4 %) with the badge, the scan untouched', (tester) async {
     final out = await tester.runAsync(() async {
-      // The app's font, as on the phone (tests default to Ahem boxes).
-      await (FontLoader('Manrope')..addFont(rootBundle.load('assets/fonts/Manrope-600.ttf'))).load();
+      // The app's fonts, as on the phone (tests default to Ahem boxes).
+      for (final w in [600, 800]) {
+        await (FontLoader('Manrope')..addFont(rootBundle.load('assets/fonts/Manrope-$w.ttf'))).load();
+      }
       final art = await FooterArtwork(files).png();
       final footer = cv.imread(art, flags: cv.IMREAD_UNCHANGED);
       expect(footer.channels, 4);
       final src = cv.imread(page('p'));
-      final stamped = pipe.stampFooter(src, footer, artLogoPx: FooterArtwork.logoPx, left: false);
+      final stamped = pipe.stampFooter(src, footer);
       final path = p.join(tmp.path, 'stamped.jpg');
       pipe.writeJpeg(stamped, path, quality: 90);
-      // The pill: near white, bottom-right; the rest untouched.
-      const logo = 2828 * PageFooter.imageLogoFraction;
-      final y = (2828 - 1.5 * logo - logo / 2).round();
-      final pill = stamped.at<cv.Vec3b>(y, (2000 - 1.5 * logo - 10).round());
-      expect(pill.val1, greaterThan(200));
-      expect(stamped.at<cv.Vec3b>(y, 100).val1, 60, reason: 'left side untouched');
+      final strip = (2828 * PageFooter.imageStripFraction).round();
+      expect(stamped.rows, 2828 + strip);
+      expect(stamped.cols, 2000);
+      // The page itself is untouched, right to its bottom-right corner.
+      expect(stamped.at<cv.Vec3b>(2827, 1999).val1, closeTo(60, 3));
+      // The strip is white on the left, the black square on the right.
+      final mid = 2828 + strip ~/ 2;
+      expect(stamped.at<cv.Vec3b>(mid, 100).val1, greaterThan(240));
+      final squareRight = 2000 - (strip * PageFooter.rightMm / PageFooter.bandMm).round();
+      final squareLeft = squareRight - footer.cols * strip * 0.6 / footer.rows;
+      expect(stamped.at<cv.Vec3b>(mid, (squareLeft + 3).round()).val1, lessThan(40), reason: 'black square');
       for (final m in [footer, src, stamped]) {
         m.dispose();
       }
@@ -74,7 +81,7 @@ void main() {
     final bytes = await tester.runAsync(() async {
       final pdf = await PdfBuilderImpl(IsolateRunner()).fromPages(
         [page('a', w: 1000, h: 1414)],
-        const PdfOptions(footer: true, footerLeft: [false]),
+        const PdfOptions(footer: true),
         outputPath: p.join(tmp.path, 'out.pdf'),
       );
       return pdf.readAsBytesSync();
@@ -84,9 +91,9 @@ void main() {
     expect(text, contains('/FontFile2'), reason: 'Manrope embedded');
   });
 
-  test('the logo asset parses (no mask)', () async {
-    final svg = File('assets/images/footer_mark.svg').readAsStringSync();
+  test('the white mark asset parses (no mask) for the PDF badge', () async {
+    final svg = File('assets/images/flashdox_mark_white.svg').readAsStringSync();
     expect(svg, isNot(contains('mask')));
-    expect(await rootBundle.loadString('assets/images/footer_mark.svg'), svg);
+    expect(await rootBundle.loadString('assets/images/flashdox_mark_white.svg'), svg);
   });
 }

@@ -183,9 +183,8 @@ as bool,
 /// @nodoc
 mixin _$PdfOptions {
 
- PdfPageSize get pageSize; String? get title;/// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
-/// moves it away from a signature.
- bool get footer; List<bool> get footerLeft;
+ PdfPageSize get pageSize; String? get title;/// Draw the Flash Dox footer in its own band under each page (round 11).
+ bool get footer;
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -196,16 +195,16 @@ $PdfOptionsCopyWith<PdfOptions> get copyWith => _$PdfOptionsCopyWithImpl<PdfOpti
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer)&&const DeepCollectionEquality().equals(other.footerLeft, footerLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageSize,title,footer,const DeepCollectionEquality().hash(footerLeft));
+int get hashCode => Object.hash(runtimeType,pageSize,title,footer);
 
 @override
 String toString() {
-  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer, footerLeft: $footerLeft)';
+  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer)';
 }
 
 
@@ -216,7 +215,7 @@ abstract mixin class $PdfOptionsCopyWith<$Res>  {
   factory $PdfOptionsCopyWith(PdfOptions value, $Res Function(PdfOptions) _then) = _$PdfOptionsCopyWithImpl;
 @useResult
 $Res call({
- PdfPageSize pageSize, String? title, bool footer, List<bool> footerLeft
+ PdfPageSize pageSize, String? title, bool footer
 });
 
 
@@ -233,13 +232,12 @@ class _$PdfOptionsCopyWithImpl<$Res>
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,Object? footerLeft = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,}) {
   return _then(_self.copyWith(
 pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
-as bool,footerLeft: null == footerLeft ? _self.footerLeft : footerLeft // ignore: cast_nullable_to_non_nullable
-as List<bool>,
+as bool,
   ));
 }
 
@@ -251,21 +249,13 @@ as List<bool>,
 
 
 class _PdfOptions implements PdfOptions {
-  const _PdfOptions({this.pageSize = PdfPageSize.auto, this.title, this.footer = false, final  List<bool> footerLeft = const <bool>[]}): _footerLeft = footerLeft;
+  const _PdfOptions({this.pageSize = PdfPageSize.auto, this.title, this.footer = false});
   
 
 @override@JsonKey() final  PdfPageSize pageSize;
 @override final  String? title;
-/// Draw the Flash Dox footer (round 10, P1-6); [footerLeft] per page
-/// moves it away from a signature.
+/// Draw the Flash Dox footer in its own band under each page (round 11).
 @override@JsonKey() final  bool footer;
- final  List<bool> _footerLeft;
-@override@JsonKey() List<bool> get footerLeft {
-  if (_footerLeft is EqualUnmodifiableListView) return _footerLeft;
-  // ignore: implicit_dynamic_type
-  return EqualUnmodifiableListView(_footerLeft);
-}
-
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
@@ -277,16 +267,16 @@ _$PdfOptionsCopyWith<_PdfOptions> get copyWith => __$PdfOptionsCopyWithImpl<_Pdf
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer)&&const DeepCollectionEquality().equals(other._footerLeft, _footerLeft));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PdfOptions&&(identical(other.pageSize, pageSize) || other.pageSize == pageSize)&&(identical(other.title, title) || other.title == title)&&(identical(other.footer, footer) || other.footer == footer));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,pageSize,title,footer,const DeepCollectionEquality().hash(_footerLeft));
+int get hashCode => Object.hash(runtimeType,pageSize,title,footer);
 
 @override
 String toString() {
-  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer, footerLeft: $footerLeft)';
+  return 'PdfOptions(pageSize: $pageSize, title: $title, footer: $footer)';
 }
 
 
@@ -297,7 +287,7 @@ abstract mixin class _$PdfOptionsCopyWith<$Res> implements $PdfOptionsCopyWith<$
   factory _$PdfOptionsCopyWith(_PdfOptions value, $Res Function(_PdfOptions) _then) = __$PdfOptionsCopyWithImpl;
 @override @useResult
 $Res call({
- PdfPageSize pageSize, String? title, bool footer, List<bool> footerLeft
+ PdfPageSize pageSize, String? title, bool footer
 });
 
 
@@ -314,13 +304,12 @@ class __$PdfOptionsCopyWithImpl<$Res>
 
 /// Create a copy of PdfOptions
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,Object? footerLeft = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? pageSize = null,Object? title = freezed,Object? footer = null,}) {
   return _then(_PdfOptions(
 pageSize: null == pageSize ? _self.pageSize : pageSize // ignore: cast_nullable_to_non_nullable
 as PdfPageSize,title: freezed == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String?,footer: null == footer ? _self.footer : footer // ignore: cast_nullable_to_non_nullable
-as bool,footerLeft: null == footerLeft ? _self._footerLeft : footerLeft // ignore: cast_nullable_to_non_nullable
-as List<bool>,
+as bool,
   ));
 }
 
