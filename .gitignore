@@ -47,3 +47,6 @@ android/.kotlin/
 
 # Play Store launch kit (listing copy, screenshots, graphics), kept local
 /store/
+
+# Owner photos for the private golden test (round 11, P0-10): private documents
+/test/fixtures/private/
