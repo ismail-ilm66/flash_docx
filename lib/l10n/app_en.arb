@@ -557,6 +557,31 @@
     }
   },
   "toolReduceSize": "Reduce size",
+  "cameraSettings": "Camera settings",
+  "cameraAutoCapture": "Auto capture",
+  "cameraAutoCaptureHint": "Takes the photo when the page is found and the phone is still",
+  "cameraHdPhotos": "HD photos",
+  "cameraHdPhotosHint": "Up to 16 MP, for small print. Bigger files.",
+  "cameraTiltGuide": "Tilt guide",
+  "cameraTiltGuideHint": "Tells you when the phone isn't flat over the page",
+  "cameraGrid": "Grid",
+  "cameraGridHint": "Lines to help line up the page",
+  "cameraShutterSound": "Shutter sound",
+  "cameraShutterSoundHint": "A click when the photo is taken",
+  "cameraAutoCrop": "Auto crop",
+  "cameraAutoCropHint": "Off: Adjust edges starts with the whole photo",
+  "cameraUndo": "Undo",
+  "cameraPageRemoved": "Page {number} removed",
+  "@cameraPageRemoved": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "cameraPageFound": "Page found · hold still",
+  "cameraAutoShort": "A",
+  "cameraHdShort": "HD",
   "dateToday": "Today",
   "dateYesterday": "Yesterday",
   "sharePages": "Pages",

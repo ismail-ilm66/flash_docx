@@ -61,4 +61,66 @@ void main() {
     expect(shots, 1);
     expect((modeBar(tester), tester.getRect(shutter)), before, reason: 'the mode bar and shutter stay put');
   });
+
+  testWidgets('round 11: A · HD · ⋮ on top, Undo and Done, Document in the middle of the strip, the outline', (tester) async {
+    tester.view
+      ..physicalSize = const Size(360, 780)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    var undos = 0;
+    var finished = 0;
+    ScanMode? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.dark,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: CameraOverlay(
+            preview: const ColoredBox(color: Colors.black),
+            rules: ScanModeRules.of(ScanMode.document),
+            title: 'Document · 3 pages',
+            guide: null,
+            flashOn: false,
+            captureCount: 3,
+            canFinish: true,
+            showModes: true,
+            capturing: false,
+            onClose: () {},
+            onFlash: () {},
+            onMode: (m) => picked = m,
+            onShutter: () {},
+            onFinish: () => finished++,
+            onUndo: () => undos++,
+            onSettings: () {},
+            onAutoCapture: () {},
+            autoCapture: true,
+            onHd: () {},
+            outline: Quad.full(inset: 0.2),
+            captureProgress: 0.5,
+          ),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('A'), findsOneWidget);
+    expect(find.text('HD'), findsOneWidget);
+    expect(find.bySemanticsLabel('Camera settings'), findsOneWidget);
+    // No hint (phone flat), "Page found · hold still" on the outline.
+    expect(find.text('Page found · hold still'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Undo'));
+    expect(undos, 1);
+    await tester.tap(find.text('Done'));
+    expect(finished, 1);
+    // Document is centred; Passport · ID Card left, Passport photo right.
+    final centre = tester.getCenter(find.text('Document')).dx;
+    expect(centre, closeTo(180, 2));
+    expect(tester.getCenter(find.text('ID card')).dx, lessThan(centre));
+    expect(tester.getCenter(find.text('Passport photo')).dx, greaterThan(centre));
+    await tester.tap(find.text('ID card'));
+    await tester.pumpAndSettle();
+    expect(picked, ScanMode.idCard);
+    // Auto capture's ring on the shutter.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
 }

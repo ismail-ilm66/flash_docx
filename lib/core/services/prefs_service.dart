@@ -22,6 +22,11 @@ class PrefsService {
   static const _shareMoreOpen = 'share_more_open';
   static const _exportFooter = 'export_footer';
   static const _photoBackground = 'photo_background';
+  static const _autoCapture = 'camera_auto_capture';
+  static const _hdPhotos = 'camera_hd_photos';
+  static const _tiltGuide = 'camera_tilt_guide';
+  static const _grid = 'camera_grid';
+  static const _autoCrop = 'camera_auto_crop';
 
   String? get themeMode => _prefs.getString(_themeMode);
   Future<void> setThemeMode(String v) => _prefs.setString(_themeMode, v);
@@ -49,6 +54,18 @@ class PrefsService {
 
   bool get shutterSound => _prefs.getBool(_shutterSound) ?? true;
   Future<void> setShutterSound(bool v) => _prefs.setBool(_shutterSound, v);
+
+  // Round 11, P1-6: camera settings (⋮).
+  bool get autoCapture => _prefs.getBool(_autoCapture) ?? false;
+  Future<void> setAutoCapture(bool v) => _prefs.setBool(_autoCapture, v);
+  bool get hdPhotos => _prefs.getBool(_hdPhotos) ?? false;
+  Future<void> setHdPhotos(bool v) => _prefs.setBool(_hdPhotos, v);
+  bool get tiltGuide => _prefs.getBool(_tiltGuide) ?? true;
+  Future<void> setTiltGuide(bool v) => _prefs.setBool(_tiltGuide, v);
+  bool get grid => _prefs.getBool(_grid) ?? false;
+  Future<void> setGrid(bool v) => _prefs.setBool(_grid, v);
+  bool get autoCrop => _prefs.getBool(_autoCrop) ?? true;
+  Future<void> setAutoCrop(bool v) => _prefs.setBool(_autoCrop, v);
 
   String? get defaultQuality => _prefs.getString(_defaultQuality);
   Future<void> setDefaultQuality(String v) => _prefs.setString(_defaultQuality, v);

@@ -79,6 +79,10 @@ class PreparePages {
         );
         if (auto.orientation != null) CaptureOrientationLog.record(id, auto.orientation!);
         var edits = auto.edits;
+        // Round 11, P1-6: "Auto crop" off: a Document camera shot starts on
+        // Adjust edges with the whole photo.
+        final camera = captures != null && i < captures.length && captures[i] != null;
+        if (camera && !isCard && !_prefs.autoCrop) edits = edits.copyWith(crop: Quad.full());
         if (isCard) {
           edits = edits.copyWith(
             quarterTurns: await _cardTurns(id, original, edits, auto),

@@ -15,6 +15,8 @@ import 'package:flash_dox/features/documents/data/db/app_database.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
+import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
+import 'package:flash_dox/features/scanner/presentation/widgets/camera_overlay.dart';
 import 'package:flash_dox/features/settings/presentation/cubit/theme_cubit.dart';
 import 'package:flash_dox/l10n/gen/app_localizations.dart';
 import 'package:flutter/material.dart';
@@ -169,6 +171,52 @@ void main() {
     await tester.enterText(find.byType(TextField), 'CNIC');
     await real(tester, rounds: 10);
     await shot(tester, 'home_search');
+    await close(tester);
+  });
+
+  testWidgets('camera (round 11): A · HD · ⋮, outline, Undo, Done, mode strip', (tester) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1
+      ..padding = const FakeViewPadding(top: 40, bottom: 30);
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.dark,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          backgroundColor: Colors.black,
+          body: CameraOverlay(
+            preview: Image.file(File('test/fixtures/edges/letter_page.jpg'), fit: BoxFit.cover),
+            rules: ScanModeRules.of(ScanMode.document),
+            title: 'Document · 3 pages',
+            guide: null,
+            flashOn: false,
+            captureCount: 3,
+            canFinish: true,
+            showModes: true,
+            capturing: false,
+            onClose: () {},
+            onFlash: () {},
+            onMode: (_) {},
+            onShutter: () {},
+            onFinish: () {},
+            onUndo: () {},
+            onSettings: () {},
+            onAutoCapture: () {},
+            autoCapture: true,
+            onHd: () {},
+            outline: const Quad(tl: Pt(0.14, 0.17), tr: Pt(0.81, 0.14), br: Pt(0.86, 0.83), bl: Pt(0.19, 0.86)),
+            captureProgress: 0.6,
+            photoAspect: 3 / 4,
+          ),
+        ),
+      ),
+    );
+    await real(tester, rounds: 10);
+    await shot(tester, 'camera_v11');
     await close(tester);
   });
 

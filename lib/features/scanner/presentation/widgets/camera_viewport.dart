@@ -1,5 +1,6 @@
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/scanner/presentation/widgets/preview_geometry.dart';
 import 'package:flutter/material.dart';
 
@@ -18,7 +19,24 @@ class CameraViewport extends StatefulWidget {
     this.stackKey,
     this.flyTick = 0,
     this.saving = false,
+    this.outline,
+    this.grid = false,
+    this.level,
+    this.onSwipe,
   });
+
+  /// Round 11, P1-7: the live page outline (normalised): 1.5 dp amber, 3 dp
+  /// corner dots, amber fill at 6 %. It must never hide the page.
+  final Quad? outline;
+
+  /// Rule-of-thirds lines (camera settings).
+  final bool grid;
+
+  /// Tilt in degrees (unused here; the hint shows it).
+  final double? level;
+
+  /// A sideways swipe: +1 next mode, -1 previous (P1-10).
+  final ValueChanged<int>? onSwipe;
 
   /// Round 7, P0-1: the shutter fired and the photo is being saved. The
   /// preview is veiled with "Hold still…" so nobody moves the phone away.
@@ -109,6 +127,12 @@ class _CameraViewportState extends State<CameraViewport> with TickerProviderStat
               );
         return GestureDetector(
           behavior: HitTestBehavior.opaque,
+          onHorizontalDragEnd: widget.onSwipe == null
+              ? null
+              : (d) {
+                  final v = d.primaryVelocity ?? 0;
+                  if (v.abs() > 300) widget.onSwipe!(v < 0 ? 1 : -1);
+                },
           onTapUp: widget.onTap == null
               ? null
               : (d) => widget.onTap!(
@@ -119,6 +143,9 @@ class _CameraViewportState extends State<CameraViewport> with TickerProviderStat
               fit: StackFit.expand,
               children: [
                 widget.preview,
+                if (widget.grid) IgnorePointer(child: CustomPaint(painter: _GridPainter())),
+                if (widget.outline != null)
+                  IgnorePointer(child: CustomPaint(painter: PageOutlinePainter(widget.outline!, context.colors.accent))),
                 if (frame != null) CustomPaint(painter: _CornerFramePainter(frame)),
                 if (widget.focusPoint != null)
                   Positioned(
@@ -290,4 +317,53 @@ class _CornerFramePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CornerFramePainter old) => old.frame != frame;
+}
+
+/// Round 11, P1-7: the live page outline — a very thin line (1.5 dp), 3 dp
+/// corner dots and a 6 % amber fill, so it never hides the page.
+class PageOutlinePainter extends CustomPainter {
+  PageOutlinePainter(this.quad, this.color);
+
+  final Quad quad;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final pts = [for (final p in quad.points) Offset(p.x * size.width, p.y * size.height)];
+    final path = Path()..addPolygon(pts, true);
+    canvas
+      ..drawPath(path, Paint()..color = color.withValues(alpha: 0.06))
+      ..drawPath(
+        path,
+        Paint()
+          ..color = color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5
+          ..strokeJoin = StrokeJoin.round,
+      );
+    final dot = Paint()..color = color;
+    for (final p in pts) {
+      canvas.drawCircle(p, 3, dot);
+    }
+  }
+
+  @override
+  bool shouldRepaint(PageOutlinePainter old) => old.quad != quad || old.color != color;
+}
+
+class _GridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0x55FFFFFF)
+      ..strokeWidth = 1;
+    for (var i = 1; i < 3; i++) {
+      canvas
+        ..drawLine(Offset(size.width * i / 3, 0), Offset(size.width * i / 3, size.height), p)
+        ..drawLine(Offset(0, size.height * i / 3), Offset(size.width, size.height * i / 3), p);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_GridPainter old) => false;
 }

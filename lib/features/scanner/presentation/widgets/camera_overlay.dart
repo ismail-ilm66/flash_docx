@@ -44,7 +44,51 @@ class CameraOverlay extends StatelessWidget {
     this.photoAspect = PreviewGeometry.defaultPhotoAspect,
     this.saving = false,
     this.ready = true,
+    this.onUndo,
+    this.onSettings,
+    this.autoCapture = false,
+    this.onAutoCapture,
+    this.hd = false,
+    this.onHd,
+    this.outline,
+    this.grid = false,
+    this.level,
+    this.captureProgress = 0,
+    this.preparing = false,
+    this.onSwipe,
   });
+
+  /// Round 11, P1-3: ↶ removes the last photo (once there is one).
+  final VoidCallback? onUndo;
+
+  /// ⋮: camera settings (P1-6).
+  final VoidCallback? onSettings;
+
+  /// **A**: auto capture, amber when on (P1-8); **HD** (P1-9). Hidden when
+  /// the callback is null.
+  final bool autoCapture;
+  final VoidCallback? onAutoCapture;
+  final bool hd;
+  final VoidCallback? onHd;
+
+  /// The live page outline (P1-7), normalised to the preview.
+  final Quad? outline;
+
+  /// Rule-of-thirds lines on the preview.
+  final bool grid;
+
+  /// The tilt guide's level (P1-5): how far from flat, in degrees; null
+  /// hides it.
+  final double? level;
+
+  /// Auto capture's ring on the shutter, 0..1.
+  final double captureProgress;
+
+  /// Pages are being finished: a small spinner on the stack (P1-2).
+  final bool preparing;
+
+  /// A swipe across the preview: +1 for the next mode, -1 for the previous.
+  final ValueChanged<int>? onSwipe;
 
   /// The camera is live (round 10, P0-2). Until then the shutter is dimmed
   /// and can't be pressed, so a tap is never lost.
@@ -68,7 +112,8 @@ class CameraOverlay extends StatelessWidget {
   final Widget preview;
   final ScanModeRules rules;
   final String title;
-  final String guide;
+  /// The hint over the modes; null shows none (round 11, P1-5).
+  final String? guide;
   final bool flashOn;
   final int captureCount;
   final String? lastCapturePath;
@@ -127,6 +172,10 @@ class CameraOverlay extends StatelessWidget {
             stackKey: stackKey,
             flyTick: flyTick,
             saving: saving,
+            outline: outline,
+            grid: grid,
+            level: level,
+            onSwipe: onSwipe,
           ),
         ),
         if (countdown != null)
@@ -141,64 +190,67 @@ class CameraOverlay extends StatelessWidget {
               ),
             ),
           ),
-        // ---- top fade: ✕ · title · flash ----
+        // ---- top fade: ✕ · flash · A · HD · ⋮ (round 11), the title under ----
         Positioned(
           top: 0,
           left: 0,
           right: 0,
-          child: IgnorePointer(
-            ignoring: false,
-            child: Container(
-              height: CameraLayout.topBar + mq.padding.top + 26,
-              padding: EdgeInsets.fromLTRB(Space.x2, mq.padding.top + 14, Space.x2, 0),
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0x99000000), Color(0x00000000)],
-                ),
+          child: Container(
+            padding: EdgeInsets.fromLTRB(Space.x2, mq.padding.top + 10, Space.x2, Space.x4),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x99000000), Color(0x00000000)],
               ),
-              alignment: Alignment.topCenter,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: Sizes.tap,
-                    height: Sizes.tap,
-                    child: IconButton(
-                      tooltip: l.commonClose,
-                      onPressed: onClose,
-                      icon: const AppIcon(AppIcons.close, color: _ink),
-                    ),
-                  ),
-                  Expanded(
-                    child: SizedBox(
-                      height: Sizes.tap,
-                      child: Center(
-                        child: FitText(
-                          title,
-                          maxLines: 1,
-                          style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
-                        ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    _RoundButton(icon: AppIcons.close, label: l.commonClose, onTap: onClose, plain: true),
+                    const Spacer(),
+                    if (onTimer != null) ...[
+                      _RoundButton(
+                        icon: AppIcons.timer,
+                        label: timerOn ? l.cameraTimerOn : l.cameraTimerOff,
+                        active: timerOn,
+                        onTap: onTimer!,
                       ),
-                    ),
-                  ),
-                  if (onTimer != null) ...[
+                      const SizedBox(width: Space.x1),
+                    ],
+                    if (onFlip != null) ...[
+                      _RoundButton(icon: AppIcons.flipCamera, label: l.cameraFlip, onTap: onFlip!),
+                      const SizedBox(width: Space.x1),
+                    ],
                     _RoundButton(
-                      icon: AppIcons.timer,
-                      label: timerOn ? l.cameraTimerOn : l.cameraTimerOff,
-                      active: timerOn,
-                      onTap: onTimer!,
+                      icon: flashOn ? AppIcons.flashOn : AppIcons.flashOff,
+                      label: flashOn ? l.cameraFlashOn : l.cameraFlashOff,
+                      active: flashOn,
+                      onTap: onFlash,
                     ),
-                    const SizedBox(width: Space.x1),
+                    if (onAutoCapture != null) ...[
+                      const SizedBox(width: Space.x1),
+                      _RoundButton(text: l.cameraAutoShort, label: l.cameraAutoCapture, active: autoCapture, onTap: onAutoCapture!),
+                    ],
+                    if (onHd != null) ...[
+                      const SizedBox(width: Space.x1),
+                      _RoundButton(text: l.cameraHdShort, label: l.cameraHdPhotos, active: hd, onTap: onHd!),
+                    ],
+                    if (onSettings != null) ...[
+                      const SizedBox(width: Space.x1),
+                      _RoundButton(icon: AppIcons.more, label: l.cameraSettings, onTap: onSettings!),
+                    ],
                   ],
-                  if (onFlip != null) ...[
-                    _RoundButton(icon: AppIcons.flipCamera, label: l.cameraFlip, onTap: onFlip!),
-                    const SizedBox(width: Space.x1),
-                  ],
-                  _FlashPill(on: flashOn, onTap: onFlash),
-                ],
-              ),
+                ),
+                const SizedBox(height: 2),
+                FitText(
+                  title,
+                  maxLines: 1,
+                  style: context.text.titleSmall?.copyWith(fontSize: 15, fontWeight: FontWeight.w700, color: _ink),
+                ),
+              ],
             ),
           ),
         ),
@@ -226,24 +278,21 @@ class CameraOverlay extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(Space.x3, 0, Space.x3, Space.x2),
                       child: banner,
                     ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Space.x4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      child: Text(
-                        guide,
-                        textAlign: TextAlign.center,
-                        style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink),
-                      ),
+                  // Round 11: the hint only when needed (P1-5), else "Page
+                  // found · hold still" while the outline is on a page.
+                  SizedBox(
+                    height: CameraLayout.hintChip,
+                    child: Center(
+                      child: guide != null
+                          ? _Chip(text: guide!, level: level)
+                          : outline != null
+                          ? _Chip(text: l.cameraPageFound, accent: true)
+                          : null,
                     ),
                   ),
                   if (showModes) ...[
                     const SizedBox(height: CameraLayout.gap),
-                    _ModePills(selected: rules.mode, onMode: onMode),
+                    _ModeStrip(selected: rules.mode, onMode: onMode),
                   ],
                 ],
               ),
@@ -257,32 +306,53 @@ class CameraOverlay extends StatelessWidget {
           top: box.bottom,
           bottom: mq.padding.bottom,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.x8),
+            padding: const EdgeInsets.symmetric(horizontal: Space.x6),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
+                // ↶ Undo once there is a page (P1-3), else Import.
                 SizedBox(
-                  width: 56,
-                  height: 56,
-                  child: onGallery == null ? null : _ImportButton(onTap: onGallery!),
+                  width: 64,
+                  height: 64,
+                  child: captureCount > 0 && onUndo != null
+                      ? _UndoButton(onTap: onUndo!)
+                      : onGallery == null
+                      ? null
+                      : _ImportButton(onTap: onGallery!),
                 ),
                 AnimatedOpacity(
                   opacity: ready ? 1 : 0.6,
                   duration: Motion.fast,
-                  child: _Shutter(onTap: capturing || !ready ? null : onShutter, busy: capturing && ready),
+                  child: _Shutter(onTap: capturing || !ready ? null : onShutter, busy: capturing && ready, progress: captureProgress),
                 ),
+                // The pages with their count and a clear Done (P1-4).
                 SizedBox(
-                  width: 56,
-                  height: 64,
+                  width: 64,
                   child: captureCount == 0
                       ? null
-                      : _PageStack(
-                          key: stackKey,
-                          count: captureCount,
-                          path: lastCapturePath,
-                          onTap: canFinish ? onFinish : onRemoveLast,
-                          onLongPress: onRemoveLast,
-                          label: canFinish ? l.cameraDone : l.cameraRemoveLast,
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SizedBox(
+                              width: 56,
+                              height: 54,
+                              child: _PageStack(
+                                key: stackKey,
+                                count: captureCount,
+                                path: lastCapturePath,
+                                busy: preparing,
+                                onTap: canFinish ? onFinish : null,
+                                onLongPress: onRemoveLast,
+                                label: canFinish ? l.cameraDone : l.cameraRemoveLast,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            _DoneButton(onTap: canFinish && !preparing ? onFinish : null),
+                          ],
+                        ),
                         ),
                 ),
               ],
@@ -336,39 +406,213 @@ class _ImportButton extends StatelessWidget {
 const Color _ink = Color(0xFFF3F3F1);
 const Color _inkMuted = Color(0xFFA6AAB2);
 
-class _FlashPill extends StatelessWidget {
-  const _FlashPill({required this.on, required this.onTap});
+/// Round 11, P1-10: Passport · ID Card · Document · Passport photo,
+/// scrolling sideways; the selected mode always snaps to the centre
+/// (amber, bold, underlined). Tap a mode or swipe the strip.
+class _ModeStrip extends StatefulWidget {
+  const _ModeStrip({required this.selected, required this.onMode});
 
-  final bool on;
-  final VoidCallback onTap;
+  final ScanMode selected;
+  final ValueChanged<ScanMode> onMode;
+
+  static const List<ScanMode> modes = [ScanMode.passport, ScanMode.idCard, ScanMode.document, ScanMode.photo];
+
+  @override
+  State<_ModeStrip> createState() => _ModeStripState();
+}
+
+class _ModeStripState extends State<_ModeStrip> {
+  late final PageController _ctrl = PageController(
+    viewportFraction: 0.3,
+    initialPage: _ModeStrip.modes.indexOf(widget.selected).clamp(0, 3),
+  );
+
+  @override
+  void didUpdateWidget(_ModeStrip old) {
+    super.didUpdateWidget(old);
+    final i = _ModeStrip.modes.indexOf(widget.selected);
+    if (i >= 0 && _ctrl.hasClients && (_ctrl.page ?? i).round() != i) {
+      _ctrl.animateToPage(i, duration: Motion.normal, curve: Curves.easeOutCubic);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
     final l = context.l10n;
+    // Capped like a nav bar label: the strip has a fixed height.
+    return MediaQuery.withClampedTextScaling(
+      maxScaleFactor: 1.2,
+      child: SizedBox(
+      height: CameraLayout.modePills,
+      child: PageView.builder(
+        controller: _ctrl,
+        itemCount: _ModeStrip.modes.length,
+        onPageChanged: (i) => widget.onMode(_ModeStrip.modes[i]),
+        itemBuilder: (context, i) {
+          final m = _ModeStrip.modes[i];
+          final on = m == widget.selected;
+          return Semantics(
+            button: true,
+            selected: on,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => _ctrl.animateToPage(i, duration: Motion.normal, curve: Curves.easeOutCubic),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      m == ScanMode.photo ? l.toolPassportPhoto : modeLabel(context, m),
+                      maxLines: 1,
+                      style: context.text.labelLarge?.copyWith(
+                        fontSize: 14,
+                        color: on ? c.accent : _inkMuted,
+                        fontWeight: on ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  AnimatedContainer(
+                    duration: Motion.fast,
+                    width: on ? 22 : 0,
+                    height: 2.5,
+                    decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(2)),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+      ),
+    );
+  }
+}
+
+/// The hint (or "Page found · hold still") over the modes; with [level], a
+/// small dot that turns green when the phone is flat (P1-5).
+class _Chip extends StatelessWidget {
+  const _Chip({required this.text, this.level, this.accent = false});
+
+  final String text;
+  final double? level;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final lvl = level;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.x4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (lvl != null) ...[
+              Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: lvl < 8 ? const Color(0xFF22C55E) : c.accent,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Flexible(
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: context.text.labelLarge?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: accent ? c.accent : _ink),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// ↶ Undo (P1-3), 64 dp, icon over label.
+class _UndoButton extends StatelessWidget {
+  const _UndoButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
     return Semantics(
       button: true,
-      label: on ? l.cameraFlashOn : l.cameraFlashOff,
+      label: l.cameraUndo,
       excludeSemantics: true,
-      child: Material(
-        color: Colors.white.withValues(alpha: 0.12),
-        shape: const StadiumBorder(),
+      child: MediaQuery.withClampedTextScaling(
+        maxScaleFactor: 1.2,
+        child: Material(
+        color: const Color(0xFF24272D),
+        borderRadius: BorderRadius.circular(16),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Container(
-            height: Sizes.tap,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AppIcon(on ? AppIcons.flashOn : AppIcons.flashOff, size: 18, color: on ? c.accent : _ink),
-                const SizedBox(width: 6),
-                Text(
-                  on ? l.cameraFlashOnShort : l.cameraFlashOffShort,
-                  style: context.text.labelMedium?.copyWith(fontSize: 13, fontWeight: FontWeight.w700, color: _ink),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.undo_rounded, color: _ink, size: 24),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  l.cameraUndo,
+                  maxLines: 1,
+                  style: context.text.labelSmall?.copyWith(fontSize: 11, fontWeight: FontWeight.w700, color: _ink),
                 ),
-              ],
+              ),
+            ],
+          ),
+        ),
+      ),
+      ),
+    );
+  }
+}
+
+/// The filled amber Done under the page stack (P1-4).
+class _DoneButton extends StatelessWidget {
+  const _DoneButton({required this.onTap});
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Material(
+      color: onTap == null ? c.accent.withValues(alpha: 0.5) : c.accent,
+      shape: const StadiumBorder(),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 64,
+          height: 32,
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                context.l10n.cameraDone,
+                maxLines: 1,
+                style: context.text.labelLarge?.copyWith(fontSize: 14, fontWeight: FontWeight.w800, color: c.onAccent),
+              ),
             ),
           ),
         ),
@@ -377,58 +621,13 @@ class _FlashPill extends StatelessWidget {
   }
 }
 
-class _ModePills extends StatelessWidget {
-  const _ModePills({required this.selected, required this.onMode});
-
-  final ScanMode selected;
-  final ValueChanged<ScanMode> onMode;
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colors;
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: Space.x4),
-      child: Row(
-        children: [
-          for (final (i, m) in ScanMode.values.where((m) => m.isCameraMode).indexed) ...[
-            if (i > 0) const SizedBox(width: 6),
-            Semantics(
-              button: true,
-              selected: m == selected,
-              child: Material(
-                color: m == selected ? c.accent : Colors.transparent,
-                shape: const StadiumBorder(),
-                clipBehavior: Clip.antiAlias,
-                child: InkWell(
-                  onTap: () => onMode(m),
-                  child: AnimatedContainer(
-                    duration: Motion.normal,
-                    height: 36,
-                    padding: EdgeInsets.symmetric(horizontal: m == selected ? Space.x4 : Space.x3),
-                    alignment: Alignment.center,
-                    child: Text(
-                      modeLabel(context, m),
-                      style: context.text.labelLarge?.copyWith(
-                        color: m == selected ? c.onAccent : _inkMuted,
-                        fontWeight: m == selected ? FontWeight.w800 : FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 class _Shutter extends StatefulWidget {
-  const _Shutter({required this.onTap, required this.busy});
+  const _Shutter({required this.onTap, required this.busy, this.progress = 0});
   final VoidCallback? onTap;
   final bool busy;
+
+  /// Auto capture (P1-8): an amber ring that fills over 0.8 s.
+  final double progress;
 
   @override
   State<_Shutter> createState() => _ShutterState();
@@ -453,7 +652,16 @@ class _ShutterState extends State<_Shutter> {
           scale: _pressed ? 0.88 : 1,
           duration: Motion.fast,
           curve: Curves.easeOut,
-          child: Container(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (widget.progress > 0)
+                SizedBox(
+                  width: 88,
+                  height: 88,
+                  child: CircularProgressIndicator(value: widget.progress, strokeWidth: 4, color: context.colors.accent),
+                ),
+              Container(
           width: 80,
           height: 80,
           decoration: BoxDecoration(
@@ -475,6 +683,8 @@ class _ShutterState extends State<_Shutter> {
                 : null,
           ),
           ),
+            ],
+          ),
         ),
       ),
     );
@@ -490,8 +700,12 @@ class _PageStack extends StatelessWidget {
     super.key,
     this.onLongPress,
     this.path,
+    this.busy = false,
   });
 
+  /// Pages are being finished (round 11, P1-2): a small spinner on the top
+  /// page instead of a box over the preview.
+  final bool busy;
   final int count;
   final String? path;
   final VoidCallback? onTap;
@@ -536,9 +750,19 @@ class _PageStack extends StatelessWidget {
                   border: Border.all(color: Colors.white, width: 2),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: file != null && file.existsSync()
-                    ? Image.file(file, fit: BoxFit.cover, cacheWidth: 120, gaplessPlayback: true)
-                    : null,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (file != null && file.existsSync()) Image.file(file, fit: BoxFit.cover, cacheWidth: 120, gaplessPlayback: true),
+                    if (busy)
+                      const ColoredBox(
+                        color: Color(0x66000000),
+                        child: Center(
+                          child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             Positioned(
@@ -576,11 +800,17 @@ class _PageStack extends StatelessWidget {
 /// A round icon button in the top bar (flip, timer); [label] is for screen
 /// readers.
 class _RoundButton extends StatelessWidget {
-  const _RoundButton({required this.icon, required this.label, required this.onTap, this.active = false});
-  final AppIcons icon;
+  const _RoundButton({required this.label, required this.onTap, this.icon, this.text, this.active = false, this.plain = false});
+  final AppIcons? icon;
+
+  /// A letter button (A, HD) instead of an icon.
+  final String? text;
   final String label;
   final VoidCallback onTap;
   final bool active;
+
+  /// No disc behind it (✕).
+  final bool plain;
 
   @override
   Widget build(BuildContext context) {
@@ -591,7 +821,7 @@ class _RoundButton extends StatelessWidget {
       label: label,
       excludeSemantics: true,
       child: Material(
-        color: active ? c.accent.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.12),
+        color: plain ? Colors.transparent : (active ? c.accent.withValues(alpha: 0.25) : Colors.white.withValues(alpha: 0.12)),
         shape: const CircleBorder(),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -599,7 +829,16 @@ class _RoundButton extends StatelessWidget {
           child: SizedBox(
             width: Sizes.tap,
             height: Sizes.tap,
-            child: Center(child: AppIcon(icon, size: 20, color: active ? c.accent : _ink)),
+            child: Center(
+              child: text != null
+                  ? MediaQuery.withNoTextScaling(
+                      child: Text(
+                        text!,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: active ? c.accent : _ink),
+                      ),
+                    )
+                  : AppIcon(icon!, size: 20, color: active ? c.accent : _ink),
+            ),
           ),
         ),
       ),

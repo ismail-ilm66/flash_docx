@@ -46,9 +46,12 @@ enum _After { preview, print }
 
 /// Tools › Passport photo: take or pick one photo, then crop it. With
 /// [addToDocumentId], another person's photo for that sheet, at [size].
-Future<void> startPassportPhoto(BuildContext context, {String? addToDocumentId, PhotoSize? size}) async {
+///
+/// [fromCamera] (round 11, the camera's mode strip): straight to the
+/// camera, without asking.
+Future<void> startPassportPhoto(BuildContext context, {String? addToDocumentId, PhotoSize? size, bool fromCamera = false}) async {
   final l = context.l10n;
-  final camera = await AppBottomSheet.show<bool>(
+  final camera = fromCamera ? true : await AppBottomSheet.show<bool>(
     context,
     builder: (ctx) => AppBottomSheet(
       title: l.photoTitle,

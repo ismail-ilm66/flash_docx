@@ -1936,6 +1936,114 @@ abstract class AppLocalizations {
   /// **'Reduce size'**
   String get toolReduceSize;
 
+  /// No description provided for @cameraSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera settings'**
+  String get cameraSettings;
+
+  /// No description provided for @cameraAutoCapture.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto capture'**
+  String get cameraAutoCapture;
+
+  /// No description provided for @cameraAutoCaptureHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Takes the photo when the page is found and the phone is still'**
+  String get cameraAutoCaptureHint;
+
+  /// No description provided for @cameraHdPhotos.
+  ///
+  /// In en, this message translates to:
+  /// **'HD photos'**
+  String get cameraHdPhotos;
+
+  /// No description provided for @cameraHdPhotosHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Up to 16 MP, for small print. Bigger files.'**
+  String get cameraHdPhotosHint;
+
+  /// No description provided for @cameraTiltGuide.
+  ///
+  /// In en, this message translates to:
+  /// **'Tilt guide'**
+  String get cameraTiltGuide;
+
+  /// No description provided for @cameraTiltGuideHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tells you when the phone isn\'t flat over the page'**
+  String get cameraTiltGuideHint;
+
+  /// No description provided for @cameraGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid'**
+  String get cameraGrid;
+
+  /// No description provided for @cameraGridHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Lines to help line up the page'**
+  String get cameraGridHint;
+
+  /// No description provided for @cameraShutterSound.
+  ///
+  /// In en, this message translates to:
+  /// **'Shutter sound'**
+  String get cameraShutterSound;
+
+  /// No description provided for @cameraShutterSoundHint.
+  ///
+  /// In en, this message translates to:
+  /// **'A click when the photo is taken'**
+  String get cameraShutterSoundHint;
+
+  /// No description provided for @cameraAutoCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Auto crop'**
+  String get cameraAutoCrop;
+
+  /// No description provided for @cameraAutoCropHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Off: Adjust edges starts with the whole photo'**
+  String get cameraAutoCropHint;
+
+  /// No description provided for @cameraUndo.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get cameraUndo;
+
+  /// No description provided for @cameraPageRemoved.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {number} removed'**
+  String cameraPageRemoved(int number);
+
+  /// No description provided for @cameraPageFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Page found · hold still'**
+  String get cameraPageFound;
+
+  /// No description provided for @cameraAutoShort.
+  ///
+  /// In en, this message translates to:
+  /// **'A'**
+  String get cameraAutoShort;
+
+  /// No description provided for @cameraHdShort.
+  ///
+  /// In en, this message translates to:
+  /// **'HD'**
+  String get cameraHdShort;
+
   /// No description provided for @dateToday.
   ///
   /// In en, this message translates to:

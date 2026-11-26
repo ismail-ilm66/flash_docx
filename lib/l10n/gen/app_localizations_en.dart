@@ -1055,6 +1055,66 @@ class AppLocalizationsEn extends AppLocalizations {
   String get toolReduceSize => 'Reduce size';
 
   @override
+  String get cameraSettings => 'Camera settings';
+
+  @override
+  String get cameraAutoCapture => 'Auto capture';
+
+  @override
+  String get cameraAutoCaptureHint =>
+      'Takes the photo when the page is found and the phone is still';
+
+  @override
+  String get cameraHdPhotos => 'HD photos';
+
+  @override
+  String get cameraHdPhotosHint =>
+      'Up to 16 MP, for small print. Bigger files.';
+
+  @override
+  String get cameraTiltGuide => 'Tilt guide';
+
+  @override
+  String get cameraTiltGuideHint =>
+      'Tells you when the phone isn\'t flat over the page';
+
+  @override
+  String get cameraGrid => 'Grid';
+
+  @override
+  String get cameraGridHint => 'Lines to help line up the page';
+
+  @override
+  String get cameraShutterSound => 'Shutter sound';
+
+  @override
+  String get cameraShutterSoundHint => 'A click when the photo is taken';
+
+  @override
+  String get cameraAutoCrop => 'Auto crop';
+
+  @override
+  String get cameraAutoCropHint =>
+      'Off: Adjust edges starts with the whole photo';
+
+  @override
+  String get cameraUndo => 'Undo';
+
+  @override
+  String cameraPageRemoved(int number) {
+    return 'Page $number removed';
+  }
+
+  @override
+  String get cameraPageFound => 'Page found · hold still';
+
+  @override
+  String get cameraAutoShort => 'A';
+
+  @override
+  String get cameraHdShort => 'HD';
+
+  @override
   String get dateToday => 'Today';
 
   @override
