@@ -592,7 +592,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       bloc.add(SessionCaptured(shot.path, guide: guide, capture: capture));
       setState(() => _flyTick++);
       // ID card (2 sides) / passport (1 page) finish by themselves.
-      if (bloc.state.isComplete) bloc.add(const SessionFinished());
+      if (bloc.state.isComplete) bloc.add(SessionFinished(waitAll: widget.args.returnPages));
     } catch (e) {
       debugPrint('[capture] failed: $e');
       if (mounted) context.showSnack(context.l10n.errorImage, error: true);
@@ -855,10 +855,16 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     );
   }
 
-  void _onReady(BuildContext context, ScanSessionState s) {
+  Future<void> _onReady(BuildContext context, ScanSessionState s) async {
     final pages = s.result!;
     if (widget.args.returnPages) {
-      context.pop(pages);
+      // The caller takes whole pages: imports still being prepared too.
+      final more = await Future.wait([for (final p in s.pending) p.page]);
+      if (!context.mounted) return;
+      context.pop([
+        ...pages,
+        for (final r in more) ?r?.page,
+      ]);
       return;
     }
     final args = EditorArgs(
@@ -868,6 +874,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       addingPages: widget.args.addToDocumentId != null,
       tool: widget.args.tool,
       blurryPages: s.blurryPages,
+      pending: s.pending,
     );
     context.pushReplacement(Routes.adjust, extra: args);
   }
@@ -879,7 +886,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       listenWhen: (a, b) =>
           a.status != b.status || a.flashOn != b.flashOn || a.mode != b.mode,
       listener: (context, s) {
-        if (s.status == SessionStatus.ready) _onReady(context, s);
+        if (s.status == SessionStatus.ready) unawaited(_onReady(context, s));
         if (s.status == SessionStatus.failed) {
           context.showSnack(failureMessage(context, s.failure), error: true);
         }
@@ -941,7 +948,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   onFinish: () {
                     // P0-15.6: the camera and the live outline stop at once.
                     unawaited(_shutDown());
-                    context.read<ScanSessionBloc>().add(const SessionFinished());
+                    context.read<ScanSessionBloc>().add(SessionFinished(waitAll: widget.args.returnPages));
                   },
                   onRemoveLast: s.count == 0 ? null : _undo,
                   onUndo: widget.args.retake ? null : _undo,

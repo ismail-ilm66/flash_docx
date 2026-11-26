@@ -26,7 +26,9 @@ class PageEditorState extends Equatable {
     Set<String>? blurryPages,
     this.fingers = const {},
     this.fingersUndoPage,
-  }) : applyAll = applyAll ?? args.isNewDocument,
+    int? pendingPages,
+  }) : pendingPages = pendingPages ?? args.pending.length,
+       applyAll = applyAll ?? args.isNewDocument,
        blurryPages = blurryPages ?? args.blurryPages;
 
   final EditorArgs args;
@@ -63,6 +65,10 @@ class PageEditorState extends Equatable {
   /// Round 11, P1-11: fingers found per page crop ([fingerKey]): their
   /// mask file and outlines, or null when the page has none.
   final Map<String, FingerFind?> fingers;
+
+  /// Round 11b, P0-18: pages still being prepared; they join the strip as
+  /// they're ready (a ring each until then).
+  final int pendingPages;
 
   /// The page whose "Fingers removed · Undo" chip is showing (4 s).
   final String? fingersUndoPage;
@@ -157,6 +163,7 @@ class PageEditorState extends Equatable {
     Map<String, FingerFind?>? fingers,
     String? fingersUndoPage,
     bool clearFingersUndo = false,
+    int? pendingPages,
   }) {
     return PageEditorState(
       args: args,
@@ -176,6 +183,7 @@ class PageEditorState extends Equatable {
       blurryPages: blurryPages ?? this.blurryPages,
       fingers: fingers ?? this.fingers,
       fingersUndoPage: clearFingersUndo ? null : fingersUndoPage ?? this.fingersUndoPage,
+      pendingPages: pendingPages ?? this.pendingPages,
     );
   }
 
@@ -197,6 +205,7 @@ class PageEditorState extends Equatable {
     blurryPages,
     fingers,
     fingersUndoPage,
+    pendingPages,
   ];
 }
 

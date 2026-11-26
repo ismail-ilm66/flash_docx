@@ -1,6 +1,11 @@
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 
+/// A page still being prepared when Adjust edges opened (round 11b,
+/// P0-18): its place among the pages ([ScanPage.order]) and the page, with
+/// whether the shot came out blurry; null if it couldn't be read.
+typedef PendingPage = ({int order, Future<({ScanPage page, bool blurry})?> page});
+
 /// What the editor screens operate on.
 ///
 /// * New scan: [documentId] is null, [pages] are drafts in the draft folder
@@ -19,7 +24,11 @@ class EditorArgs {
     this.startAtEnhance = false,
     this.tool,
     this.blurryPages = const {},
+    this.pending = const [],
   });
+
+  /// Pages that join while Adjust edges is open (round 11b, P0-18).
+  final List<PendingPage> pending;
 
   /// Shots that came out partly blurry (round 6, P1-1): Adjust edges offers
   /// a retake for these page ids.
@@ -51,5 +60,6 @@ class EditorArgs {
         startAtEnhance: startAtEnhance ?? this.startAtEnhance,
         tool: tool,
         blurryPages: blurryPages,
+        pending: pending,
       );
 }

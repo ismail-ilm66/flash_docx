@@ -68,7 +68,7 @@ class _AdjustView extends StatelessWidget {
     if (!ok || !context.mounted) return;
     final bloc = context.read<PageEditorBloc>();
     bloc.add(const EditorPageDeleted());
-    if (s.pages.length <= 1) context.pop();
+    if (s.pages.length <= 1 && s.pendingPages == 0) context.pop();
   }
 
   @override
@@ -79,7 +79,9 @@ class _AdjustView extends StatelessWidget {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
         final base = s.basePreview;
-        final multi = s.pages.length > 1;
+        // Round 11b, P0-18: pages still being prepared count too.
+        final total = s.pages.length + s.pendingPages;
+        final multi = total > 1;
         // P1-8: "+ Add page" on every scan and every edit, in every mode, so
         // the strip is always shown.
         const showStrip = true;
@@ -94,7 +96,7 @@ class _AdjustView extends StatelessWidget {
         final notFound = page != null && !page.edgesDetected;
         return DiscardScanGuard(
           guard: bloc.guardBack,
-          pageCount: s.pages.length,
+          pageCount: total,
           onDiscard: () {
             bloc.discardScan();
             context.pop();
@@ -105,12 +107,13 @@ class _AdjustView extends StatelessWidget {
               subtitle: notFound
                   ? l.adjustEdgesNotFound
                   : multi && page != null
-                  ? l.pageOfTotal(s.index + 1, s.pages.length)
+                  ? l.pageOfTotal(s.index + 1, total)
                   : l.adjustHint,
               actions: [
                 TopBarTextAction(
                   label: l.adjustNext,
-                  onPressed: page == null
+                  // Enhance gets every page: Next waits for the last ones.
+                  onPressed: page == null || s.pendingPages > 0
                       ? null
                       : () {
                           bloc.prepareEnhance();
@@ -202,18 +205,27 @@ class _AdjustView extends StatelessWidget {
                       pathOf: (p) => s.quickPreviews[p.id],
                       // Round 11b, G1: an ID card is exactly front and
                       // back, a passport one page: only documents add pages.
-                      trailing: s.args.mode != ScanMode.document
-                          ? null
-                          : AddPageTile(
-                        onTap: () async {
-                          final added = await collectNewPages(
-                            context,
-                            mode: s.args.mode,
-                          );
-                          if (added != null && added.isNotEmpty) {
-                            bloc.add(EditorPagesAdded(added));
-                          }
-                        },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (var i = 0; i < s.pendingPages; i++)
+                            const Padding(
+                              padding: EdgeInsets.only(right: Space.x2),
+                              child: _PendingTile(),
+                            ),
+                          if (s.args.mode == ScanMode.document)
+                            AddPageTile(
+                              onTap: () async {
+                                final added = await collectNewPages(
+                                  context,
+                                  mode: s.args.mode,
+                                );
+                                if (added != null && added.isNotEmpty) {
+                                  bloc.add(EditorPagesAdded(added));
+                                }
+                              },
+                            ),
+                        ],
                       ),
                     ),
                   ),
@@ -304,6 +316,28 @@ class _Toolbar extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// A page still being prepared (round 11b, P0-18): a small ring where its
+/// thumbnail will be.
+class _PendingTile extends StatelessWidget {
+  const _PendingTile();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      width: 52,
+      height: 68,
+      decoration: BoxDecoration(
+        color: c.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: c.border),
+      ),
+      alignment: Alignment.center,
+      child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: c.muted)),
     );
   }
 }

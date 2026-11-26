@@ -73,7 +73,34 @@ void main() {
 
   Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 20));
 
-  test('the shutter only records; Done waits for the queue, then hands over pages in order', () async {
+  test('round 11b, P0-18: Done opens Adjust edges at once; photos still in the queue follow, in order', () async {
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final a = shot('a', hold: true);
+    final b = shot('b', hold: true);
+    final c = shot('c', hold: true);
+    bloc
+      ..add(SessionCaptured(a))
+      ..add(SessionCaptured(b))
+      ..add(SessionCaptured(c));
+    await pump();
+    gates[a]!.complete();
+    await pump();
+
+    bloc.add(const SessionFinished());
+    await pump();
+    expect(bloc.state.status, SessionStatus.ready, reason: 'no waiting for the queue');
+    expect(bloc.state.result!.map((p) => p.id), [a]);
+    expect(bloc.state.pending.map((p) => p.order), [1, 2]);
+    final pending = bloc.state.pending;
+    // The camera closes (Adjust edges replaces it); the queue goes on.
+    await bloc.close();
+    gates[b]!.complete();
+    gates[c]!.complete();
+    final rest = await Future.wait([for (final p in pending) p.page]);
+    expect(rest.map((r) => r?.page.id), [b, c]);
+  });
+
+  test('the shutter only records; Done (waitAll) waits for the queue, then hands over pages in order', () async {
     final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b', hold: true);
@@ -85,7 +112,7 @@ void main() {
     expect(bloc.state.canCapture, isTrue, reason: 'camera stays ready while processing');
     expect(bloc.state.processed, 0);
 
-    bloc.add(const SessionFinished());
+    bloc.add(const SessionFinished(waitAll: true));
     await pump();
     expect(bloc.state.status, SessionStatus.preparing);
     expect(bloc.state.waitingForQueue, isTrue);

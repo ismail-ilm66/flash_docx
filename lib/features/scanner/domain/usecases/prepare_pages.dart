@@ -107,6 +107,24 @@ class PreparePages {
     }
   }
 
+  /// Round 11b, P0-18 / P0-19: the same pipeline, one image at a time, so
+  /// Adjust edges can open at once and show each page as it's ready. A page
+  /// that can't be read comes back null.
+  List<Future<ScanPage?>> oneByOne(List<String> sourcePaths, {required ScanMode mode, bool copySource = true}) {
+    var chain = Future<void>.value();
+    return [
+      for (final (i, src) in sourcePaths.indexed)
+        () {
+          final done = Completer<ScanPage?>();
+          chain = chain.then((_) async {
+            final r = await call([src], mode: mode, copySource: copySource);
+            done.complete(r.fold((_) => null, (pages) => pages.single.copyWith(order: i)));
+          });
+          return done.future;
+        }(),
+    ];
+  }
+
   /// P0-1: ID / passport cards end up landscape and the right way up.
   /// Portrait warps turn to landscape; then 0° vs 180° is decided by which
   /// way ML Kit reads more characters on a 640 px render of the preview.

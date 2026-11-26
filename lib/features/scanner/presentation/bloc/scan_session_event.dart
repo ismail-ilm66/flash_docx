@@ -62,7 +62,12 @@ class SessionImported extends ScanSessionEvent {
 
 /// "Done": waits for the queue, then hands the pages to the editor.
 class SessionFinished extends ScanSessionEvent {
-  const SessionFinished();
+  const SessionFinished({this.waitAll = false});
+
+  /// Wait until every photo is prepared (pages handed back to a caller).
+  /// Otherwise Adjust edges opens at once and the rest join it (round 11b,
+  /// P0-18).
+  final bool waitAll;
 }
 
 class SessionReset extends ScanSessionEvent {

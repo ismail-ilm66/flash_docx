@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:equatable/equatable.dart';
@@ -73,6 +74,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorContrastChanged>(_onContrast);
     on<EditorLookReset>(_onLookReset);
     on<EditorPagesAdded>(_onPagesAdded);
+    on<EditorPageArrived>(_onPageArrived);
     on<EditorPageDeleted>(_onPageDeleted);
     on<EditorPageRetaken>(_onRetaken);
     // Preview renders are debounced and restartable: a newer request cancels
@@ -97,6 +99,18 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     on<EditorFingersChipHidden>((_, emit) => emit(state.copyWith(clearFingersUndo: true)));
     // Imports never passed the camera: their draft starts here.
     if (_keepsDraft) unawaited(_drafts.save(args.mode, args.pages));
+    // Round 11b, P0-18: the pages still being prepared join as they're
+    // ready.
+    for (final p in args.pending) {
+      p.page.then(
+        (r) {
+          if (!isClosed) add(EditorPageArrived(p.order, r?.page, blurry: r?.blurry ?? false));
+        },
+        onError: (Object _) {
+          if (!isClosed) add(EditorPageArrived(p.order, null));
+        },
+      ).ignore();
+    }
   }
 
   final ImageProcessor _processor;
@@ -491,6 +505,35 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     emit(state.copyWith(pages: pages, index: start));
     // Builds base previews for the new pages, then the current preview and
     // the strip thumbnails.
+    add(EditorStarted(state.args));
+  }
+
+  /// Round 11b, P0-18: a page prepared after Adjust edges opened goes to
+  /// its place in the scan; the page on screen stays on screen.
+  void _onPageArrived(EditorPageArrived e, Emitter<PageEditorState> emit) {
+    final left = math.max(0, state.pendingPages - 1);
+    final page = e.page;
+    if (page == null) {
+      // Nothing could be read at all: say so instead of a ring forever.
+      final none = left == 0 && state.pages.isEmpty;
+      emit(state.copyWith(
+        pendingPages: left,
+        status: none ? EditorStatus.failed : null,
+        failure: none ? const ImageProcessingFailure('no readable photos') : null,
+      ));
+      return;
+    }
+    final at = state.pages.indexWhere((p) => p.order > e.order);
+    final pos = at < 0 ? state.pages.length : at;
+    final pages = [...state.pages]..insert(pos, page.copyWith(order: e.order));
+    final index = state.pages.isEmpty ? 0 : (pos <= state.index ? state.index + 1 : state.index);
+    emit(state.copyWith(
+      pages: pages,
+      index: index,
+      pendingPages: left,
+      blurryPages: e.blurry ? {...state.blurryPages, page.id} : null,
+    ));
+    // Its base preview (made by ingest), then the strip thumbnails.
     add(EditorStarted(state.args));
   }
 

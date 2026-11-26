@@ -8,6 +8,7 @@ import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
+import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
@@ -24,7 +25,9 @@ part 'scan_session_state.dart';
 ///
 /// The shutter path only records the photo; every capture is processed in a
 /// background queue, one page at a time (move, upright, edge detection,
-/// preview, sharpness / brightness checks). "Done" waits for the queue.
+/// preview, sharpness / brightness checks). "Done" hands the photos not
+/// ready yet to Adjust edges, which they join when they are (round 11b,
+/// P0-18); the queue keeps going after the camera closes.
 @injectable
 class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   ScanSessionBloc(
@@ -92,6 +95,14 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   /// Serial background queue: one page at a time.
   Future<void> _queue = Future.value();
 
+  /// Each capture's prepared page (null if it couldn't be read), by
+  /// capture id.
+  final Map<String, Future<({ScanPage page, bool blurry})?>> _jobs = {};
+
+  /// Round 7, P0-4: a document page partly smeared or clearly unreadable.
+  bool _blurry(AutoEditsResult? r) =>
+      state.rules.aspectRatio == null && ((r?.blurry ?? false) || CaptureChecks.isBlurry(r?.sharpness));
+
   void _onMode(SessionModeChanged e, Emitter<ScanSessionState> emit) {
     // Changing mode mid-session discards captures.
     _discardAll(state.captures);
@@ -120,10 +131,12 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
 
   void _enqueue(Capture c) {
     final mode = state.mode;
+    final done = Completer<({ScanPage page, bool blurry})?>();
+    _jobs[c.id] = done.future;
     _queue = _queue.then((_) async {
-      if (isClosed) return;
-      // Skip captures that were removed while waiting.
-      if (!state.captures.any((x) => x.id == c.id)) return;
+      // Skip captures that were removed while waiting (also after the
+      // camera closed: discarding a scan clears them).
+      if (!state.captures.any((x) => x.id == c.id)) return done.complete();
       final sw = Stopwatch()..start();
       AutoEditsResult? res;
       final r = await _prepare(
@@ -136,6 +149,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         onPrepared: (_, result) => res = result,
       );
       debugPrint('[capture] processed in background in ${sw.elapsedMilliseconds} ms');
+      done.complete(r.fold((_) => null, (pages) => (page: pages.single, blurry: _blurry(res))));
       if (isClosed) return;
       r.fold(
         (f) => add(_CaptureProcessed(c.id, null, null, f)),
@@ -160,13 +174,12 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
       // Round 7, P0-4: blur is never raised here, on the camera, nor for
       // ID / passport. A document page that's partly smeared (2 of 9
       // cells) or clearly unreadable gets a short banner on Adjust edges.
-      final isCard = state.rules.aspectRatio != null;
       list[i] = list[i].copyWith(
         status: CaptureStatus.ready,
         page: e.page,
         sharpness: e.result?.sharpness,
         brightness: e.result?.brightness,
-        blurry: !isCard && ((e.result?.blurry ?? false) || CaptureChecks.isBlurry(e.result?.sharpness)),
+        blurry: _blurry(e.result),
       );
       // The stack shows the cropped page, not the photo (P0-3).
       final page = e.page!;
@@ -201,22 +214,45 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     emit(state.copyWith(captures: list, insertAt: i, clearNotice: true));
   }
 
-  Future<void> _onImported(SessionImported e, Emitter<ScanSessionState> emit) async {
-    // Imports skip the camera: prepare straight away (same pipeline).
-    emit(state.copyWith(status: SessionStatus.preparing));
-    final r = await _prepare(e.paths, mode: state.mode);
+  /// Imports skip the camera (same pipeline). Round 11b, P0-19: Adjust
+  /// edges opens at once and each picture joins it as it's ready.
+  void _onImported(SessionImported e, Emitter<ScanSessionState> emit) {
+    if (e.paths.isEmpty) return;
+    final jobs = _prepare.oneByOne(e.paths, mode: state.mode);
     emit(
-      r.fold(
-        (f) => state.copyWith(status: SessionStatus.failed, failure: f),
-        (pages) => state.copyWith(status: SessionStatus.ready, result: pages),
+      state.copyWith(
+        status: SessionStatus.ready,
+        result: const [],
+        pending: [
+          for (final (i, j) in jobs.indexed) (order: i, page: j.then((p) => p == null ? null : (page: p, blurry: false))),
+        ],
       ),
     );
   }
 
   void _onFinished(SessionFinished e, Emitter<ScanSessionState> emit) {
     if (!state.canFinish) return;
-    emit(state.copyWith(waitingForQueue: true, status: SessionStatus.preparing));
-    _maybeFinish(emit);
+    if (e.waitAll) {
+      emit(state.copyWith(waitingForQueue: true, status: SessionStatus.preparing));
+      _maybeFinish(emit);
+      return;
+    }
+    // Round 11b, P0-18: Adjust edges opens now; photos still in the queue
+    // join it as they're ready. The order is the place in the scan.
+    final pages = <ScanPage>[];
+    final pending = <PendingPage>[];
+    for (final (i, c) in state.captures.indexed) {
+      if (c.page != null) {
+        pages.add(c.page!.copyWith(order: i));
+      } else if (c.status == CaptureStatus.processing) {
+        pending.add((order: i, page: _jobs[c.id] ?? Future.value()));
+      }
+    }
+    if (pages.isEmpty && pending.isEmpty) {
+      emit(state.copyWith(status: SessionStatus.failed, failure: const ImageProcessingFailure('no readable photos')));
+      return;
+    }
+    emit(state.copyWith(status: SessionStatus.ready, result: pages, pending: pending));
   }
 
   void _maybeFinish(Emitter<ScanSessionState> emit) {

@@ -534,6 +534,56 @@ void main() {
     },
   );
 
+  group('round 11b, P0-18', () {
+    PageEditorBloc buildPending(List<ScanPage> ready, List<PendingPage> pending) {
+      final args = EditorArgs(pages: ready, mode: ScanMode.document, pending: pending);
+      return PageEditorBloc(
+        proc,
+        files,
+        _Create(),
+        _Add(),
+        _Update(),
+        _Log(),
+        _Render(),
+        _Prepare(),
+        PreviewCache(proc, files),
+        _Namer(),
+        bases,
+        FakeDrafts(),
+        args,
+      )..add(EditorStarted(args));
+    }
+
+    test('pages still being prepared join in their place; the page on screen stays', () async {
+      final second = Completer<({ScanPage page, bool blurry})?>();
+      final third = Completer<({ScanPage page, bool blurry})?>();
+      final bloc = buildPending(
+        [page.copyWith(order: 0)],
+        [(order: 2, page: third.future), (order: 1, page: second.future)],
+      );
+      await settle();
+      expect(bloc.state.pendingPages, 2);
+      expect(bloc.state.current!.id, page.id);
+      third.complete((page: page.copyWith(id: 'p3'), blurry: true));
+      await settle();
+      second.complete((page: page.copyWith(id: 'p2'), blurry: false));
+      await settle();
+      expect(bloc.state.pages.map((p) => p.id), [page.id, 'p2', 'p3']);
+      expect(bloc.state.pendingPages, 0);
+      expect(bloc.state.current!.id, page.id);
+      expect(bloc.state.blurryPages, contains('p3'));
+      await bloc.close();
+    });
+
+    test('nothing readable: an error, not a ring forever', () async {
+      final bloc = buildPending(const [], [(order: 0, page: Future.value())]);
+      await settle();
+      expect(bloc.state.pages, isEmpty);
+      expect(bloc.state.status, EditorStatus.failed);
+      await bloc.close();
+    });
+  });
+
   group('P1-1 Enhance', () {
     PageEditorBloc buildTwo({String? documentId}) {
       final args = EditorArgs(

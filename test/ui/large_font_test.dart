@@ -558,6 +558,22 @@ void main() {
     });
   }
 
+  testWidgets('round 11b, P0-18: Adjust edges with a page still being prepared', (tester) async {
+    final router = await pumpApp(tester);
+    final first = doc.sortedPages.first;
+    final args = EditorArgs(
+      pages: [first],
+      mode: doc.mode,
+      pending: [(order: 1, page: Completer<({ScanPage page, bool blurry})?>().future)],
+    );
+    router.go(Routes.adjust, extra: args);
+    await settle(tester);
+    expect(find.text(l.pageOfTotal(1, 2)), findsOneWidget);
+    expect(tester.widget<TopBarTextAction>(find.widgetWithText(TopBarTextAction, l.adjustNext)).onPressed, isNull, reason: 'Enhance gets every page');
+    expectNothingCutOff(tester, 'Adjust edges, a page on its way');
+    await close(tester);
+  });
+
   testWidgets('round 10, P0-1: Back and Edges on Enhance go to Adjust edges, never "Discard?"', (tester) async {
     final router = await pumpApp(tester);
     // A new scan: Adjust edges guards it, Enhance doesn't.

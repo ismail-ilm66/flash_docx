@@ -94,7 +94,11 @@ class ScanSessionState extends Equatable {
     this.notice,
     this.insertAt,
     this.waitingForQueue = false,
+    this.pending = const [],
   });
+
+  /// Round 11b, P0-18: with [result], the photos still being prepared.
+  final List<PendingPage> pending;
 
   final ScanMode mode;
   final List<Capture> captures;
@@ -159,6 +163,7 @@ class ScanSessionState extends Equatable {
     int? insertAt,
     bool clearInsertAt = false,
     bool? waitingForQueue,
+    List<PendingPage>? pending,
   }) =>
       ScanSessionState(
         mode: mode ?? this.mode,
@@ -170,8 +175,9 @@ class ScanSessionState extends Equatable {
         notice: clearNotice ? null : notice ?? this.notice,
         insertAt: clearInsertAt ? null : insertAt ?? this.insertAt,
         waitingForQueue: waitingForQueue ?? this.waitingForQueue,
+        pending: pending ?? const [],
       );
 
   @override
-  List<Object?> get props => [mode, captures, flashOn, status, failure, result, notice, insertAt, waitingForQueue];
+  List<Object?> get props => [mode, captures, flashOn, status, failure, result, notice, insertAt, waitingForQueue, pending];
 }

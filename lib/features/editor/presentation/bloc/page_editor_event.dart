@@ -132,3 +132,12 @@ class EditorSnapsRequested extends PageEditorEvent {
 class EditorStripThumbsRequested extends PageEditorEvent {
   const EditorStripThumbsRequested();
 }
+
+/// Round 11b, P0-18: a page that was still being prepared at Done is
+/// ready (null: it couldn't be read).
+class EditorPageArrived extends PageEditorEvent {
+  const EditorPageArrived(this.order, this.page, {this.blurry = false});
+  final int order;
+  final ScanPage? page;
+  final bool blurry;
+}

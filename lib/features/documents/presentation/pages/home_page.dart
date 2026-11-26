@@ -100,16 +100,22 @@ class _HomeViewState extends State<_HomeView> {
     );
   }
 
+  /// Round 11b, P0-19: imports take the camera's path: Adjust edges opens
+  /// at once and each picture joins it as it's ready.
   Future<void> _startImport(List<String> paths, {bool copySource = true, ToolTarget? tool}) async {
-    if (_importing) return;
-    setState(() => _importing = true);
+    if (paths.isEmpty) return;
     const mode = ScanMode.document;
-    final r = await getIt<PreparePages>()(paths, mode: mode, copySource: copySource);
-    if (!mounted) return;
-    setState(() => _importing = false);
-    r.fold(
-      (f) => context.showSnack(failureMessage(context, f), error: true),
-      (pages) => context.push(Routes.adjust, extra: EditorArgs(pages: pages, mode: mode, tool: tool)),
+    final jobs = getIt<PreparePages>().oneByOne(paths, mode: mode, copySource: copySource);
+    await context.push(
+      Routes.adjust,
+      extra: EditorArgs(
+        pages: const [],
+        mode: mode,
+        tool: tool,
+        pending: [
+          for (final (i, j) in jobs.indexed) (order: i, page: j.then((p) => p == null ? null : (page: p, blurry: false))),
+        ],
+      ),
     );
   }
 
