@@ -704,6 +704,12 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
           emit(state.copyWith(enhancePreviews: {...state.enhancePreviews, PageEditorState._instantKey(cur): instant}));
           sw.lap('instant image (queue + worker)');
           debugPrint('[perf] enhance first image in ${sw.elapsedMs} ms');
+          // Round 11b, P0-19: the fingers outline and chip come with the
+          // first image: found on the same 1200 px work image, queued
+          // before the cleaned base.
+          add(EditorFingersRequested(cur.id));
+          await Future<void>.delayed(Duration.zero);
+          if (isClosed) return false;
           await _bases.ensure(cur, card: _card, priority: JobPriority.interactive);
           if (isClosed) return false;
           sw.lap('cleaned base (queue + worker)');

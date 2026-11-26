@@ -827,6 +827,43 @@ void main() {
     await bloc.close();
   });
 
+  test('round 11b, P0-19: fingers are looked for with the first image, before the cleaned base', () async {
+    final calls = <String>[];
+    when(
+      () => proc.findFingers(any(), any(), workPath: any(named: 'workPath'), maskOut: any(named: 'maskOut'), priority: any(named: 'priority'), cancel: any(named: 'cancel')),
+    ).thenAnswer((_) async {
+      calls.add('fingers');
+      return null;
+    });
+    when(
+      () => proc.renderCleanBase(
+        any(),
+        any(),
+        longEdge: any(named: 'longEdge'),
+        outputPath: any(named: 'outputPath'),
+        previewPath: any(named: 'previewPath'),
+        card: any(named: 'card'),
+        quick: any(named: 'quick'),
+        priority: any(named: 'priority'),
+        cancel: any(named: 'cancel'),
+      ),
+    ).thenAnswer((inv) async {
+      calls.add('base');
+      for (final k in [#previewPath, #outputPath]) {
+        File(inv.namedArguments[k] as String)
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync([1]);
+      }
+      return inv.namedArguments[#outputPath] as String;
+    });
+    final bloc = build();
+    await settle();
+    await enhance(bloc);
+    await settle();
+    expect(calls.take(2), ['fingers', 'base']);
+    await bloc.close();
+  });
+
   test('round 11, P1-11: fingers are found on Enhance; Remove keeps the mask, Undo brings them back', () async {
     PageEditorBloc.fingersUndoShown = const Duration(milliseconds: 400);
     when(
