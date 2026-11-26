@@ -46,6 +46,7 @@ void main() {
 
   late StreamController<ScanDocument?> docs;
   late _Reorder reorder;
+  late _DeletePage deletePage;
   late ViewerCubit cubit;
 
   setUp(() {
@@ -59,7 +60,9 @@ void main() {
     final previews = _Previews();
     when(() => previews.lookIfReady(any())).thenReturn(null);
     when(() => previews.handedOff(any())).thenReturn(null);
-    cubit = ViewerCubit(watch, _Rename(), _Delete(), _DeletePage(), reorder, _Add(), render, previews, _Suggest(), _Folder(), _Move(), 'd');
+    deletePage = _DeletePage();
+    when(() => deletePage(any())).thenAnswer((_) async => const Right(unit));
+    cubit = ViewerCubit(watch, _Rename(), _Delete(), deletePage, reorder, _Add(), render, previews, _Suggest(), _Folder(), _Move(), 'd');
   });
 
   tearDown(() async {
@@ -88,5 +91,20 @@ void main() {
   test('added pages start with the filter most pages use', () {
     expect(ViewerCubit.documentFilter([pg('a', 0, FilterType.bwPrint), pg('b', 1, FilterType.bwPrint), pg('c', 2)]), FilterType.bwPrint);
     expect(ViewerCubit.documentFilter(const []), isNull);
+  });
+
+  test('round 11b, J1: the current page leaves the view at once; Undo brings it back, else it is deleted', () async {
+    docs.add(doc([pg('a', 0), pg('b', 1), pg('c', 2)]));
+    await Future<void>.delayed(Duration.zero);
+    cubit.select(1);
+    final id = cubit.hideCurrentPage()!;
+    expect(id, 'b');
+    expect(cubit.state.pages.map((p) => p.id), ['a', 'c']);
+    cubit.undoHidePage(id);
+    expect(cubit.state.pages.map((p) => p.id), ['a', 'b', 'c']);
+    verifyNever(() => deletePage(any()));
+    cubit.hideCurrentPage();
+    await cubit.commitHiddenPage('b');
+    verify(() => deletePage('b')).called(1);
   });
 }

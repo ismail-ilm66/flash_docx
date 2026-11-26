@@ -25,7 +25,12 @@ class ViewerState extends Equatable {
     this.quick = const {},
     this.quickVersions = const {},
     this.selectedPages,
+    this.hiddenPages = const {},
   });
+
+  /// Round 11b, J1: pages deleted with Undo still possible (gone from view,
+  /// deleted for good when the snackbar closes).
+  final Set<String> hiddenPages;
 
   /// Round 11, P0-13: pages picked on the thumbnail strip (long-press);
   /// null when not selecting.
@@ -63,7 +68,10 @@ class ViewerState extends Equatable {
 
   static int versionOf(ScanPage p) => Object.hash(p.originalPath, p.edits);
 
-  List<ScanPage> get pages => document?.sortedPages ?? const [];
+  List<ScanPage> get pages => [
+    for (final p in document?.sortedPages ?? const <ScanPage>[])
+      if (!hiddenPages.contains(p.id)) p,
+  ];
   ScanPage? get current => pages.isEmpty ? null : pages[index.clamp(0, pages.length - 1)];
 
   ViewerState copyWith({
@@ -76,6 +84,7 @@ class ViewerState extends Equatable {
     Map<String, int>? quickVersions,
     Set<String>? selectedPages,
     bool clearSelection = false,
+    Set<String>? hiddenPages,
   }) =>
       ViewerState(
         document: document ?? this.document,
@@ -86,10 +95,11 @@ class ViewerState extends Equatable {
         quick: quick ?? this.quick,
         quickVersions: quickVersions ?? this.quickVersions,
         selectedPages: clearSelection ? null : selectedPages ?? this.selectedPages,
+        hiddenPages: hiddenPages ?? this.hiddenPages,
       );
 
   @override
-  List<Object?> get props => [document, index, loading, failure, deleted, quick, quickVersions, selectedPages];
+  List<Object?> get props => [document, index, loading, failure, deleted, quick, quickVersions, selectedPages, hiddenPages];
 }
 
 @injectable
@@ -174,6 +184,29 @@ class ViewerCubit extends Cubit<ViewerState> {
 
   Future<Failure?> delete() async =>
       (await _delete(state.document!.id)).fold((f) => f, (_) => null);
+
+  // ---- round 11b, J1: delete the current page, with Undo ----
+
+  /// The current page leaves the view; returns its id.
+  String? hideCurrentPage() {
+    final p = state.current;
+    if (p == null) return null;
+    final hidden = {...state.hiddenPages, p.id};
+    final left = state.pages.length - 1;
+    emit(state.copyWith(hiddenPages: hidden, index: state.index.clamp(0, left < 1 ? 0 : left - 1)));
+    return p.id;
+  }
+
+  void undoHidePage(String id) {
+    if (isClosed) return;
+    emit(state.copyWith(hiddenPages: {...state.hiddenPages}..remove(id)));
+  }
+
+  Future<Failure?> commitHiddenPage(String id) async {
+    final r = await _deletePage(id);
+    if (!isClosed) emit(state.copyWith(hiddenPages: {...state.hiddenPages}..remove(id)));
+    return r.fold((f) => f, (_) => null);
+  }
 
   Future<Failure?> deleteCurrentPage() async {
     final p = state.current;

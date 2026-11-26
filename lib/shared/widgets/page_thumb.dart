@@ -138,7 +138,8 @@ class PageImage extends StatelessWidget {
   }
 }
 
-/// Stylised text lines, the canvas's placeholder for a page.
+/// A page whose image is still being made (round 11b, J2): white with a
+/// small ring, never a placeholder drawing.
 class _BlankPage extends StatelessWidget {
   const _BlankPage();
 
@@ -148,25 +149,12 @@ class _BlankPage extends StatelessWidget {
       builder: (context, box) {
         final w = box.maxWidth;
         if (!w.isFinite || w < 16) return const SizedBox.expand();
-        final pad = w * 0.14;
-        Widget line(double f, {bool heading = false}) => Container(
-              margin: EdgeInsets.only(bottom: w * 0.08),
-              height: heading ? (w * 0.07).clamp(2, 10) : (w * 0.045).clamp(1.5, 4),
-              width: (w - pad * 2) * f,
-              color: heading ? const Color(0xFF9FA3AA) : const Color(0xFFC9CCD1),
-            );
-        return ClipRect(
-          child: Padding(
-            padding: EdgeInsets.all(pad),
-            child: OverflowBox(
-              alignment: Alignment.topLeft,
-              maxHeight: double.infinity,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [line(0.6, heading: true), line(1), line(1), line(0.8)],
-              ),
-            ),
+        final d = (w * 0.28).clamp(10.0, 22.0);
+        return Center(
+          child: SizedBox(
+            width: d,
+            height: d,
+            child: CircularProgressIndicator(strokeWidth: 1.6, color: context.colors.accent),
           ),
         );
       },

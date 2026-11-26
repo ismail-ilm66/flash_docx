@@ -542,6 +542,15 @@
   "folderPhotos": "Photos",
   "viewerInsertAfter": "Insert after this page",
   "viewerMove": "Move",
+  "viewerDeleteWholeTitle": "Delete the whole document?",
+  "viewerPageDeleted": "Page {number} deleted",
+  "@viewerPageDeleted": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
   "backPressAgain": "Press back again to exit",
   "homeGreetingMorning": "Good morning",
   "homeGreetingAfternoon": "Good afternoon",

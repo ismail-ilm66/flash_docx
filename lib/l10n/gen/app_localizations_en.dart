@@ -1021,6 +1021,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewerMove => 'Move';
 
   @override
+  String get viewerDeleteWholeTitle => 'Delete the whole document?';
+
+  @override
+  String viewerPageDeleted(int number) {
+    return 'Page $number deleted';
+  }
+
+  @override
   String get backPressAgain => 'Press back again to exit';
 
   @override

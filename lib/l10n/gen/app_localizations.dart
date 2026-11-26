@@ -1888,6 +1888,18 @@ abstract class AppLocalizations {
   /// **'Move'**
   String get viewerMove;
 
+  /// No description provided for @viewerDeleteWholeTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete the whole document?'**
+  String get viewerDeleteWholeTitle;
+
+  /// No description provided for @viewerPageDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Page {number} deleted'**
+  String viewerPageDeleted(int number);
+
   /// No description provided for @backPressAgain.
   ///
   /// In en, this message translates to:

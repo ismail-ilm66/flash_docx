@@ -184,6 +184,47 @@ class _ViewerViewState extends State<_ViewerView> {
     context.showSnack(err == null ? l.viewerPagesMoved(count) : l.errorGeneric, error: err != null);
   }
 
+  /// Round 11b, J1: the trash icon. "Page 3 deleted · Undo" (5 s); the
+  /// only page asks to delete the whole document first.
+  Future<void> _deleteCurrent(BuildContext context) async {
+    final l = context.l10n;
+    final cubit = context.read<ViewerCubit>();
+    final s = cubit.state;
+    if (s.pages.length == 1) {
+      final ok = await AppDialog.confirm(
+        context,
+        title: l.viewerDeleteWholeTitle,
+        body: '',
+        confirmLabel: l.commonDelete,
+        destructive: true,
+      );
+      if (!ok || !context.mounted) return;
+      await cubit.delete();
+      if (context.mounted && context.canPop()) context.pop();
+      return;
+    }
+    final number = s.index + 1;
+    final id = cubit.hideCurrentPage();
+    if (id == null) return;
+    final messenger = ScaffoldMessenger.of(context)..hideCurrentSnackBar();
+    final reason = await messenger
+        .showSnackBar(
+          SnackBar(
+            content: Text(l.viewerPageDeleted(number)),
+            duration: const Duration(seconds: 5),
+            persist: false,
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(label: l.commonUndo, textColor: context.colors.accent, onPressed: () {}),
+          ),
+        )
+        .closed;
+    if (reason == SnackBarClosedReason.action) {
+      cubit.undoHidePage(id);
+    } else {
+      await cubit.commitHiddenPage(id);
+    }
+  }
+
   Future<void> _deleteSelected(BuildContext context) async {
     final l = context.l10n;
     final cubit = context.read<ViewerCubit>();
@@ -300,6 +341,13 @@ class _ViewerViewState extends State<_ViewerView> {
               onTap: () => renameDocumentFlow(context, doc, cubit.rename),
             ),
             actions: [
+              // Round 11b, J1: delete the current page in one tap.
+              if (pages.isNotEmpty)
+                IconButton(
+                  tooltip: l.viewerDeletePage,
+                  onPressed: () => _deleteCurrent(context),
+                  icon: AppIcon(AppIcons.delete, size: 20, color: c.text),
+                ),
               IconButton(
                 tooltip: l.commonMore,
                 onPressed: () => _menu(context, s),
