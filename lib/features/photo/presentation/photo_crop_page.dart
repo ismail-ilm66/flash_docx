@@ -534,10 +534,11 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
         title: l.photoTitle,
         subtitle: l.photoStepCrop,
         actions: [
-          // Next = Preview (round 10, P1-8).
+          // Next = Preview (round 10, P1-8); the only way forward (11b, H4).
           TopBarTextAction(
             label: _isNew ? l.adjustNext : l.commonSave,
-            onPressed: _placement == null || _saving ? null : _next,
+            // A new photo goes on to step 2, the print sheet.
+            onPressed: _placement == null || _saving ? null : () => _next(_isNew ? _After.print : _After.preview),
           ),
         ],
       ),
@@ -672,8 +673,10 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                     decoration: BoxDecoration(
                       border: Border(top: BorderSide(color: c.border)),
                     ),
+                    // Round 11b, H4: always a gap above the navigation bar.
                     child: SafeArea(
                       top: false,
+                      minimum: const EdgeInsets.only(bottom: Space.x3),
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(
                           Space.x4,
@@ -798,38 +801,18 @@ class _PhotoCropPageState extends State<PhotoCropPage> {
                               ),
                             ),
                             const SizedBox(height: Space.x3),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: SecondaryButton(
-                                    label: l.photoRetake,
-                                    dense: true,
-                                    onPressed: _saving ? null : _retake,
-                                  ),
+                            // Round 11b, H4: Next (top) is the only way
+                            // forward; Retake stays bottom-left.
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: SizedBox(
+                                width: 160,
+                                child: SecondaryButton(
+                                  label: l.photoRetake,
+                                  dense: true,
+                                  onPressed: _saving ? null : _retake,
                                 ),
-                                // Round 10, P1-8: a new photo: Retake · Preview ·
-                                // Print; editing or adding one: Retake · Save.
-                                if (_isNew) ...[
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: SecondaryButton(
-                                      label: l.photoPreview,
-                                      dense: true,
-                                      onPressed: _placement == null || _saving ? null : _next,
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  flex: _isNew ? 1 : 2,
-                                  child: PrimaryButton(
-                                    label: _isNew ? l.viewerPrint : l.commonSave,
-                                    dense: true,
-                                    loading: _saving,
-                                    onPressed: _placement == null ? null : () => _next(_After.print),
-                                  ),
-                                ),
-                              ],
+                              ),
                             ),
                           ],
                         ),

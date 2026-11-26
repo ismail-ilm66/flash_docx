@@ -283,6 +283,83 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
     ];
   }
 
+  /// The sheet at its paper shape, photos and cut lines.
+  Widget _sheetView(List<PlacedItem> items) => AspectRatio(
+      aspectRatio: _paper.widthMm / _paper.heightMm,
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final k = box.maxWidth / _paper.widthMm;
+          return DecoratedBox(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 20,
+                  offset: Offset(0, 6),
+                ),
+              ],
+            ),
+            child: _photo == null
+                ? const Center(
+                    child:
+                        CircularProgressIndicator(),
+                  )
+                : Stack(
+                    children: [
+                      for (final (i, it) in items.indexed)
+                        Positioned(
+                          left: it.x * k,
+                          top: it.y * k,
+                          width: it.w * k,
+                          height: it.h * k,
+                          child: DecoratedBox(
+                            position:
+                                DecorationPosition
+                                    .foreground,
+                            decoration: BoxDecoration(
+                              border: _cutLines
+                                  ? Border.all(
+                                      color:
+                                          const Color(
+                                            0xFF9FA3AA,
+                                          ),
+                                      width: 0.6,
+                                    )
+                                  : null,
+                            ),
+                            child: Image.file(
+                              File(_photos![_photoOf(items.length)[i]]),
+                              fit: BoxFit.fill,
+                              cacheWidth: 240,
+                              gaplessPlayback: true,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          );
+        },
+      ),
+    );
+
+  /// Round 11b, H5: tap the preview for a full-screen one with pinch zoom.
+  void _openFull(List<PlacedItem> items) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (ctx) => Scaffold(
+          backgroundColor: Colors.black,
+          appBar: AppBar(backgroundColor: Colors.black, foregroundColor: Colors.white),
+          body: InteractiveViewer(
+            maxScale: 6,
+            child: Center(child: Padding(padding: const EdgeInsets.all(Space.x3), child: _sheetView(items))),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -321,72 +398,18 @@ class _PhotoSheetPageState extends State<PhotoSheetPage> {
                     color: c.stage,
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(
-                        Space.x6,
                         Space.x4,
-                        Space.x6,
+                        Space.x4,
+                        Space.x4,
                         Space.x2,
                       ),
                       child: Column(
                         children: [
                           Expanded(
                             child: Center(
-                              child: AspectRatio(
-                                aspectRatio: _paper.widthMm / _paper.heightMm,
-                                child: LayoutBuilder(
-                                  builder: (context, box) {
-                                    final k = box.maxWidth / _paper.widthMm;
-                                    return DecoratedBox(
-                                      decoration: const BoxDecoration(
-                                        color: Colors.white,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Color(0x40000000),
-                                            blurRadius: 20,
-                                            offset: Offset(0, 6),
-                                          ),
-                                        ],
-                                      ),
-                                      child: _photo == null
-                                          ? const Center(
-                                              child:
-                                                  CircularProgressIndicator(),
-                                            )
-                                          : Stack(
-                                              children: [
-                                                for (final (i, it) in items.indexed)
-                                                  Positioned(
-                                                    left: it.x * k,
-                                                    top: it.y * k,
-                                                    width: it.w * k,
-                                                    height: it.h * k,
-                                                    child: DecoratedBox(
-                                                      position:
-                                                          DecorationPosition
-                                                              .foreground,
-                                                      decoration: BoxDecoration(
-                                                        border: _cutLines
-                                                            ? Border.all(
-                                                                color:
-                                                                    const Color(
-                                                                      0xFF9FA3AA,
-                                                                    ),
-                                                                width: 0.6,
-                                                              )
-                                                            : null,
-                                                      ),
-                                                      child: Image.file(
-                                                        File(_photos![_photoOf(items.length)[i]]),
-                                                        fit: BoxFit.fill,
-                                                        cacheWidth: 240,
-                                                        gaplessPlayback: true,
-                                                      ),
-                                                    ),
-                                                  ),
-                                              ],
-                                            ),
-                                    );
-                                  },
-                                ),
+                              child: GestureDetector(
+                                onTap: () => _openFull(items),
+                                child: _sheetView(items),
                               ),
                             ),
                           ),
@@ -600,21 +623,13 @@ class _Body extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final large = MediaQuery.textScalerOf(context).scale(10) > 13;
-    if (!large && !scroll) {
-      return Column(
-        children: [
-          for (final c in children) c is _StageSlot ? Expanded(child: c) : c,
-        ],
-      );
-    }
+    // Round 11b, H5: the sheet preview gets about 55 % of the screen
+    // height (it was ~100 px wide); the options scroll under it.
+    final stage = MediaQuery.sizeOf(context).height * (scroll ? 0.4 : 0.55);
     return SingleChildScrollView(
       child: Column(
         children: [
-          for (final c in children)
-            c is _StageSlot
-                ? SizedBox(height: scroll ? 300 : 360, child: c)
-                : c,
+          for (final c in children) c is _StageSlot ? SizedBox(height: stage, child: c) : c,
         ],
       ),
     );
