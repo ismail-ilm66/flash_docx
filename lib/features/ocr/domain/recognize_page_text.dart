@@ -25,10 +25,11 @@ class RecognizePageText {
   final FileStore _files;
   final DocumentRepository _repo;
 
-  static int cropKey(PageEdits e) => Object.hash(e.crop, e.normalizedTurns);
+  /// Round 11b: the OCR image is now the Auto page (version 2).
+  static int cropKey(PageEdits e) => Object.hash(e.geometryKey, 2);
 
   Future<Either<Failure, String>> call(ScanPage page, {bool force = false}) async {
-    if (!force && page.ocrText != null) return Right(page.ocrText!);
+    if (!force && page.ocrText != null) return Right(joinParagraphs(page.ocrText!));
     // The caller may hold a stale snapshot; check the stored page first.
     final fresh = (await _repo.get(page.documentId))
         .toOption()
@@ -37,7 +38,7 @@ class RecognizePageText {
         .where((p) => p.id == page.id)
         .firstOrNull;
     final current = fresh ?? page;
-    if (!force && current.ocrText != null) return Right(current.ocrText!);
+    if (!force && current.ocrText != null) return Right(joinParagraphs(current.ocrText!));
 
     final String ocrImage;
     try {
@@ -57,9 +58,35 @@ class RecognizePageText {
     }
 
     final r = await _ocr.read(ocrImage);
-    return r.fold(Left.new, (text) async {
+    return r.fold(Left.new, (raw) async {
+      final text = joinParagraphs(raw);
       await _repo.updatePage(current.copyWith(ocrText: text));
       return Right(text);
     });
+  }
+
+  /// Round 11b, K2: lines joined into paragraphs. A line ending in "-" is
+  /// joined to the next without the hyphen; a line that doesn't end with
+  /// `. : ? !`, followed by one starting with a lower-case letter, is
+  /// joined with a space. Empty lines between blocks stay.
+  static String joinParagraphs(String text) {
+    final out = <String>[];
+    for (final raw in text.split('\n')) {
+      final line = raw.trimRight();
+      if (out.isNotEmpty && out.last.isNotEmpty && line.isNotEmpty) {
+        final prev = out.last;
+        final first = line.trimLeft();
+        if (prev.endsWith('-') && prev.length > 1 && RegExp(r'[A-Za-z]$').hasMatch(prev.substring(0, prev.length - 1))) {
+          out[out.length - 1] = prev.substring(0, prev.length - 1) + first;
+          continue;
+        }
+        if (!RegExp(r'[.:?!]$').hasMatch(prev) && RegExp('^[a-z]').hasMatch(first)) {
+          out[out.length - 1] = '$prev $first';
+          continue;
+        }
+      }
+      out.add(line);
+    }
+    return out.join('\n');
   }
 }

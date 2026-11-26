@@ -586,11 +586,11 @@ abstract class AppLocalizations {
   /// **'All pages'**
   String get ocrAllPages;
 
-  /// No description provided for @ocrCut.
+  /// No description provided for @ocrEdit.
   ///
   /// In en, this message translates to:
-  /// **'Cut'**
-  String get ocrCut;
+  /// **'Edit'**
+  String get ocrEdit;
 
   /// No description provided for @ocrCopyAll.
   ///

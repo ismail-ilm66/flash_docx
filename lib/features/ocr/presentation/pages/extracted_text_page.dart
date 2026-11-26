@@ -39,6 +39,10 @@ class _OcrView extends StatefulWidget {
 class _OcrViewState extends State<_OcrView> {
   final _ctrl = TextEditingController();
 
+  /// Round 11b, K3: read-only until Edit is tapped.
+  bool _editing = false;
+  final _focus = FocusNode();
+
   @override
   void initState() {
     super.initState();
@@ -51,6 +55,7 @@ class _OcrViewState extends State<_OcrView> {
 
   @override
   void dispose() {
+    _focus.dispose();
     _ctrl.dispose();
     super.dispose();
   }
@@ -62,14 +67,15 @@ class _OcrViewState extends State<_OcrView> {
     await context.read<OcrCubit>().logCopied();
   }
 
-  Future<void> _cut() async {
-    final sel = _ctrl.selection;
-    final text = _ctrl.text;
-    final hasSel = sel.isValid && !sel.isCollapsed;
-    final cutText = hasSel ? sel.textInside(text) : text;
-    await Clipboard.setData(ClipboardData(text: cutText));
-    _ctrl.text = hasSel ? sel.textBefore(text) + sel.textAfter(text) : '';
-    if (mounted) context.read<OcrCubit>().setText(_ctrl.text);
+  /// Round 11b, K3: "Edit" (was "Cut", which was unclear): the text
+  /// becomes editable, with the keyboard up.
+  void _edit() {
+    setState(() => _editing = !_editing);
+    if (_editing) {
+      _focus.requestFocus();
+    } else {
+      _focus.unfocus();
+    }
   }
 
   Future<void> _shareTxt() async {
@@ -165,6 +171,8 @@ class _OcrViewState extends State<_OcrView> {
                         padding: const EdgeInsets.symmetric(horizontal: Space.x4, vertical: 18),
                         child: TextField(
                           controller: _ctrl,
+                          focusNode: _focus,
+                          readOnly: !_editing,
                           maxLines: null,
                           expands: true,
                           textAlignVertical: TextAlignVertical.top,
@@ -193,12 +201,12 @@ class _OcrViewState extends State<_OcrView> {
                     children: [
                       Expanded(
                         child: SecondaryButton(
-                          label: l.ocrCut,
-                          icon: AppIcons.cut,
+                          label: _editing ? l.commonDone : l.ocrEdit,
+                          icon: AppIcons.edit,
                           height: 48,
                           dense: true,
                           filled: true,
-                          onPressed: empty ? null : _cut,
+                          onPressed: empty ? null : _edit,
                         ),
                       ),
                       const SizedBox(width: 10),

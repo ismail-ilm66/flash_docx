@@ -4384,12 +4384,18 @@ cv.Mat renderSized(
 
 /// Dedicated OCR image: crop + rotate at full resolution, then the
 /// reference `ocr_image()`. Never the user's chosen filter.
+/// Round 11b, K1: text is read from the enhanced page (Auto), at 1600 to
+/// 2400 px on the long side — never a preview or a thumbnail. Low
+/// resolution made ML Kit misread words ("eoonomies").
 cv.Mat renderForOcr(String path, PageEdits edits) {
-  final img = readUpright(path);
-  final cropped = cropAndRotate(img, edits);
+  final img = readUprightForCrop(path, edits.crop, 2400);
+  final cropped = cropAndRotate(img, edits, maxLongEdge: 2400);
   disposeUnless(img, cropped);
-  final out = ocrImage(cropped);
-  cropped.dispose();
+  final long = math.max(cropped.cols, cropped.rows);
+  final sized = long < 1600 ? cv.resize(cropped, (cropped.cols * 1600 ~/ long, cropped.rows * 1600 ~/ long), interpolation: cv.INTER_CUBIC) : cropped;
+  disposeUnless(cropped, sized);
+  final out = autoFilter(sized);
+  sized.dispose();
   return out;
 }
 

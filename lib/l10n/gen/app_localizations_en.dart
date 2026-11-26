@@ -270,7 +270,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get ocrAllPages => 'All pages';
 
   @override
-  String get ocrCut => 'Cut';
+  String get ocrEdit => 'Edit';
 
   @override
   String get ocrCopyAll => 'Copy all';
