@@ -9,6 +9,7 @@ import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
+import 'package:flash_dox/features/documents/data/services/document_fixups.dart';
 import 'package:flash_dox/features/editor/data/services/page_render_service.dart';
 import 'package:flash_dox/features/rewards/domain/reward_gate.dart';
 import 'package:flash_dox/features/scanner/data/camera_list.dart';
@@ -98,6 +99,7 @@ class _SplashPageState extends State<SplashPage> with SingleTickerProviderStateM
     // Round 7, P0-3: an unsaved scan from the last run, for Home's card.
     final work = Future.wait<void>([
       _refreshPageCaches(files),
+      getIt<DocumentFixups>().run(),
       _loadDeviceProfile(),
       getIt<DraftService>().init(),
     ]).catchError((_) => const <void>[]);

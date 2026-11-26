@@ -493,7 +493,8 @@ class _ViewerViewState extends State<_ViewerView> {
                         checkedOf: selecting ? (p) => s.selectedPages!.contains(p.id) : null,
                         pathOf: (p) => p.listImagePath ?? s.quick[p.id],
                         cacheKeyOf: (p) => p.thumbPath,
-                        trailing: selecting ? null : AddPageTile(onTap: addPages),
+                        // Round 11b (G1, H2): only documents add pages.
+                        trailing: selecting || doc.mode != ScanMode.document ? null : AddPageTile(onTap: addPages),
                       ),
                     ),
                     if (multi && !selecting)
@@ -554,7 +555,9 @@ class _ViewerViewState extends State<_ViewerView> {
                             onPressed: cur == null ? null : edit,
                           ),
                         ),
-                        if (!photo)
+                        // Round 11b (G4, H2): ID cards, passports and passport
+                        // photos: Edit · Print · Share.
+                        if (doc.mode == ScanMode.document)
                           Expanded(
                             flex: 10,
                             child: ToolbarAction(

@@ -100,6 +100,7 @@ import 'package:get_it/get_it.dart' as _i174;
 import 'package:image_picker/image_picker.dart' as _i183;
 import 'package:injectable/injectable.dart' as _i526;
 import 'package:flash_dox/features/reduce/data/reduce_service.dart' as _i9001;
+import 'package:flash_dox/features/documents/data/services/document_fixups.dart' as _i9002;
 import 'package:share_plus/share_plus.dart' as _i998;
 import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
@@ -306,6 +307,9 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i618.ImageProcessor>(),
         gh<_i626.FileStore>(),
       ),
+    );
+    gh.lazySingleton<_i9002.DocumentFixups>(
+      () => _i9002.DocumentFixups(gh<_i132.DocumentRepository>(), gh<_i567.PrefsService>()),
     );
     gh.lazySingleton<_i9001.ReduceService>(
       () => _i9001.ReduceService(

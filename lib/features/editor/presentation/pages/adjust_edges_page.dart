@@ -200,7 +200,11 @@ class _AdjustView extends StatelessWidget {
                       onSelect: (i) => bloc.add(EditorPageSelected(i)),
                       // Crop-only previews, never the uncropped photo (P0-3).
                       pathOf: (p) => s.quickPreviews[p.id],
-                      trailing: AddPageTile(
+                      // Round 11b, G1: an ID card is exactly front and
+                      // back, a passport one page: only documents add pages.
+                      trailing: s.args.mode != ScanMode.document
+                          ? null
+                          : AddPageTile(
                         onTap: () async {
                           final added = await collectNewPages(
                             context,

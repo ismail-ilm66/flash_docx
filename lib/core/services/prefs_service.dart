@@ -67,6 +67,10 @@ class PrefsService {
   Future<void> setGrid(bool v) => _prefs.setBool(_grid, v);
   bool get autoCrop => _prefs.getBool(_autoCrop) ?? true;
 
+  /// One-time jobs that have run (round 11b).
+  bool flag(String key) => _prefs.getBool(key) ?? false;
+  Future<void> setFlag(String key) => _prefs.setBool(key, true);
+
   /// Round 11b, P0-20: "HD uses more memory…" was shown.
   bool get hdWarned => _prefs.getBool(_hdWarned) ?? false;
   Future<void> setHdWarned() => _prefs.setBool(_hdWarned, true);
