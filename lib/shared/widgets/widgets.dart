@@ -19,4 +19,5 @@ export 'page_dots.dart';
 export 'page_thumb.dart';
 export 'quick_action_tile.dart';
 export 'segmented_pills.dart';
+export 'selection_action_bar.dart';
 export 'states.dart';

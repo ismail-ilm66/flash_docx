@@ -21,10 +21,13 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Share / save bottom sheet (§11). Starts building the default export as
 /// soon as it opens (P0-4).
+///
+/// [pageIds] (round 11, P0-13): share only these pages to start with.
 Future<void> showShareSheet(
   BuildContext context,
   ScanDocument doc, {
   ExportOptions Function(ExportOptions defaults)? options,
+  Set<String>? pageIds,
 }) {
   getIt<RewardGate>().preload();
   return AppBottomSheet.show<void>(
@@ -35,6 +38,7 @@ Future<void> showShareSheet(
         if (options != null) {
           bloc.add(ExportOptionsChanged(options(bloc.state.options)));
         }
+        if (pageIds != null) bloc.add(ExportPagesChanged(pageIds));
         return bloc..add(const ExportSheetOpened());
       },
       child: const SharePanel(),
@@ -94,8 +98,12 @@ class _SharePanelState extends State<SharePanel> {
     final l = context.l10n;
     final c = context.colors;
     return BlocConsumer<ExportBloc, ExportState>(
-      listenWhen: (a, b) => a.status != b.status,
+      listenWhen: (a, b) => a.status != b.status || a.document != b.document,
       listener: (context, s) {
+        // Other pages picked: the name's "(p. 3, 7)" changed.
+        if (s.options.fileName != _name.text && s.status is ExportIdle) {
+          _name.text = s.options.fileName;
+        }
         final st = s.status;
         if (st is ExportDone) {
           if (st.target == ExportTarget.saveToPhone) {
@@ -233,6 +241,25 @@ class _SharePanelState extends State<SharePanel> {
                 focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.accent, width: 1.5)),
               ),
             ),
+            // Round 11, P0-13: "Pages: All (10) ›" / "Pages: 2 of 10".
+            if (s.all.pages.length > 1) ...[
+              const SizedBox(height: Space.x3),
+              _SettingRow(
+                title: l.sharePages,
+                hint: l.sharePagesHint,
+                value: s.somePages ? l.sharePagesSome(pageCount, s.all.pages.length) : l.sharePagesAll(s.all.pages.length),
+                onTap: () async {
+                  final bloc = context.read<ExportBloc>();
+                  _update(bloc.state.options.copyWith(fileName: _name.text));
+                  final picked = await showPagePicker(
+                    context,
+                    s.all.sortedPages,
+                    {for (final p in s.document.pages) p.id},
+                  );
+                  if (picked != null && mounted) bloc.add(ExportPagesChanged(picked));
+                },
+              ),
+            ],
             gap,
             SectionLabel(l.shareFormat, padding: const EdgeInsets.only(bottom: Space.x2)),
             Row(
@@ -595,4 +622,126 @@ class _PageShapePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _PageShapePainter old) => old.size != size || old.color != color;
+}
+
+/// Round 11, P0-13: which pages to share. A grid of the pages with check
+/// boxes (all ticked to start), Select all / None, "2 of 10 selected" and
+/// Done. Resolves the picked ids, or null when closed without Done.
+Future<Set<String>?> showPagePicker(BuildContext context, List<ScanPage> pages, Set<String> selected) =>
+    Navigator.of(context, rootNavigator: true).push<Set<String>>(
+      MaterialPageRoute(fullscreenDialog: true, builder: (_) => _PagePicker(pages: pages, initial: selected)),
+    );
+
+class _PagePicker extends StatefulWidget {
+  const _PagePicker({required this.pages, required this.initial});
+  final List<ScanPage> pages;
+  final Set<String> initial;
+
+  @override
+  State<_PagePicker> createState() => _PagePickerState();
+}
+
+class _PagePickerState extends State<_PagePicker> {
+  late final Set<String> _on = {...widget.initial};
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    final c = context.colors;
+    final all = _on.length == widget.pages.length;
+    return AppScaffold(
+      topBar: AppTopBar(
+        leading: TopBarLeading.close,
+        title: l.pagePickerSelected(_on.length, widget.pages.length),
+        actions: [
+          TopBarTextAction(
+            label: l.commonDone,
+            onPressed: _on.isEmpty ? null : () => Navigator.of(context).pop(_on),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: all ? null : () => setState(() => _on.addAll(widget.pages.map((p) => p.id))),
+                    child: FitText(l.homeSelectAll, maxLines: 1),
+                  ),
+                ),
+                const SizedBox(width: Space.x2),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _on.isEmpty ? null : () => setState(_on.clear),
+                    child: FitText(l.pagePickerNone, maxLines: 1),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.all(Space.x4),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 120,
+                mainAxisSpacing: Space.x4,
+                crossAxisSpacing: Space.x3,
+                childAspectRatio: 0.7,
+              ),
+              itemCount: widget.pages.length,
+              itemBuilder: (context, i) {
+                final p = widget.pages[i];
+                final on = _on.contains(p.id);
+                void toggle() => setState(() => on ? _on.remove(p.id) : _on.add(p.id));
+                return Semantics(
+                  checked: on,
+                  label: l.pageOfTotal(i + 1, widget.pages.length),
+                  child: GestureDetector(
+                    onTap: toggle,
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: LayoutBuilder(
+                            builder: (_, box) => Center(
+                              child: PageThumb(
+                                path: p.listImagePath,
+                                number: i + 1,
+                                selected: on,
+                                size: box.maxWidth * 0.86,
+                                cacheKey: p.thumbPath,
+                                onTap: toggle,
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: 2,
+                          right: 2,
+                          child: IgnorePointer(
+                            child: Container(
+                              width: 24,
+                              height: 24,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: on ? c.accent : c.surface,
+                                border: Border.all(color: on ? c.accent : c.borderStrong, width: 1.5),
+                              ),
+                              child: on ? Icon(Icons.check_rounded, size: 16, color: c.onAccent) : null,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

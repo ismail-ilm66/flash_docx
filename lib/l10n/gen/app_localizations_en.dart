@@ -1013,6 +1013,64 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewerInsertAfter => 'Insert after this page';
 
   @override
+  String get viewerMove => 'Move';
+
+  @override
+  String get sharePages => 'Pages';
+
+  @override
+  String get sharePagesHint => 'Share all pages or just some';
+
+  @override
+  String sharePagesAll(int count) {
+    return 'All ($count)';
+  }
+
+  @override
+  String sharePagesSome(int count, int total) {
+    return '$count of $total';
+  }
+
+  @override
+  String pagePickerSelected(int count, int total) {
+    return '$count of $total selected';
+  }
+
+  @override
+  String get pagePickerNone => 'None';
+
+  @override
+  String get viewerMovePagesTo => 'Move pages to';
+
+  @override
+  String get viewerMoveNewDocument => 'New document';
+
+  @override
+  String viewerPagesMoved(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count pages moved',
+      one: '1 page moved',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String viewerDeletePagesTitle(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Delete $count pages?',
+      one: 'Delete 1 page?',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get viewerDeletePagesBody => 'They will be removed from the document.';
+
+  @override
   String get folderOther => 'Other';
 
   @override

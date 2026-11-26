@@ -62,6 +62,14 @@ class ReorderPages {
 }
 
 @injectable
+class MovePages {
+  MovePages(this._repo);
+  final DocumentRepository _repo;
+  Future<Either<Failure, String>> call(List<String> pageIds, {String? toDocumentId}) =>
+      _repo.movePages(pageIds, toDocumentId: toDocumentId);
+}
+
+@injectable
 class DeletePage {
   DeletePage(this._repo);
   final DocumentRepository _repo;

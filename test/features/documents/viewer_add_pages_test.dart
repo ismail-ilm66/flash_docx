@@ -29,6 +29,8 @@ class _Suggest extends Mock implements NameSuggestionActions {}
 
 class _Folder extends Mock implements SetDocumentFolder {}
 
+class _Move extends Mock implements MovePages {}
+
 /// Round 11, P0-11: pages added from the viewer come back after Adjust
 /// edges and Enhance; the viewer puts them in place and shows the first.
 void main() {
@@ -57,7 +59,7 @@ void main() {
     final previews = _Previews();
     when(() => previews.lookIfReady(any())).thenReturn(null);
     when(() => previews.handedOff(any())).thenReturn(null);
-    cubit = ViewerCubit(watch, _Rename(), _Delete(), _DeletePage(), reorder, _Add(), render, previews, _Suggest(), _Folder(), 'd');
+    cubit = ViewerCubit(watch, _Rename(), _Delete(), _DeletePage(), reorder, _Add(), render, previews, _Suggest(), _Folder(), _Move(), 'd');
   });
 
   tearDown(() async {

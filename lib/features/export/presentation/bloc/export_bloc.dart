@@ -39,16 +39,26 @@ class ExportFeatureUnlocked extends ExportEvent {
   final PremiumFeature feature;
 }
 
+/// Round 11, P0-13: share only these pages (ids); all when every page.
+class ExportPagesChanged extends ExportEvent {
+  const ExportPagesChanged(this.pageIds);
+  final Set<String> pageIds;
+}
+
+/// What a prepared export was made for: the options (without the file
+/// name) and the pages.
+typedef _JobKey = (ExportOptions, String);
+
 class _PrepStep extends ExportEvent {
   const _PrepStep(this.key, this.done, this.total);
-  final ExportOptions key;
+  final _JobKey key;
   final int done;
   final int total;
 }
 
 class _PrepFinished extends ExportEvent {
   const _PrepFinished(this.key, this.result);
-  final ExportOptions key;
+  final _JobKey key;
   final Either<Failure, PreparedExport> result;
 }
 
@@ -117,12 +127,17 @@ class ExportState extends Equatable {
   const ExportState({
     required this.document,
     required this.options,
+    ScanDocument? all,
     this.status = const ExportIdle(),
     this.unlocked = unlockedByDefault,
     this.prep,
-  });
+  }) : all = all ?? document;
 
+  /// The pages being shared ([all]'s, or the ones picked, round 11 P0-13).
   final ScanDocument document;
+
+  /// The whole document.
+  final ScanDocument all;
   final ExportOptions options;
   final ExportStatus status;
 
@@ -145,13 +160,18 @@ class ExportState extends Equatable {
     return null;
   }
 
+  /// Not every page is being shared.
+  bool get somePages => document.pages.length != all.pages.length;
+
   ExportState copyWith({
+    ScanDocument? document,
     ExportOptions? options,
     ExportStatus? status,
     Set<PremiumFeature>? unlocked,
     ExportPrep? prep,
   }) => ExportState(
-    document: document,
+    document: document ?? this.document,
+    all: all,
     options: options ?? this.options,
     status: status ?? this.status,
     unlocked: unlocked ?? this.unlocked,
@@ -159,7 +179,7 @@ class ExportState extends Equatable {
   );
 
   @override
-  List<Object?> get props => [document, options, status, unlocked, prep];
+  List<Object?> get props => [document, all, options, status, unlocked, prep];
 }
 
 @injectable
@@ -210,13 +230,45 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
       );
     });
     on<ExportRequested>(_onExport);
+    on<ExportPagesChanged>((e, emit) {
+      final keep = [for (final p in state.all.sortedPages) if (e.pageIds.contains(p.id)) p];
+      if (keep.isEmpty) return;
+      final doc = keep.length == state.all.pages.length ? state.all : state.all.copyWith(pages: keep);
+      emit(
+        state.copyWith(
+          document: doc,
+          options: state.options.copyWith(fileName: withPagesSuffix(state.options.fileName, state.all, keep)),
+          status: const ExportIdle(),
+        ),
+      );
+      if (_jobKey != null) _startPrep(emit);
+    });
+  }
+
+  /// "Flash Scan – 24 Nov 2026 (p. 3, 7)" when only some pages are shared
+  /// (runs: "p. 2–5, 8"); [name] without the suffix when all are.
+  static String withPagesSuffix(String name, ScanDocument all, List<ScanPage> shared) {
+    final base = name.replaceFirst(RegExp(r' \(p\. [0-9–, ]+\)$'), '');
+    if (shared.length == all.pages.length) return base;
+    final order = [for (final p in all.sortedPages) p.id];
+    final nums = [for (final p in shared) order.indexOf(p.id) + 1]..sort();
+    final parts = <String>[];
+    for (var i = 0; i < nums.length; i++) {
+      var j = i;
+      while (j + 1 < nums.length && nums[j + 1] == nums[j] + 1) {
+        j++;
+      }
+      parts.add(j - i >= 2 ? '${nums[i]}–${nums[j]}' : [for (var k = i; k <= j; k++) nums[k]].join(', '));
+      i = j;
+    }
+    return '$base (p. ${parts.join(', ')})';
   }
 
   final ExportDocument _export;
   final PrefsService _prefs;
 
   Future<Either<Failure, PreparedExport>>? _job;
-  ExportOptions? _jobKey;
+  _JobKey? _jobKey;
   CancelToken? _cancel;
 
   /// Round 10, P1-2: the format and layout last shared for this kind of
@@ -262,11 +314,12 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
     Emitter<ExportState> emit,
   ) {
     final key = _keyOf(state.options);
-    if (key == _jobKey && _job != null) return _job!;
+    final jobKey = (key, [for (final p in state.document.pages) p.id].join(','));
+    if (jobKey == _jobKey && _job != null) return _job!;
     _cancel?.cancel();
     final token = _cancel = CancelToken();
     final sw = Stopwatch()..start();
-    _jobKey = key;
+    _jobKey = jobKey;
     emit(
       state.copyWith(
         prep: ExportPrep(0, ExportDocument.stepsFor(state.document, key)),
@@ -277,7 +330,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
       key,
       cancel: token,
       onStep: (done, total) {
-        if (!isClosed) add(_PrepStep(key, done, total));
+        if (!isClosed) add(_PrepStep(jobKey, done, total));
       },
     );
     job.then((r) {
@@ -287,7 +340,7 @@ class ExportBloc extends Bloc<ExportEvent, ExportState> {
           '(${state.document.pages.length} pages, ${key.format.name} ${key.quality.name})',
         );
       }
-      if (!isClosed) add(_PrepFinished(key, r));
+      if (!isClosed) add(_PrepFinished(jobKey, r));
     });
     return job;
   }

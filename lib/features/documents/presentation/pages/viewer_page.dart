@@ -7,6 +7,7 @@ import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
 import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
+import 'package:flash_dox/features/documents/domain/usecases/watch_documents.dart';
 import 'package:flash_dox/features/documents/presentation/cubit/viewer_cubit.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/document_menu.dart';
 import 'package:flash_dox/features/documents/presentation/widgets/suggestion_banner.dart';
@@ -144,6 +145,61 @@ class _ViewerViewState extends State<_ViewerView> {
     }
   }
 
+  /// Round 11, P0-13: the selected pages to another document of the same
+  /// kind, or a new one.
+  Future<void> _moveSelected(BuildContext context, ScanDocument doc) async {
+    final l = context.l10n;
+    final cubit = context.read<ViewerCubit>();
+    final count = cubit.state.selectedPages?.length ?? 0;
+    final others = [
+      for (final d in await getIt<WatchDocuments>()().first)
+        if (d.id != doc.id && d.mode == doc.mode) d,
+    ];
+    if (!context.mounted) return;
+    const newDoc = '';
+    final target = await AppBottomSheet.show<String>(
+      context,
+      builder: (ctx) => AppBottomSheet(
+        title: l.viewerMovePagesTo,
+        child: Column(
+          children: [
+            SheetAction(
+              label: l.viewerMoveNewDocument,
+              leading: const AppIcon(AppIcons.addPage),
+              onTap: () => Navigator.of(ctx).pop(newDoc),
+            ),
+            for (final d in others)
+              SheetAction(
+                label: d.title,
+                leading: const AppIcon(AppIcons.files),
+                onTap: () => Navigator.of(ctx).pop(d.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (target == null || !context.mounted) return;
+    final err = await cubit.moveSelectedPages(toDocumentId: target == newDoc ? null : target);
+    if (!context.mounted) return;
+    context.showSnack(err == null ? l.viewerPagesMoved(count) : l.errorGeneric, error: err != null);
+  }
+
+  Future<void> _deleteSelected(BuildContext context) async {
+    final l = context.l10n;
+    final cubit = context.read<ViewerCubit>();
+    final n = cubit.state.selectedPages?.length ?? 0;
+    final ok = await AppDialog.confirm(
+      context,
+      title: l.viewerDeletePagesTitle(n),
+      body: l.viewerDeletePagesBody,
+      confirmLabel: l.commonDelete,
+      destructive: true,
+    );
+    if (!ok) return;
+    final err = await cubit.deleteSelectedPages();
+    if (err != null && context.mounted) context.showSnack(failureMessage(context, err), error: true);
+  }
+
   @override
   Widget build(BuildContext context) {
     final l = context.l10n;
@@ -221,8 +277,21 @@ class _ViewerViewState extends State<_ViewerView> {
           await cubit.placeNewPages([for (final pg in added) pg.id], after: insertAfter.value ? openPage : null);
         }
 
-        return AppScaffold(
-          topBar: AppTopBar(
+        final selecting = s.selectingPages;
+        // Back leaves page selection first (round 11 standing rule).
+        return PopScope(
+          canPop: !selecting,
+          onPopInvokedWithResult: (didPop, _) {
+            if (!didPop) cubit.clearPageSelection();
+          },
+          child: AppScaffold(
+          topBar: selecting
+              ? AppTopBar(
+                  leading: TopBarLeading.close,
+                  onLeading: cubit.clearPageSelection,
+                  title: l.homeSelectedCount(s.selectedPages!.length),
+                )
+              : AppTopBar(
             centerTitle: false,
             titleWidget: _TitleButton(
               title: doc.title,
@@ -369,14 +438,17 @@ class _ViewerViewState extends State<_ViewerView> {
                       child: PageStrip(
                         pages: pages,
                         index: s.index,
-                        onSelect: _jump,
+                        onSelect: selecting ? (i) => cubit.togglePage(pages[i].id) : _jump,
                         onReorder: multi ? cubit.reorder : null,
+                        // Round 11, P0-13: hold a page to select pages.
+                        onHold: (i) => cubit.startPageSelection(pages[i].id),
+                        checkedOf: selecting ? (p) => s.selectedPages!.contains(p.id) : null,
                         pathOf: (p) => p.listImagePath ?? s.quick[p.id],
                         cacheKeyOf: (p) => p.thumbPath,
-                        trailing: AddPageTile(onTap: addPages),
+                        trailing: selecting ? null : AddPageTile(onTap: addPages),
                       ),
                     ),
-                    if (multi)
+                    if (multi && !selecting)
                       Padding(
                         padding: const EdgeInsets.only(
                           right: Space.x4,
@@ -393,6 +465,22 @@ class _ViewerViewState extends State<_ViewerView> {
                   ],
                 ),
               ),
+              if (selecting)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: SelectionActionBar(
+                    actions: [
+                      SelectionAction(
+                        AppIcons.share,
+                        l.viewerShare,
+                        () => showShareSheet(context, doc, pageIds: {...s.selectedPages!}),
+                      ),
+                      SelectionAction(AppIcons.delete, l.commonDelete, () => _deleteSelected(context), danger: true),
+                      SelectionAction(AppIcons.files, l.viewerMove, () => _moveSelected(context, doc)),
+                    ],
+                  ),
+                )
+              else
               Container(
                 margin: const EdgeInsets.only(top: 10),
                 decoration: BoxDecoration(
@@ -481,6 +569,7 @@ class _ViewerViewState extends State<_ViewerView> {
                 ),
               ),
             ],
+          ),
           ),
         );
       },

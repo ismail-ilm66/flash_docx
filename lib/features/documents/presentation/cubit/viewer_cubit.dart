@@ -24,7 +24,14 @@ class ViewerState extends Equatable {
     this.deleted = false,
     this.quick = const {},
     this.quickVersions = const {},
+    this.selectedPages,
   });
+
+  /// Round 11, P0-13: pages picked on the thumbnail strip (long-press);
+  /// null when not selecting.
+  final Set<String>? selectedPages;
+
+  bool get selectingPages => selectedPages != null;
 
   final ScanDocument? document;
   final int index;
@@ -67,6 +74,8 @@ class ViewerState extends Equatable {
     bool? deleted,
     Map<String, String>? quick,
     Map<String, int>? quickVersions,
+    Set<String>? selectedPages,
+    bool clearSelection = false,
   }) =>
       ViewerState(
         document: document ?? this.document,
@@ -76,10 +85,11 @@ class ViewerState extends Equatable {
         deleted: deleted ?? this.deleted,
         quick: quick ?? this.quick,
         quickVersions: quickVersions ?? this.quickVersions,
+        selectedPages: clearSelection ? null : selectedPages ?? this.selectedPages,
       );
 
   @override
-  List<Object?> get props => [document, index, loading, failure, deleted, quick, quickVersions];
+  List<Object?> get props => [document, index, loading, failure, deleted, quick, quickVersions, selectedPages];
 }
 
 @injectable
@@ -95,6 +105,7 @@ class ViewerCubit extends Cubit<ViewerState> {
     this._previews,
     this._suggestions,
     this._setFolder,
+    this._movePages,
     @factoryParam String documentId,
   ) : super(const ViewerState()) {
     _sub = _watch(documentId).listen(_onDoc, onError: (Object e) {
@@ -112,6 +123,7 @@ class ViewerCubit extends Cubit<ViewerState> {
   final PreviewCache _previews;
   final NameSuggestionActions _suggestions;
   final SetDocumentFolder _setFolder;
+  final MovePages _movePages;
   StreamSubscription<ScanDocument?>? _sub;
 
   void _onDoc(ScanDocument? doc) {
@@ -130,8 +142,13 @@ class ViewerCubit extends Cubit<ViewerState> {
       quick[p.id] = ready;
       versions[p.id] = ViewerState.versionOf(p);
     }
+    // Pages no longer in the document leave the selection.
+    final sel = state.selectedPages;
+    final kept = sel == null ? null : {for (final id in sel) if (doc.pages.any((p) => p.id == id)) id};
     emit(state.copyWith(
       document: doc,
+      selectedPages: kept,
+      clearSelection: kept != null && kept.isEmpty,
       loading: false,
       index: state.index.clamp(0, doc.pages.isEmpty ? 0 : doc.pages.length - 1),
       quick: quick,
@@ -166,6 +183,42 @@ class ViewerCubit extends Cubit<ViewerState> {
 
   Future<Failure?> addPages(List<ScanPage> pages) async =>
       (await _addPages(state.document!.id, pages)).fold((f) => f, (_) => null);
+
+  // ---------- page selection (round 11, P0-13) ----------
+
+  void startPageSelection(String pageId) => emit(state.copyWith(selectedPages: {pageId}));
+
+  void togglePage(String pageId) {
+    final sel = {...?state.selectedPages};
+    if (!sel.remove(pageId)) sel.add(pageId);
+    emit(sel.isEmpty ? state.copyWith(clearSelection: true) : state.copyWith(selectedPages: sel));
+  }
+
+  void clearPageSelection() => emit(state.copyWith(clearSelection: true));
+
+  /// The selected pages in document order.
+  List<ScanPage> get selectedInOrder => [
+    for (final p in state.pages)
+      if (state.selectedPages?.contains(p.id) ?? false) p,
+  ];
+
+  Future<Failure?> deleteSelectedPages() async {
+    final ids = [for (final p in selectedInOrder) p.id];
+    for (final id in ids) {
+      final r = await _deletePage(id);
+      if (r.isLeft()) return r.fold((f) => f, (_) => null);
+    }
+    if (!isClosed) emit(state.copyWith(clearSelection: true));
+    return null;
+  }
+
+  /// Moves the selected pages to [toDocumentId] (a new document when null).
+  Future<Failure?> moveSelectedPages({String? toDocumentId}) async {
+    final ids = [for (final p in selectedInOrder) p.id];
+    final r = await _movePages(ids, toDocumentId: toDocumentId);
+    if (!isClosed && r.isRight()) emit(state.copyWith(clearSelection: true));
+    return r.fold((f) => f, (_) => null);
+  }
 
   /// The filter most of [pages] use (round 11, P0-11: added pages start
   /// with it), or null for none.

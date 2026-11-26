@@ -308,6 +308,65 @@ class DocumentRepositoryImpl implements DocumentRepository {
       );
 
   @override
+  Future<Either<Failure, String>> movePages(List<String> pageIds, {String? toDocumentId}) async {
+    try {
+      if (pageIds.isEmpty) return const Left(NotFoundFailure());
+      final rows = [
+        for (final id in pageIds) await (_db.select(_db.pages)..where((p) => p.id.equals(id))).getSingle(),
+      ];
+      final sourceId = rows.first.documentId;
+      final source = await (_db.select(_db.documents)..where((d) => d.id.equals(sourceId))).getSingle();
+      final now = DateTime.now();
+      var targetId = toDocumentId;
+      if (targetId == null) {
+        targetId = newId();
+        await _db.into(_db.documents).insert(
+              DocumentsCompanion.insert(
+                id: targetId,
+                title: await _uniqueDefaultTitle(now),
+                mode: source.mode,
+                createdAt: now,
+                updatedAt: now,
+                folder: Value(source.folder),
+              ),
+            );
+        await _insertActivity(targetId, ActivityType.created, now);
+      }
+      final existing = await (_db.select(_db.pages)..where((p) => p.documentId.equals(targetId!))).get();
+      var order = existing.isEmpty ? 0 : existing.map((p) => p.pageOrder).reduce((a, b) => a > b ? a : b) + 1;
+      final target = targetId;
+      // Originals first, so the DB never points at a missing file.
+      final moved = <(PageRow, String, int)>[];
+      for (final r in rows) {
+        final path = await _files.adoptOriginal(sourcePath: r.originalPath, docId: target, pageId: r.id);
+        moved.add((r, path, order++));
+        await _files.pruneCaches(sourceId, r.id);
+      }
+      await _db.transaction(() async {
+        for (final (r, path, o) in moved) {
+          await (_db.update(_db.pages)..where((p) => p.id.equals(r.id))).write(
+            PagesCompanion(
+              documentId: Value(target),
+              originalPath: Value(path),
+              pageOrder: Value(o),
+              processedPath: const Value(null),
+              thumbPath: const Value(null),
+            ),
+          );
+        }
+        await _touch(target, now);
+        await _touch(sourceId, now);
+        await _insertActivity(target, ActivityType.edited, now);
+      });
+      final left = await (_db.select(_db.pages)..where((p) => p.documentId.equals(sourceId))).get();
+      if (left.isEmpty) await delete(sourceId);
+      return Right(target);
+    } catch (e) {
+      return Left(StorageFailure(e.toString()));
+    }
+  }
+
+  @override
   Future<Either<Failure, Unit>> updatePage(ScanPage page) =>
       updatePages([page]);
 

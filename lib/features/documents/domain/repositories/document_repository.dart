@@ -21,6 +21,12 @@ abstract interface class DocumentRepository {
   Future<Either<Failure, Unit>> setSuggestion(String id, NameSuggestion? suggestion);
   Future<Either<Failure, Unit>> addPages(String id, List<ScanPage> pages);
   Future<Either<Failure, Unit>> reorder(String id, List<String> pageIds);
+
+  /// Round 11, P0-13: moves pages (in this order) to the end of another
+  /// document, or of a new one of the same kind when [toDocumentId] is
+  /// null. A document left without pages is deleted. Returns the target's
+  /// id.
+  Future<Either<Failure, String>> movePages(List<String> pageIds, {String? toDocumentId});
   Future<Either<Failure, Unit>> updatePage(ScanPage page);
   Future<Either<Failure, Unit>> updatePages(List<ScanPage> pages);
   Future<Either<Failure, Unit>> deletePage(String pageId);

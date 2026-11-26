@@ -1870,6 +1870,78 @@ abstract class AppLocalizations {
   /// **'Insert after this page'**
   String get viewerInsertAfter;
 
+  /// No description provided for @viewerMove.
+  ///
+  /// In en, this message translates to:
+  /// **'Move'**
+  String get viewerMove;
+
+  /// No description provided for @sharePages.
+  ///
+  /// In en, this message translates to:
+  /// **'Pages'**
+  String get sharePages;
+
+  /// No description provided for @sharePagesHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Share all pages or just some'**
+  String get sharePagesHint;
+
+  /// No description provided for @sharePagesAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All ({count})'**
+  String sharePagesAll(int count);
+
+  /// No description provided for @sharePagesSome.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {total}'**
+  String sharePagesSome(int count, int total);
+
+  /// No description provided for @pagePickerSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {total} selected'**
+  String pagePickerSelected(int count, int total);
+
+  /// No description provided for @pagePickerNone.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get pagePickerNone;
+
+  /// No description provided for @viewerMovePagesTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Move pages to'**
+  String get viewerMovePagesTo;
+
+  /// No description provided for @viewerMoveNewDocument.
+  ///
+  /// In en, this message translates to:
+  /// **'New document'**
+  String get viewerMoveNewDocument;
+
+  /// No description provided for @viewerPagesMoved.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 page moved} other{{count} pages moved}}'**
+  String viewerPagesMoved(int count);
+
+  /// No description provided for @viewerDeletePagesTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{Delete 1 page?} other{Delete {count} pages?}}'**
+  String viewerDeletePagesTitle(int count);
+
+  /// No description provided for @viewerDeletePagesBody.
+  ///
+  /// In en, this message translates to:
+  /// **'They will be removed from the document.'**
+  String get viewerDeletePagesBody;
+
   /// No description provided for @folderOther.
   ///
   /// In en, this message translates to:

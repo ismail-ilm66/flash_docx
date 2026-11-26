@@ -265,4 +265,41 @@ void main() {
     bloc.add(ExportOptionsChanged(bloc.state.options.copyWith(grayscaleToFit: true)));
     await expectLater(bloc.stream, emitsThrough(predicate<ExportState>((s) => (s.prep?.ready ?? false) && s.prep!.hardToRead)));
   });
+
+  test('round 11, P0-13: only some pages: those are prepared, the name says which', () async {
+    final ten = doc.copyWith(
+      title: 'Flash Scan – 24 Nov 2026',
+      pages: [
+        for (var i = 0; i < 10; i++) ScanPage(id: 'p$i', documentId: 'd', originalPath: '/$i', edits: const PageEdits(), order: i),
+      ],
+    );
+    final prepared = <List<String>>[];
+    when(() => export.prepare(any(), any(), cancel: any(named: 'cancel'), onStep: any(named: 'onStep'))).thenAnswer((inv) async {
+      prepared.add([for (final p in (inv.positionalArguments[0] as ScanDocument).pages) p.id]);
+      return const Left(CancelledFailure());
+    });
+    final bloc = ExportBloc(export, prefs, ten)
+      ..add(const ExportSheetOpened())
+      ..add(const ExportPagesChanged({'p2', 'p6'}));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.somePages, isTrue);
+    expect(bloc.state.document.pages.map((p) => p.id), ['p2', 'p6']);
+    expect(bloc.state.options.fileName, 'Flash Scan – 24 Nov 2026 (p. 3, 7)');
+    expect(prepared.last, ['p2', 'p6'], reason: 'the files are made again for those pages');
+
+    bloc.add(ExportPagesChanged({for (final p in ten.pages) p.id}));
+    await Future<void>.delayed(Duration.zero);
+    expect(bloc.state.somePages, isFalse);
+    expect(bloc.state.options.fileName, 'Flash Scan – 24 Nov 2026');
+    await bloc.close();
+  });
+
+  test('page suffix: runs of 3+ pages are shortened', () {
+    final ten = doc.copyWith(
+      pages: [for (var i = 0; i < 10; i++) ScanPage(id: 'p$i', documentId: 'd', originalPath: '/$i', edits: const PageEdits(), order: i)],
+    );
+    List<ScanPage> pick(List<int> n) => [for (final i in n) ten.pages[i]];
+    expect(ExportBloc.withPagesSuffix('Doc', ten, pick([1, 2, 3, 4, 7])), 'Doc (p. 2–5, 8)');
+    expect(ExportBloc.withPagesSuffix('Doc (p. 2–5, 8)', ten, pick([0, 1])), 'Doc (p. 1, 2)');
+  });
 }

@@ -539,6 +539,59 @@
   "folderReceipts": "Receipts",
   "folderPhotos": "Photos",
   "viewerInsertAfter": "Insert after this page",
+  "viewerMove": "Move",
+  "sharePages": "Pages",
+  "sharePagesHint": "Share all pages or just some",
+  "sharePagesAll": "All ({count})",
+  "@sharePagesAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "sharePagesSome": "{count} of {total}",
+  "@sharePagesSome": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "pagePickerSelected": "{count} of {total} selected",
+  "@pagePickerSelected": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "pagePickerNone": "None",
+  "viewerMovePagesTo": "Move pages to",
+  "viewerMoveNewDocument": "New document",
+  "viewerPagesMoved": "{count, plural, =1{1 page moved} other{{count} pages moved}}",
+  "@viewerPagesMoved": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "viewerDeletePagesTitle": "{count, plural, =1{Delete 1 page?} other{Delete {count} pages?}}",
+  "@viewerDeletePagesTitle": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "viewerDeletePagesBody": "They will be removed from the document.",
   "folderOther": "Other",
   "folderEmpty": "Nothing in {folder} yet",
   "@folderEmpty": {

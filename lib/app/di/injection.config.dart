@@ -186,6 +186,9 @@ extension GetItInjectableX on _i174.GetIt {
     gh.factory<_i310.AddPages>(
       () => _i310.AddPages(gh<_i132.DocumentRepository>()),
     );
+    gh.factory<_i310.MovePages>(
+      () => _i310.MovePages(gh<_i132.DocumentRepository>()),
+    );
     gh.factory<_i310.ReorderPages>(
       () => _i310.ReorderPages(gh<_i132.DocumentRepository>()),
     );
@@ -375,6 +378,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i769.PreviewCache>(),
         gh<_i310.NameSuggestionActions>(),
         gh<_i310.SetDocumentFolder>(),
+        gh<_i310.MovePages>(),
         documentId,
       ),
     );
