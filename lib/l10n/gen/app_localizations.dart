@@ -1909,7 +1909,7 @@ abstract class AppLocalizations {
   /// No description provided for @homeScanSubtitle.
   ///
   /// In en, this message translates to:
-  /// **'Auto crop · shadows removed · PDF in seconds'**
+  /// **'Auto crop · PDF in seconds'**
   String get homeScanSubtitle;
 
   /// No description provided for @homeRecent.

@@ -695,29 +695,59 @@ class _ScanCard extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(Space.x5, Space.x5, Space.x3, Space.x5),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        l.homeScanTitle,
-                        style: context.text.headlineSmall?.copyWith(fontSize: 21, fontWeight: FontWeight.w800, color: _ink, height: 1.15),
+          // Round 11b (design HomeV11): 96 dp, title and subtitle on one
+          // line each at any font size, a small page illustration.
+          child: SizedBox(
+            height: 96,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(Space.x5, 0, Space.x4, 0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.3,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              l.homeScanTitle,
+                              maxLines: 1,
+                              style: context.text.headlineSmall?.copyWith(fontSize: 20, fontWeight: FontWeight.w800, color: _ink, height: 1.15),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          LayoutBuilder(
+                            builder: (context, box) {
+                              TextStyle? style(double size) =>
+                                  context.text.bodySmall?.copyWith(fontSize: size, fontWeight: FontWeight.w600, color: _ink.withValues(alpha: 0.75));
+                              // 13 sp; 12 sp if that would wrap.
+                              final tp = TextPainter(
+                                text: TextSpan(text: l.homeScanSubtitle, style: style(13)),
+                                textScaler: MediaQuery.textScalerOf(context),
+                                textDirection: Directionality.of(context),
+                                maxLines: 1,
+                              )..layout(maxWidth: box.maxWidth);
+                              final size = tp.didExceedMaxLines ? 12.0 : 13.0;
+                              tp.dispose();
+                              return FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(l.homeScanSubtitle, maxLines: 1, style: style(size)),
+                              );
+                            },
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l.homeScanSubtitle,
-                        style: context.text.bodySmall?.copyWith(fontSize: 13, fontWeight: FontWeight.w600, color: _ink.withValues(alpha: 0.75)),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: Space.x3),
-                const SizedBox(width: 84, height: 96, child: CustomPaint(painter: _ScanIllustration())),
-              ],
+                  const SizedBox(width: Space.x3),
+                  const SizedBox(width: 56, height: 64, child: CustomPaint(painter: _ScanIllustration())),
+                ],
+              ),
             ),
           ),
         ),
@@ -726,37 +756,33 @@ class _ScanCard extends StatelessWidget {
   }
 }
 
-/// A page with text lines, scan corners and a scan line (vector).
+/// A black page with yellow lines inside scan corners (vector); no
+/// scanning line (the owner asked for it to go).
 class _ScanIllustration extends CustomPainter {
   const _ScanIllustration();
 
   @override
   void paint(Canvas canvas, Size size) {
     const ink = Color(0xFF15171A);
-    final page = Rect.fromLTWH(size.width * 0.14, size.height * 0.1, size.width * 0.72, size.height * 0.8);
-    canvas
-      ..drawRRect(
-        RRect.fromRectAndRadius(page.shift(const Offset(0, 3)), const Radius.circular(6)),
-        Paint()..color = ink.withValues(alpha: 0.18),
-      )
-      ..drawRRect(RRect.fromRectAndRadius(page, const Radius.circular(6)), Paint()..color = Colors.white);
+    const yellow = Color(0xFFFFC233);
+    final page = Rect.fromLTWH(size.width * 0.16, size.height * 0.12, size.width * 0.68, size.height * 0.76);
+    canvas.drawRRect(RRect.fromRectAndRadius(page, const Radius.circular(5)), Paint()..color = ink);
     final line = Paint()
-      ..color = ink.withValues(alpha: 0.28)
-      ..strokeWidth = 3
+      ..color = yellow
+      ..strokeWidth = 2.5
       ..strokeCap = StrokeCap.round;
-    final left = page.left + page.width * 0.16;
-    for (final (i, w) in [0.55, 0.68, 0.62, 0.68, 0.4].indexed) {
-      final y = page.top + page.height * (0.2 + i * 0.15);
+    final left = page.left + page.width * 0.2;
+    for (final (i, w) in [0.5, 0.6, 0.55, 0.35].indexed) {
+      final y = page.top + page.height * (0.25 + i * 0.17);
       canvas.drawLine(Offset(left, y), Offset(left + page.width * w, y), line);
     }
-    // Scan corners just outside the page.
     final corner = Paint()
       ..color = ink
-      ..strokeWidth = 3
+      ..strokeWidth = 2.5
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
-    final r = page.inflate(5);
-    const k = 12.0;
+    final r = page.inflate(4);
+    const k = 9.0;
     for (final (o, dx, dy) in [
       (r.topLeft, 1.0, 1.0),
       (r.topRight, -1.0, 1.0),
@@ -767,16 +793,6 @@ class _ScanIllustration extends CustomPainter {
         ..drawLine(o, o + Offset(k * dx, 0), corner)
         ..drawLine(o, o + Offset(0, k * dy), corner);
     }
-    // The scan line.
-    final y = page.top + page.height * 0.58;
-    canvas.drawLine(
-      Offset(r.left + 2, y),
-      Offset(r.right - 2, y),
-      Paint()
-        ..color = const Color(0xFFFF8A00)
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round,
-    );
   }
 
   @override

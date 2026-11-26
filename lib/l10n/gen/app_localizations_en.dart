@@ -1030,7 +1030,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get homeScanTitle => 'Scan a document';
 
   @override
-  String get homeScanSubtitle => 'Auto crop · shadows removed · PDF in seconds';
+  String get homeScanSubtitle => 'Auto crop · PDF in seconds';
 
   @override
   String get homeRecent => 'Recent';

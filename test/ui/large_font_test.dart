@@ -294,6 +294,8 @@ void main() {
     // Passport · Import (one line each, 48 dp), a floating camera button,
     // settings in the header, no bottom navigation.
     expect(find.text(l.homeScanTitle), findsOneWidget);
+    // Round 11b: the scan card is 96 dp tall at any font size.
+    expect(tester.getSize(find.ancestor(of: find.text(l.homeScanTitle), matching: find.byType(InkWell)).first).height, 96);
     expect(find.text(l.homeHeadline), findsNothing);
     expect(find.byType(ScanFab), findsOneWidget);
     expect(find.byTooltip(l.navSettings), findsOneWidget);
