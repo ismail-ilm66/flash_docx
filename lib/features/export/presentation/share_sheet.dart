@@ -4,6 +4,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/bytes.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
@@ -82,6 +83,7 @@ class _SharePanelState extends State<SharePanel> {
       context.read<ExportBloc>().add(ExportOptionsChanged(o));
 
   Future<void> _go(ExportTarget target) async {
+    if (target == ExportTarget.share) PerfLog.begin('share_open');
     if (target == ExportTarget.saveToPhone && !await readyToSave(context)) return;
     if (!mounted) return;
     final bloc = context.read<ExportBloc>();

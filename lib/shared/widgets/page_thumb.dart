@@ -126,9 +126,10 @@ class PageImage extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: file != null && file.existsSync()
+          // Round 11c (A7/A8): no key on the path, so a new image (the
+          // thumbnail replacing the preview) swaps in without a blank frame.
           ? Image.file(
               file,
-              key: ValueKey(cacheKey ?? path),
               fit: fit,
               cacheWidth: cacheWidth,
               gaplessPlayback: true,

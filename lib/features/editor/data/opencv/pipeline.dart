@@ -5206,7 +5206,10 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
   int? longSide,
   int minEdge = 800,
 }) {
-  var img = readUpright(src);
+  // Round 11c, D: decoded once, at 1/2 or 1/4 straight from the JPEG when
+  // the chosen size is that much smaller (not for an exact cover-crop).
+  final target = exact ? null : (longSide ?? (boxW != null && boxH != null ? math.max(boxW, boxH) : null));
+  var img = target == null ? readUpright(src) : readUprightAtMost(src, target);
   try {
     if (boxW != null && boxH != null) {
       final sized = exact ? _cover(img, boxW, boxH) : _fitInside(img, boxW, boxH);
@@ -5219,7 +5222,6 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
     }
     final ext = out.split('.').last.toLowerCase();
     final png = ext == 'png';
-    final qualities = png ? const [9] : const [92, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40];
     cv.VecI32 params(int q) => cv.VecI32.fromList(switch (ext) {
       'png' => [cv.IMWRITE_PNG_COMPRESSION, q],
       'webp' => [cv.IMWRITE_WEBP_QUALITY, q],
@@ -5233,18 +5235,42 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
       return bytes;
     }
 
+    // Round 11c, D: the best quality that fits, by binary search on 30–95
+    // in memory (at most 7 encodes); the smallest tried when none fits.
+    ({Uint8List bytes, bool fits}) search(cv.Mat m) {
+      if (png) {
+        final b = encode(m, 9);
+        return (bytes: b, fits: b.length <= maxBytes);
+      }
+      var lo = 30;
+      var hi = 95;
+      Uint8List? fit;
+      Uint8List? smallest;
+      for (var i = 0; i < 7 && lo <= hi; i++) {
+        final q = (lo + hi) ~/ 2;
+        final b = encode(m, q);
+        if (smallest == null || b.length < smallest.length) smallest = b;
+        if (b.length <= maxBytes) {
+          fit = b;
+          lo = q + 1;
+        } else {
+          hi = q - 1;
+        }
+      }
+      return fit != null ? (bytes: fit, fits: true) : (bytes: smallest!, fits: false);
+    }
+
     Uint8List? best;
     var edge = math.max(img.cols, img.rows);
     final floor = exact ? edge : math.min(edge, minEdge);
     var current = img;
     while (true) {
-      for (final q in qualities) {
-        final bytes = encode(current, q);
-        if (best == null || bytes.length < best.length) best = bytes;
-        if (bytes.length <= maxBytes) {
-          File(out).writeAsBytesSync(bytes, flush: true);
-          return (bytes: bytes.length, fits: true);
-        }
+      final r = search(current);
+      if (best == null || r.bytes.length < best.length) best = r.bytes;
+      if (r.fits) {
+        if (!identical(current, img)) current.dispose();
+        File(out).writeAsBytesSync(r.bytes, flush: true);
+        return (bytes: r.bytes.length, fits: true);
       }
       if (exact || edge <= floor) break;
       edge = math.max(floor, (edge * 0.85).round());
@@ -5253,7 +5279,7 @@ cv.Mat stampFooter(cv.Mat page, cv.Mat badge, {double stripFraction = 0.04}) {
       current = next;
     }
     if (!identical(current, img)) current.dispose();
-    File(out).writeAsBytesSync(best!, flush: true);
+    File(out).writeAsBytesSync(best, flush: true);
     return (bytes: best.length, fits: false);
   } finally {
     img.dispose();

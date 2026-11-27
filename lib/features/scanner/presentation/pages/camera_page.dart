@@ -1189,6 +1189,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   countdown: _countdown,
                   onGallery: widget.args.retake ? null : _importFromSheet,
                   onFinish: () {
+                    PerfLog.begin('adjust_open');
                     // P0-15.6: the camera and the live outline stop at once.
                     unawaited(_shutDown());
                     context.read<ScanSessionBloc>().add(

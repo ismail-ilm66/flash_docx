@@ -1021,6 +1021,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get viewerMove => 'Move';
 
   @override
+  String get testPanelTitle => 'Test build';
+
+  @override
+  String get testLiveOutline => 'Live outline';
+
+  @override
+  String get testBentPages => 'Bent-page flattening';
+
+  @override
+  String get testFingers => 'Finger detection';
+
+  @override
+  String get testGrain => 'Grain cleaner';
+
+  @override
+  String get testSharePerfLog => 'Share performance log';
+
+  @override
+  String get testClearPerfLog => 'Clear performance log';
+
+  @override
   String savedTo(String folder) {
     return 'Saved to $folder';
   }

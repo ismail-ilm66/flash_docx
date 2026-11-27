@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
@@ -140,6 +141,47 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
   bool _warned = false;
 
   bool get _images => widget.source is ReduceImages;
+
+  /// Round 11c, D1: what is being reduced, before reducing ("272 KB ·
+  /// 1600 × 1600 · JPG", "3 images · 2.4 MB").
+  String? _current;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(_describe());
+    });
+  }
+
+  Future<void> _describe() async {
+    final l = context.l10n;
+    String? text;
+    try {
+      switch (widget.source) {
+        case ReduceImages(:final paths) when paths.length == 1:
+          final f = File(paths.single);
+          final bytes = await f.readAsBytes();
+          final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+          final d = await ui.ImageDescriptor.encoded(buffer);
+          final ext = p.extension(f.path).replaceFirst('.', '').toUpperCase();
+          text = '${formatBytes(bytes.length)} · ${d.width} × ${d.height} · ${ext == 'JPEG' ? 'JPG' : ext}';
+          d.dispose();
+          buffer.dispose();
+        case ReduceImages(:final paths):
+          var total = 0;
+          for (final path in paths) {
+            total += await File(path).length();
+          }
+          text = '${l.reduceImages(paths.length)} · ${formatBytes(total)}';
+        case ReducePdf(:final path):
+          text = '${formatBytes(await File(path).length())} · PDF';
+        case ReduceDocument(:final document):
+          text = l.reducePages(document.pages.length);
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _current = text);
+  }
 
   String get _name => switch (widget.source) {
     ReduceImages(:final paths) => paths.length == 1 ? p.basename(paths.single) : context.l10n.reduceImages(paths.length),
@@ -337,6 +379,10 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
         padding: const EdgeInsets.fromLTRB(Space.x4, Space.x2, Space.x4, Space.x8),
         children: [
           Text(_name, maxLines: 2, overflow: TextOverflow.ellipsis, style: context.text.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          if (_current != null) ...[
+            const SizedBox(height: 2),
+            Text(_current!, style: context.text.bodyMedium?.copyWith(color: c.muted, fontWeight: FontWeight.w600)),
+          ],
           const SizedBox(height: 4),
           Text(l.reduceOriginalKept, style: context.text.bodySmall?.copyWith(color: c.muted)),
           const SizedBox(height: Space.x5),
@@ -367,8 +413,8 @@ class _ReduceSizePageState extends State<ReduceSizePage> {
             chips<ReduceFormat>(ReduceFormat.values, _format, (f) => f.extension.toUpperCase(), (v) => setState(() => _format = v)),
           ],
           const SizedBox(height: Space.x6),
-          PrimaryButton(label: _working ? l.reduceWorking : l.reduceGo, onPressed: _working ? null : _reduce),
-          if (_working) const Padding(padding: EdgeInsets.only(top: Space.x4), child: Center(child: CircularProgressIndicator())),
+          // Round 11c, D2: "Reducing…" with a ring on the button.
+          PrimaryButton(label: _working ? l.reduceWorking : l.reduceGo, loading: _working, onPressed: _working ? null : _reduce),
           // The target can't be met and nothing was made yet: an amber
           // note (red is for real errors only), and Make it anyway.
           if (res != null && res.files.isEmpty) ...[

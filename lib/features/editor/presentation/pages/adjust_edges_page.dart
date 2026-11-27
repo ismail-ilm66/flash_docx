@@ -2,6 +2,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/presentation/bloc/page_editor_bloc.dart';
@@ -79,6 +80,8 @@ class _AdjustView extends StatelessWidget {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
         final base = s.basePreview;
+        // Round 11c, section 0: Done → page 1 with its corners on screen.
+        if (page != null && base != null) PerfLog.end('adjust_open', page: s.index + 1, output: '${s.pages.length} ready, ${s.pendingPages} coming');
         // Round 11b, P0-18: pages still being prepared count too.
         final total = s.pages.length + s.pendingPages;
         final multi = total > 1;
@@ -117,6 +120,7 @@ class _AdjustView extends StatelessWidget {
                       ? null
                       : () {
                           bloc.prepareEnhance();
+                          PerfLog.begin('enhance_open');
                           context.push(Routes.enhance, extra: bloc);
                         },
                 ),

@@ -5,6 +5,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/utils/date_format.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/watch_documents.dart';
@@ -382,6 +383,9 @@ class _ViewerViewState extends State<_ViewerView> {
                                   itemBuilder: (context, i) {
                                     final img = s.imageFor(pages[i]);
                                     if (i == s.index) _precacheAround(context, s, i);
+                                    // Round 11c, section 0: Enhance Done → a
+                                    // filtered page on screen.
+                                    if (i == s.index && img != null && !img.blurred) PerfLog.end('viewer_open', page: i + 1);
                                     return Padding(
                                       padding: const EdgeInsets.fromLTRB(
                                         Space.x10,
@@ -414,7 +418,7 @@ class _ViewerViewState extends State<_ViewerView> {
                                                 ? const SizedBox(
                                                     width: 240,
                                                     height: 340,
-                                                    child: ColoredBox(color: Colors.white),
+                                                    child: PageImage(path: null, border: false, radius: 0),
                                                   )
                                                 : img.blurred
                                                 // The thumbnail, stretched
@@ -424,16 +428,17 @@ class _ViewerViewState extends State<_ViewerView> {
                                                     imageFilter: ImageFilter.blur(sigmaX: 3, sigmaY: 3),
                                                     child: Image.file(
                                                       File(img.path),
-                                                      key: ValueKey(img.path),
                                                       gaplessPlayback: true,
                                                       width: 1000,
                                                       height: 1000,
                                                       fit: BoxFit.contain,
                                                     ),
                                                   )
+                                                // Round 11c (A8): no key, so the
+                                                // full page replaces the preview
+                                                // without a blank frame.
                                                 : Image.file(
                                                     File(img.path),
-                                                    key: ValueKey(img.path),
                                                     gaplessPlayback: true,
                                                     fit: BoxFit.contain,
                                                     cacheWidth: _decodeWidth(context),

@@ -1888,6 +1888,48 @@ abstract class AppLocalizations {
   /// **'Move'**
   String get viewerMove;
 
+  /// No description provided for @testPanelTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Test build'**
+  String get testPanelTitle;
+
+  /// No description provided for @testLiveOutline.
+  ///
+  /// In en, this message translates to:
+  /// **'Live outline'**
+  String get testLiveOutline;
+
+  /// No description provided for @testBentPages.
+  ///
+  /// In en, this message translates to:
+  /// **'Bent-page flattening'**
+  String get testBentPages;
+
+  /// No description provided for @testFingers.
+  ///
+  /// In en, this message translates to:
+  /// **'Finger detection'**
+  String get testFingers;
+
+  /// No description provided for @testGrain.
+  ///
+  /// In en, this message translates to:
+  /// **'Grain cleaner'**
+  String get testGrain;
+
+  /// No description provided for @testSharePerfLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Share performance log'**
+  String get testSharePerfLog;
+
+  /// No description provided for @testClearPerfLog.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear performance log'**
+  String get testClearPerfLog;
+
   /// No description provided for @savedTo.
   ///
   /// In en, this message translates to:

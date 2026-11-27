@@ -5,6 +5,9 @@ import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/constants/app_info.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/debug_switches.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
+import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/share_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/export_options.dart';
@@ -246,9 +249,14 @@ class _SettingsView extends StatelessWidget {
                 ),
                 const SizedBox(height: Space.x1),
                 Center(
-                  child: Text(
-                    l.settingsVersion(s.version),
-                    style: context.text.bodySmall?.copyWith(color: c.muted),
+                  // Round 11c (section 0, C2): long-press for the test panel
+                  // (debug, profile and test builds only).
+                  child: GestureDetector(
+                    onLongPress: PerfLog.enabled ? () => _TestPanel.show(context) : null,
+                    child: Text(
+                      l.settingsVersion(s.version),
+                      style: context.text.bodySmall?.copyWith(color: c.muted),
+                    ),
                   ),
                 ),
                 const SizedBox(height: Space.x1),
@@ -343,6 +351,67 @@ class _Row extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Round 11c, section 0 and C2: the [FD-PERF] log and the four feature
+/// switches for timing runs on the test phone. Never in a normal release
+/// build ([PerfLog.enabled]).
+class _TestPanel extends StatefulWidget {
+  const _TestPanel();
+
+  static Future<void> show(BuildContext context) => AppBottomSheet.show<void>(
+        context,
+        builder: (_) => const _TestPanel(),
+      );
+
+  @override
+  State<_TestPanel> createState() => _TestPanelState();
+}
+
+class _TestPanelState extends State<_TestPanel> {
+  void _set(void Function() change) {
+    setState(change);
+    PerfLog.mark('switches: ${DebugSwitches.describe()}');
+    // The worker uses three of them; it gets the new values at once.
+    getIt<IsolateRunner>().run(applyDebugSwitches, DebugSwitches.toMap()).ignore();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final l = context.l10n;
+    Widget toggle(String label, bool value, void Function(bool) onChanged) =>
+        SwitchListTile(title: Text(label), value: value, onChanged: (v) => _set(() => onChanged(v)));
+    return AppBottomSheet(
+      title: l.testPanelTitle,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          toggle(l.testLiveOutline, DebugSwitches.liveOutline, (v) => DebugSwitches.liveOutline = v),
+          toggle(l.testBentPages, DebugSwitches.bentPages, (v) => DebugSwitches.bentPages = v),
+          toggle(l.testFingers, DebugSwitches.fingers, (v) => DebugSwitches.fingers = v),
+          toggle(l.testGrain, DebugSwitches.grain, (v) => DebugSwitches.grain = v),
+          const SizedBox(height: Space.x2),
+          SheetAction(
+            label: l.testSharePerfLog,
+            leading: const AppIcon(AppIcons.share),
+            onTap: () async {
+              final path = PerfLog.path;
+              if (path == null || !File(path).existsSync()) return;
+              await getIt<ShareService>().shareFiles([File(path)], subject: 'Flash Dox [FD-PERF]');
+            },
+          ),
+          SheetAction(
+            label: l.testClearPerfLog,
+            leading: const AppIcon(AppIcons.delete),
+            onTap: () async {
+              await PerfLog.clear();
+              if (context.mounted) Navigator.of(context).pop();
+            },
+          ),
+        ],
       ),
     );
   }

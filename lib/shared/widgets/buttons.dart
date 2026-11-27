@@ -126,21 +126,18 @@ class _ButtonContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading) {
-      return SizedBox(
-        width: 20,
-        height: 20,
-        child: CircularProgressIndicator(strokeWidth: 2.2, color: color),
-      );
-    }
     // Scaled down rather than cut off when the button is narrow or the
-    // system font is large (P1-5).
+    // system font is large (P1-5). Loading: a ring beside the label (round
+    // 11c, D2: "Reducing…").
     return FittedBox(
       fit: BoxFit.scaleDown,
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (icon != null) ...[
+          if (loading) ...[
+            SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2.2, color: color)),
+            const SizedBox(width: Space.x2),
+          ] else if (icon != null) ...[
             AppIcon(icon!, size: 18, color: color),
             const SizedBox(width: Space.x2),
           ],

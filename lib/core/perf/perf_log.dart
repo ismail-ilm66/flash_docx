@@ -63,6 +63,19 @@ abstract final class PerfLog {
     return r;
   }
 
+  static final _open = <String, Stopwatch>{};
+
+  /// Starts timing [name] across screens (Done → Adjust edges shown…).
+  static void begin(String name) {
+    if (enabled) _open[name] = Stopwatch()..start();
+  }
+
+  /// Ends [name] if [begin] started it (once).
+  static void end(String name, {Object? page, String? input, String? output}) {
+    final sw = _open.remove(name);
+    if (sw != null) step(name, sw.elapsedMilliseconds, page: page, input: input, output: output, isolate: 'main');
+  }
+
   /// Starts a new run's section in the file (a scan, a debug-switch run).
   static void mark(String what) {
     final p = _path;

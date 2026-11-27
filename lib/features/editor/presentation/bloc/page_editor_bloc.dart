@@ -6,6 +6,7 @@ import 'package:bloc_concurrency/bloc_concurrency.dart';
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
@@ -720,6 +721,7 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
       debugPrint(
         '[perf] enhance filter ${cur.edits.filter.name} in ${sw.elapsedMs} ms',
       );
+      PerfLog.step('filter_change', sw.elapsedMs, page: state.index + 1, output: cur.edits.filter.name);
       return true;
     } on JobCancelled {
       // Superseded by a newer request; it will set `rendering` itself.

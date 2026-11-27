@@ -542,6 +542,13 @@
   "folderPhotos": "Photos",
   "viewerInsertAfter": "Insert after this page",
   "viewerMove": "Move",
+  "testPanelTitle": "Test build",
+  "testLiveOutline": "Live outline",
+  "testBentPages": "Bent-page flattening",
+  "testFingers": "Finger detection",
+  "testGrain": "Grain cleaner",
+  "testSharePerfLog": "Share performance log",
+  "testClearPerfLog": "Clear performance log",
   "savedTo": "Saved to {folder}",
   "@savedTo": {
     "placeholders": {

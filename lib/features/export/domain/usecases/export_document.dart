@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flash_dox/core/constants/sizes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/string_ext.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/save_service.dart';
@@ -332,10 +333,14 @@ class ExportDocument {
     }
     if (cancelled()) return const Left(CancelledFailure());
     try {
-      final pdf = await _pdf.fromPages(
-        rendered,
-        _pdfOptions(doc, options),
-        outputPath: p.join(staging, 'doc.pdf'),
+      final pdf = await PerfLog.time(
+        'pdf_build',
+        () => _pdf.fromPages(
+          rendered,
+          _pdfOptions(doc, options),
+          outputPath: p.join(staging, 'doc.pdf'),
+        ),
+        input: '${rendered.length} pages',
       );
       t
         ..lap('PDF')
@@ -579,6 +584,7 @@ class ExportDocument {
       timer
         ?..lap('open share sheet (request sent)')
         ..report();
+      PerfLog.end('share_open', output: '${files.length} file(s)');
       result = await _share.shareFiles(files, subject: doc.title);
     } else if (options.isImage) {
       result = await _save.saveImages(files);

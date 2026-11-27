@@ -6,6 +6,7 @@ import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/app_router.dart';
 import 'package:flash_dox/app/theme/app_tokens.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/storage_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
@@ -111,6 +112,7 @@ class _EnhanceViewState extends State<_EnhanceView> {
     if (StorageService.levelFor(free) != StorageLevel.ok) {
       context.showSnack(context.l10n.saveStorageLow);
     }
+    PerfLog.begin('viewer_open');
     bloc.add(const EditorSaveRequested());
   }
 
@@ -140,6 +142,8 @@ class _EnhanceViewState extends State<_EnhanceView> {
       builder: (context, s) {
         final bloc = context.read<PageEditorBloc>();
         final page = s.current;
+        // Round 11c, section 0: Next → the page's filtered image.
+        if (page != null && s.exactPreviewFor(page) != null) PerfLog.end('enhance_open', page: s.index + 1);
         final edits = s.edits;
         final multi = s.pages.length > 1;
         final saving = s.status == EditorStatus.saving;
