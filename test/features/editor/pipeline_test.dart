@@ -341,6 +341,19 @@ void main() {
     });
   });
 
+  test('round 11c, PAGE_MAX: a page is never made longer than 2000 px', () {
+    expect(pipe.capPage(3000, 2250), (2000, 1500));
+    expect(pipe.capPage(1200, 1800), (1200, 1800));
+    final big = cv.Mat.fromScalar(3000, 4000, cv.MatType.CV_8UC3, cv.Scalar.all(200));
+    final flat = pipe.warpToQuad(big, Quad.full(inset: 0.05));
+    expect(math.max(flat.cols, flat.rows), 2000);
+    final curved = pipe.warpCurved(big, Quad.full(inset: 0.05));
+    expect(math.max(curved.cols, curved.rows), lessThanOrEqualTo(2000));
+    for (final m in [big, flat, curved]) {
+      m.dispose();
+    }
+  });
+
   group('ownership', () {
     test('fitLongEdge returns the same Mat when small enough and never disposes', () {
       final m = cv.Mat.fromScalar(100, 200, cv.MatType.CV_8UC3, cv.Scalar.all(1));

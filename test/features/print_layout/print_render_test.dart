@@ -70,8 +70,10 @@ void main() {
     }
   });
 
-  test('ID card at 300 DPI is 1011 × 638 px; at 600 DPI 2022 × 1276 px', () {
-    for (final (dpi, w, h) in [(300, 1011, 638), (600, 2022, 1276)]) {
+  // Round 11c, PAGE_MAX: no page or card is ever made longer than 2000 px,
+  // so 600 DPI gives 2000 × 1262 (593 DPI), never enlarged to 2022.
+  test('ID card at 300 DPI is 1011 × 638 px; at 600 DPI 2000 × 1262 px (PAGE_MAX)', () {
+    for (final (dpi, w, h) in [(300, 1011, 638), (600, 2000, 1262)]) {
       final card = pipe.renderCard(bigPhoto, edits, widthMm: 85.6, heightMm: 54, dpi: dpi);
       expect((card.cols, card.rows), (w, h), reason: '$dpi DPI');
       card.dispose();

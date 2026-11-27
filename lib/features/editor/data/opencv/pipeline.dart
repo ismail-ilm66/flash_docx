@@ -403,7 +403,8 @@ DetectionReport _detect(cv.Mat bgr, double? target, {bool imported = false, bool
   final gyM = cv.sobel(grayF, cv.MatType.CV_32F, 0, 1);
   final magM = cv.magnitude(gxM, gyM);
   final grads = (gx: _floats(gxM), gy: _floats(gyM), mag: _floats(magM), w: wi, h: hi);
-  final magThr = math.max(12.0, _percentileOf(grads.mag, 75));
+  // Once per photo, on every 4th row and column (round 11c).
+  final magThr = math.max(12.0, _percentileOf(_subList(grads.mag, wi, hi), 75));
   for (final m in [grayF, gxM, gyM, magM]) {
     m.dispose();
   }
@@ -572,7 +573,7 @@ bool pageFillsFrame(cv.Mat bgr, {bool imported = false}) {
   final ch = cv.split(hsv);
   hsv.dispose();
   try {
-    final vLim = 0.72 * percentile8(ch[2], 90);
+    final vLim = 0.72 * _pct8(_sub8(ch[2]), 90);
     final v = ch[2].data;
     final sat = ch[1].data;
     bool isPaper(int i) => v[i] > vLim && sat[i] < 60;
@@ -929,7 +930,7 @@ List<(String, cv.Mat)> _candidateMaps(cv.Mat small) {
 
   // A) Edges with thresholds from the median brightness.
   final blur = cv.gaussianBlur(gray, (5, 5), 0);
-  final m = medianOf(blur);
+  final m = _pct8(_sub8(blur), 50);
   final lo = math.max(10.0, 0.66 * m).toInt();
   final hi = math.min(255.0, math.max(40.0, 1.33 * m)).toInt();
   final edges = cv.canny(blur, lo.toDouble(), hi.toDouble());
@@ -1350,7 +1351,22 @@ double _distToSegment(XY p, XY a, XY b) {
 // Warp / rotate
 // ---------------------------------------------------------------------------
 
-/// Perspective-warps [src] to [quad] at the quad's own resolution — port of
+/// Round 11c, reference `PAGE_MAX`: a page is never made longer than this
+/// (about 170 dpi on A4: sharp in print and for text recognition, ~40 %
+/// fewer pixels than an uncapped 8 MP crop for every later step).
+const pageMax = 2000;
+
+/// Reference `_cap_page`: the size `w` × `h` scaled down to [pageMax] on
+/// the long side.
+(int, int) capPage(int w, int h) {
+  final m = math.max(w, h);
+  if (m <= pageMax) return (w, h);
+  final k = pageMax / m;
+  return (math.max(1, _roundHalfEven(w * k)), math.max(1, _roundHalfEven(h * k)));
+}
+
+/// Perspective-warps [src] to [quad] at the quad's own resolution (at most
+/// [pageMax] long, round 11c) — port of
 /// the reference `warp()`. [aspect] (ID / passport) forces the output to the
 /// real card shape. Cubic sampling, replicated border.
 cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
@@ -1376,8 +1392,7 @@ cv.Mat warpToQuad(cv.Mat src, Quad quad, {double? aspect}) {
       wt = (ht / aspect).round();
     }
   }
-  wt = math.max(1, wt);
-  ht = math.max(1, ht);
+  (wt, ht) = capPage(math.max(1, wt), math.max(1, ht));
   final srcPts = cv.VecPoint2f.fromList([
     for (final p in q) cv.Point2f(p.x, p.y),
   ]);
@@ -1715,14 +1730,15 @@ cv.Mat warpCurved(cv.Mat src, Quad quad, {bool cornersFixed = false}) {
     return sum;
   }
 
-  final wo = math.max(1, _roundHalfEven(math.max(
+  final wo0 = math.max(1, _roundHalfEven(math.max(
         arc((t) => tl.x + t * (tr.x - tl.x), (t) => y0 - eT(t)),
         arc((t) => bl.x + t * (br.x - bl.x), (t) => y1 + eB(t)),
       ) / s));
-  final ho = math.max(1, _roundHalfEven(math.max(
+  final ho0 = math.max(1, _roundHalfEven(math.max(
         arc((t) => x0 - eL(t), (t) => tl.y + t * (bl.y - tl.y)),
         arc((t) => x1 + eR(t), (t) => tr.y + t * (br.y - tr.y)),
       ) / s));
+  final (wo, ho) = capPage(wo0, ho0);
 
   // Coons patch on a coarse grid (every 8 px of output), then resized to
   // full maps; small warped space → photo coordinates (one interpolation).
@@ -2196,19 +2212,16 @@ cv.Mat unsharp(cv.Mat bgr, double amount, double sigma) {
 
 /// Rough sensor-noise sigma, as the reference `estimate_noise()`: the median
 /// absolute deviation of the Laplacian of the gray image / 0.6745 / 2.
+/// Round 11c: the Laplacian at full detail, the medians from every 2nd row
+/// and column of it.
 double estimateNoise(cv.Mat bgr) {
   final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
   final g32 = gray.convertTo(cv.MatType.CV_32FC1);
   final lap = cv.laplacian(g32, cv.MatType.CV_32F);
-  final cont = lap.isContinuous ? lap : lap.clone();
-  final bytes = cont.data;
-  final values = Float32List.fromList(
-    bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols),
-  );
+  final values = _subF(lap, step: 2);
   for (final m in [gray, g32, lap]) {
     m.dispose();
   }
-  if (!identical(cont, lap)) cont.dispose();
   final med = _median(values);
   for (var i = 0; i < values.length; i++) {
     values[i] = (values[i] - med).abs();
@@ -2265,13 +2278,14 @@ double _median(Float32List v) {
   return (lower + upper) / 2;
 }
 
-/// Removes sensor noise before any contrast step (round 6 reference
-/// `_denoise`, the fast version): non-local means on brightness (Y) only,
-/// template 5 / search 11; colour (Cr, Cb) is blotchy and low-frequency, so
-/// a blur at 1/4 size is enough. Strength follows the measured noise,
-/// `clamp(σ × 0.8, minH, maxH)`, so fine print isn't smeared, and a clean,
-/// well-lit photo (σ < 1.5) is returned as is (a copy: callers dispose it).
-/// About 6× faster than the old colour NLM (7 / 21).
+/// Removes sensor noise before any contrast step (reference `_denoise`):
+/// round 11c, a bilateral filter on brightness (Y) only (5 px, colour
+/// σ = strength × 6, space σ 3), instead of non-local means: the same look
+/// on documents, ~20× faster (NLM cost ~8 s per dim-light page on the
+/// Tecno KC2). Colour (Cr, Cb) is blotchy and low-frequency, so a blur at
+/// 1/4 size is enough. Strength follows the measured noise,
+/// `clamp(σ × 0.8, minH, maxH)`, and a clean, well-lit photo (σ < 1.5) is
+/// returned as is (a copy: callers dispose it).
 cv.Mat denoise(cv.Mat bgr, {double minH = 3.0, double maxH = 6.0}) {
   final sigma = estimateNoise(bgr);
   if (sigma < 1.5) return bgr.clone();
@@ -2281,12 +2295,7 @@ cv.Mat denoise(cv.Mat bgr, {double minH = 3.0, double maxH = 6.0}) {
   final ycc = cv.cvtColor(bgr, cv.COLOR_BGR2YCrCb);
   final ch = cv.split(ycc);
   ycc.dispose();
-  final y = cv.fastNlMeansDenoising(
-    ch[0],
-    h: strength,
-    templateWindowSize: 5,
-    searchWindowSize: 11,
-  );
+  final y = cv.bilateralFilter(ch[0], 5, strength * 6.0, 3.0);
   final sm = (math.max(1, w ~/ 4), math.max(1, h ~/ 4));
   cv.Mat chroma(cv.Mat c) {
     final small = cv.resize(c, sm, interpolation: cv.INTER_AREA);
@@ -2471,8 +2480,9 @@ cv.Mat _normalizeIllumination(
 cv.Mat levelsL(cv.Mat bgr, double loPct, double hiPct, {double span = 252}) {
   final lab = cv.cvtColor(bgr, cv.COLOR_BGR2Lab);
   final ch = cv.split(lab);
-  final lo = percentile8(ch[0], loPct);
-  final hi = percentile8(ch[0], hiPct);
+  final sub = _sub8(ch[0]);
+  final lo = _pct8(sub, loPct);
+  final hi = _pct8(sub, hiPct);
   final k = span / math.max(1.0, hi - lo);
   final l2 = ch[0].convertTo(
     cv.MatType.CV_8UC1,
@@ -2507,8 +2517,8 @@ cv.Mat autoFilter(cv.Mat bgr, {double chroma = 1.10}) {
 /// pages get the full effect; photo-heavy pages keep 25 % of the original
 /// light. Float32 BGR (0..255+), not rounded.
 cv.Mat flattenPage(cv.Mat dn, {String? cacheKey}) {
-  final m = cv.mean(dn);
-  final means = [m.val1, m.val2, m.val3];
+  // Round 11c: the gray-world means on every 4th row and column.
+  final means = _subMeans3(dn);
   final avg = (means[0] + means[1] + means[2]) / 3;
   final ch8 = cv.split(dn);
   final fc = [
@@ -2739,7 +2749,9 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   final labCh = cv.split(lab);
   lab.dispose();
   // Global levels on L (1 / 99.5 %).
-  final [lo, hi] = _percentiles(labCh[0], const [1, 99.5]);
+  final lSub = _subF(labCh[0]);
+  final lo = _percentileOf(lSub, 1);
+  final hi = _percentileOf(lSub, 99.5);
   final k = 99.0 / math.max(1e-3, hi - lo);
   final stretched = labCh[0].convertTo(
     cv.MatType.CV_32FC1,
@@ -2863,8 +2875,9 @@ cv.Mat _matOf(Float32List v, int h, int w) => cv.Mat.fromList(h, w, cv.MatType.C
 /// Statistics come from a ≤ 1000 px sample; the curve runs at full size.
 ({cv.Mat l, cv.Mat? chroma, double strength}) whitenPaper(cv.Mat l, cv.Mat a, cv.Mat b) {
   final chroma = cv.magnitude(a, b);
-  final ls = _sample(l);
-  final cs = _sample(chroma);
+  // Round 11c: statistics on every 4th row and column.
+  final ls = _subF(l);
+  final cs = _subF(chroma);
   final p40 = _percentileOf(Float32List.fromList(ls), 40);
   final paper = Float32List.fromList([
     for (var i = 0; i < ls.length; i++)
@@ -2887,28 +2900,37 @@ cv.Mat _matOf(Float32List v, int h, int w) => cv.Mat.fromList(h, w, cv.MatType.C
   }
   final t0 = 0.70 * pL;
   final span = math.max(1e-3, pL - t0);
-  // x = clip((L − t0) / span, 0, 1); s = x²(3 − 2x) · strength.
-  final xr = l.convertTo(
-    cv.MatType.CV_32FC1,
-    alpha: 1 / span,
-    beta: -t0 / span,
-  );
-  final x = _clip(xr, 0, 1);
-  final x2 = cv.multiply(x, x);
-  final term = x.convertTo(cv.MatType.CV_32FC1, alpha: -2, beta: 3);
-  final s = cv.multiply(x2, term, scale: strength);
-  // L2 = L + s · (100 − L)
-  final room = l.convertTo(cv.MatType.CV_32FC1, alpha: -1, beta: 100);
-  final lift = cv.multiply(s, room);
-  final l2 = cv.add(l, lift);
-  // k = 1 − 0.8 · s · (chroma < 20): fade the paper tint to neutral.
-  final (_, pale) = cv.threshold(chroma, 20, 1, cv.THRESH_BINARY_INV);
-  final sPale = cv.multiply(s, pale);
-  final k = sPale.convertTo(cv.MatType.CV_32FC1, alpha: -0.8, beta: 1);
-  for (final m in [chroma, xr, x, x2, term, s, room, lift, pale, sPale]) {
-    m.dispose();
+  // Round 11c: the curve as lookup tables of 1001 steps (L 0.0..100.0 in
+  // 0.1 steps): x = clip((L − t0) / span, 0, 1), s = x²(3 − 2x) · strength,
+  // L2 = L + s · (100 − L), k = 1 − 0.8 · s (paper tint to neutral, only
+  // where chroma < 20).
+  final lTab = Float32List(1001);
+  final kTab = Float32List(1001);
+  for (var i = 0; i <= 1000; i++) {
+    final g = i / 10.0;
+    final x = ((g - t0) / span).clamp(0.0, 1.0);
+    final st = x * x * (3 - 2 * x) * strength;
+    lTab[i] = g + st * (100.0 - g);
+    kTab[i] = 1.0 - 0.8 * st;
   }
-  return (l: l2, chroma: k, strength: strength);
+  final (h, w) = (l.rows, l.cols);
+  final lc = l.isContinuous ? l : l.clone();
+  final cc = chroma.isContinuous ? chroma : chroma.clone();
+  final lb = lc.data;
+  final cb = cc.data;
+  final lv = lb.buffer.asFloat32List(lb.offsetInBytes, h * w);
+  final cvals = cb.buffer.asFloat32List(cb.offsetInBytes, h * w);
+  final l2 = Float32List(h * w);
+  final k = Float32List(h * w);
+  for (var i = 0; i < h * w; i++) {
+    final idx = (lv[i] * 10.0 + 0.5).clamp(0.0, 1000.0).toInt();
+    l2[i] = lTab[idx];
+    k[i] = cvals[i] < 20 ? kTab[idx] : 1.0;
+  }
+  if (!identical(lc, l)) lc.dispose();
+  if (!identical(cc, chroma)) cc.dispose();
+  chroma.dispose();
+  return (l: _matOf(l2, h, w), chroma: _matOf(k, h, w), strength: strength);
 }
 
 /// Clamps a float Mat to [lo, hi].
@@ -2921,28 +2943,91 @@ cv.Mat _clip(cv.Mat f, double lo, double hi) {
   return out;
 }
 
-/// Every pixel of a one-channel float Mat taken on a grid so at most about
-/// a million values are read (nearest neighbour keeps the distribution).
-Float32List _sample(cv.Mat f32) {
-  final long = math.max(f32.cols, f32.rows);
-  final small = long > 1000
-      ? cv.resize(f32, (
-          (f32.cols * 1000 / long).round(),
-          (f32.rows * 1000 / long).round(),
-        ), interpolation: cv.INTER_NEAREST)
-      : f32.clone();
-  final bytes = small.data;
-  final out = Float32List.fromList(
-    bytes.buffer.asFloat32List(bytes.offsetInBytes, small.rows * small.cols),
-  );
-  small.dispose();
+/// Round 11c, the reference's `_pct`: statistics on every [step]-th row
+/// and column (1/16 of the pixels at 4), read out once. One channel, 8-bit.
+Uint8List _sub8(cv.Mat m, {int step = 4}) {
+  final cont = m.isContinuous ? m : m.clone();
+  final d = cont.data;
+  final (h, w) = (cont.rows, cont.cols);
+  final out = Uint8List(((h + step - 1) ~/ step) * ((w + step - 1) ~/ step));
+  var i = 0;
+  for (var y = 0; y < h; y += step) {
+    final row = y * w;
+    for (var x = 0; x < w; x += step) {
+      out[i++] = d[row + x];
+    }
+  }
+  if (!identical(cont, m)) cont.dispose();
   return out;
 }
 
-/// Percentiles of a float Mat, from a sample.
-List<double> _percentiles(cv.Mat f32, List<double> pcts) {
-  final v = _sample(f32);
-  return [for (final p in pcts) _percentileOf(v, p)];
+/// [_sub8] for one float channel.
+Float32List _subF(cv.Mat m, {int step = 4}) {
+  final cont = m.isContinuous ? m : m.clone();
+  final bytes = cont.data;
+  final d = bytes.buffer.asFloat32List(bytes.offsetInBytes, cont.rows * cont.cols);
+  final out = _subList(d, cont.cols, cont.rows, step: step);
+  if (!identical(cont, m)) cont.dispose();
+  return out;
+}
+
+/// [_sub8] for float values already read out ([w] × [h], row by row).
+Float32List _subList(Float32List d, int w, int h, {int step = 4}) {
+  final out = Float32List(((h + step - 1) ~/ step) * ((w + step - 1) ~/ step));
+  var i = 0;
+  for (var y = 0; y < h; y += step) {
+    final row = y * w;
+    for (var x = 0; x < w; x += step) {
+      out[i++] = d[row + x];
+    }
+  }
+  return out;
+}
+
+/// Per-channel means of a 3-channel 8-bit image on every 4th row and
+/// column (the reference's `f[::4, ::4].mean`).
+List<double> _subMeans3(cv.Mat m, {int step = 4}) {
+  final cont = m.isContinuous ? m : m.clone();
+  final d = cont.data;
+  final (h, w) = (cont.rows, cont.cols);
+  final sum = [0.0, 0.0, 0.0];
+  var n = 0;
+  for (var y = 0; y < h; y += step) {
+    final row = y * w * 3;
+    for (var x = 0; x < w; x += step) {
+      final k = row + x * 3;
+      sum[0] += d[k];
+      sum[1] += d[k + 1];
+      sum[2] += d[k + 2];
+      n++;
+    }
+  }
+  if (!identical(cont, m)) cont.dispose();
+  return [for (final v in sum) n == 0 ? 0.0 : v / n];
+}
+
+/// numpy.percentile (linear) of 8-bit values, from a 256-bin histogram.
+double _pct8(Uint8List v, double pct) {
+  if (v.isEmpty) return 0;
+  final hist = Int32List(256);
+  for (final x in v) {
+    hist[x]++;
+  }
+  final idx = pct / 100 * (v.length - 1);
+  final lo = idx.floor();
+  final hi = idx.ceil();
+  int valueAt(int k) {
+    var acc = 0;
+    for (var x = 0; x < 256; x++) {
+      acc += hist[x];
+      if (acc > k) return x;
+    }
+    return 255;
+  }
+
+  final a = valueAt(lo);
+  final b = valueAt(hi);
+  return a + (b - a) * (idx - lo);
 }
 
 /// numpy-style percentile from a 4096-bin histogram (linear time; within
@@ -3200,96 +3285,115 @@ cv.Mat cleanPageBorder(cv.Mat bgr, {double band = 0.05}) {
   final w = bgr.cols;
   final gray = cv.cvtColor(bgr, cv.COLOR_BGR2GRAY);
   try {
-    final p = percentile8(gray, 90); // paper brightness
-    final g = gray.data;
+    final p = _pct8(_sub8(gray), 90); // paper brightness
     final b = math.max(2, _roundHalfEven(band * math.min(h, w)));
-    final b2 = 2 * b;
-    int depth(int x, int y) => math.min(math.min(x, w - 1 - x), math.min(y, h - 1 - y));
-    // Dark pixels within 2 bands of the edge.
-    final near = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
-    final nd = near.data;
-    final darkLim = 0.80 * p;
-    for (var y = 0; y < h; y++) {
-      final row = y * w;
-      final inner = y >= b2 && y < h - b2;
-      for (var x = 0; x < w; x++) {
-        if (inner && x >= b2 && x < w - b2) continue;
-        if (g[row + x] < darkLim) nd[row + x] = 1;
-      }
-    }
-    final labels = cv.Mat.empty();
-    final stats = cv.Mat.empty();
-    final centroids = cv.Mat.empty();
-    final n = cv.connectedComponentsWithStats(near, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
-    for (final m in [near, stats, centroids]) {
-      m.dispose();
-    }
-    try {
-      if (n <= 1) return bgr.clone();
-      final lab = labels.data.buffer.asInt32List(labels.data.offsetInBytes, w * h);
-      // Deepest pixel of each area, and whether it touches the image edge.
-      final maxd = Int32List(n);
-      final touch = List<bool>.filled(n, false);
-      for (var y = 0; y < h; y++) {
-        final row = y * w;
-        final edgeRow = y == 0 || y == h - 1;
-        for (var x = 0; x < w; x++) {
-          final l = lab[row + x];
-          if (l == 0) continue;
-          final d = depth(x, y);
-          if (d > maxd[l]) maxd[l] = d;
-          if (edgeRow || x == 0 || x == w - 1) touch[l] = true;
+    // Round 11c: only the 4 edge strips, 2 bands wide. A dark area's depth
+    // is its deepest pixel's distance from the nearest image edge, measured
+    // in its strip (our change to the reference, which reads it from the
+    // area's box: a thin frame of table all around the page then reads as a
+    // full strip deep and stays).
+    final b2 = math.min(2 * b, math.min(h ~/ 2, w ~/ 2));
+    final mask = Uint8List(h * w);
+    var any = false;
+    final strips = [
+      cv.Rect(0, 0, w, b2),
+      cv.Rect(0, h - b2, w, b2),
+      cv.Rect(0, 0, b2, h),
+      cv.Rect(w - b2, 0, b2, h),
+    ];
+    for (final r in strips) {
+      if (r.width <= 0 || r.height <= 0) continue;
+      final g = gray.region(r);
+      final dark = _below(g, 0.80 * p);
+      g.dispose();
+      final labels = cv.Mat.empty();
+      final stats = cv.Mat.empty();
+      final centroids = cv.Mat.empty();
+      final n = cv.connectedComponentsWithStats(dark, labels, stats, centroids, 8, cv.MatType.CV_32S, -1);
+      dark.dispose();
+      stats.dispose();
+      centroids.dispose();
+      try {
+        if (n <= 1) continue;
+        final (sh, sw) = (r.height, r.width);
+        final lab = labels.data.buffer.asInt32List(labels.data.offsetInBytes, sh * sw);
+        final maxd = Int32List(n);
+        final touch = List<bool>.filled(n, false);
+        for (var y = 0; y < sh; y++) {
+          final gy = r.y + y;
+          final dy = math.min(gy, h - 1 - gy);
+          final lrow = y * sw;
+          for (var x = 0; x < sw; x++) {
+            final l = lab[lrow + x];
+            if (l == 0) continue;
+            final gx = r.x + x;
+            final d = math.min(math.min(gx, w - 1 - gx), dy);
+            if (d > maxd[l]) maxd[l] = d;
+            if (d == 0) touch[l] = true;
+          }
         }
+        final keep = [for (var i = 0; i < n; i++) i != 0 && touch[i] && maxd[i] < b];
+        if (!keep.contains(true)) continue;
+        any = true;
+        for (var y = 0; y < sh; y++) {
+          final row = (r.y + y) * w + r.x;
+          final lrow = y * sw;
+          for (var x = 0; x < sw; x++) {
+            if (keep[lab[lrow + x]]) mask[row + x] = 255;
+          }
+        }
+      } finally {
+        labels.dispose();
       }
-      final remove = [for (var i = 0; i < n; i++) i != 0 && touch[i] && maxd[i] < b];
-      if (!remove.contains(true)) return bgr.clone();
-      final mask = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
-      final md = mask.data;
-      for (var i = 0; i < w * h; i++) {
-        if (remove[lab[i]]) md[i] = 255;
-      }
-      // Include the soft rim.
-      final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5));
-      final grown = _dilate(mask, k);
-      mask.dispose();
-      k.dispose();
-      // Paper colour: the per-channel median of the bright pixels.
-      final hist = List.generate(3, (_) => Int32List(256));
-      final px = bgr.data;
-      final paperLim = 0.92 * p;
-      var count = 0;
-      for (var i = 0; i < w * h; i++) {
-        if (g[i] >= paperLim) {
+    }
+    if (!any) return bgr.clone();
+    // Include the soft rim.
+    final m = cv.Mat.fromList(h, w, cv.MatType.CV_8UC1, mask);
+    final k = cv.getStructuringElement(cv.MORPH_ELLIPSE, (5, 5));
+    final grown = _dilate(m, k);
+    m.dispose();
+    k.dispose();
+    // Paper colour: the per-channel median of the bright pixels, on every
+    // 4th row and column.
+    final hist = List.generate(3, (_) => Int32List(256));
+    final src = bgr.isContinuous ? bgr : bgr.clone();
+    final px = src.data;
+    final gd = gray.data;
+    final paperLim = 0.92 * p;
+    var count = 0;
+    for (var y = 0; y < h; y += 4) {
+      for (var x = 0; x < w; x += 4) {
+        final i = y * w + x;
+        if (gd[i] >= paperLim) {
           hist[0][px[i * 3]]++;
           hist[1][px[i * 3 + 1]]++;
           hist[2][px[i * 3 + 2]]++;
           count++;
         }
       }
-      int median(Int32List hst) {
-        int at(int k) {
-          var acc = 0;
-          for (var v = 0; v < 256; v++) {
-            acc += hst[v];
-            if (acc > k) return v;
-          }
-          return 255;
+    }
+    if (!identical(src, bgr)) src.dispose();
+    int median(Int32List hst) {
+      int at(int k) {
+        var acc = 0;
+        for (var v = 0; v < 256; v++) {
+          acc += hst[v];
+          if (acc > k) return v;
         }
-
-        // numpy's median, then astype(uint8) (truncates).
-        return count.isOdd ? at(count ~/ 2) : (at(count ~/ 2 - 1) + at(count ~/ 2)) ~/ 2;
+        return 255;
       }
 
-      final colour = count == 0
-          ? cv.Scalar.all(255)
-          : cv.Scalar(median(hist[0]).toDouble(), median(hist[1]).toDouble(), median(hist[2]).toDouble());
-      final out = bgr.clone();
-      out.setTo(colour, mask: grown);
-      grown.dispose();
-      return out;
-    } finally {
-      labels.dispose();
+      // numpy's median, then astype(uint8) (truncates).
+      return count.isOdd ? at(count ~/ 2) : (at(count ~/ 2 - 1) + at(count ~/ 2)) ~/ 2;
     }
+
+    final colour = count == 0
+        ? cv.Scalar.all(255)
+        : cv.Scalar(median(hist[0]).toDouble(), median(hist[1]).toDouble(), median(hist[2]).toDouble());
+    final out = bgr.clone();
+    out.setTo(colour, mask: grown);
+    grown.dispose();
+    return out;
   } finally {
     gray.dispose();
   }
