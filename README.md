@@ -14,12 +14,12 @@ Flash Dox is a cross-platform mobile app that turns phone photos into clean, pri
 ## Highlights
 
 - Built a **production-structured Flutter app (~29,000 lines of hand-written Dart)** using **Clean Architecture** across 11 feature modules, with **BLoC** state management, **dependency injection** (`get_it` + `injectable`) and a **pure-Dart domain layer**.
-- Implemented an **on-device computer-vision pipeline in OpenCV** (about 3,500 lines) covering multi-strategy edge detection, perspective warp, orientation correction, illumination correction, paper whitening, white balance, CLAHE, luma-only non-local-means denoising, adaptive thresholding, blur detection and person/background matting.
+- Implemented an **on-device computer-vision pipeline in OpenCV** (about 3,500 lines) covering multi-strategy edge detection, perspective warp, orientation correction, illumination correction, paper whitening, white balance, CLAHE, noise-adaptive bilateral denoising, adaptive thresholding, blur detection and person/background matting.
 - **Ported a Python/NumPy image pipeline to Dart line by line** and backed it with **automated parity tests**. Every filter matches the reference to within **0.07 grey levels on average** (99th percentile ≤ 3), and the OCR and black-and-white outputs are **pixel-identical**.
 - Designed a **clean-once render pipeline**: the slow step (denoising) runs once per page at export size, and every filter preview, viewer image, share and print sheet starts from that cleaned base. On a 2019 mid-range test phone, denoising had been 97 % of the time a 1-page share took (16–25 s).
 - Wrote a **custom long-lived background isolate worker** with **interactive and background priority lanes**, so what the user is waiting for always runs before cache work, and the UI stays at full frame rate.
 - Added a **low-RAM mode** driven by a native memory query (Kotlin / Swift), which caps render sizes and uses a cheaper denoise on clean photos on phones with ≤ 3 GB of RAM.
-- Handled **48–200 MP camera sensors** without running out of memory: the app **parses JPEG headers directly** to read image size without decoding, decodes at reduced scale when the target allows, and stores originals at most 3000 px (still ~300 DPI on A4).
+- Handled **48–200 MP camera sensors** without running out of memory: the app **parses JPEG headers directly** to read image size without decoding, decodes at reduced scale when the target allows, and never makes a page longer than 2000 px (~170 DPI on A4).
 - Designed **non-destructive editing**. Every edit is stored as data, processed images are caches that can be rebuilt at any time, and an unfinished scan is saved as a **draft** that survives the app being killed.
 - Built **native platform integrations**: an Android share-intent receiver and device channels in **Kotlin**, and an iOS **Share Extension** in **Swift**.
 - Generated **true-to-size print layouts** for ID cards (ISO ID-1, 85.6 × 54 mm), passports (ID-3) and passport photo sheets (35 × 45 mm and US 2 × 2 in), with double-sided and single-page PDF output and dashed cut lines.
@@ -35,7 +35,7 @@ All of it runs on the phone, with OpenCV called from Dart over FFI. Details are 
 |---|---|
 | **Reference port** | A Python/NumPy pipeline ported line by line, with parity tests: **≤ 0.07 grey levels mean difference**, p99 ≤ 3, OCR and B&W **pixel-identical**. NumPy's `median`, `percentile` and `astype(uint8)` rounding re-implemented exactly so errors don't build up from step to step. |
 | **Detection and geometry** | **Multi-cue document detection** (Canny edges, Otsu on LAB lightness, inverse Otsu on HSV saturation) → convex hull → `approxPolyDP` → minimum-area-rectangle fallback, scored on corner angles, area, rectangularity and expected aspect ratio. **Magnetic edges** from `HoughLinesP`, collinear-segment merging and line intersections. Perspective warp, and **orientation correction without EXIF** using the motion sensors' reading at capture time. |
-| **Enhancement** | **Illumination normalisation** (dividing by an estimated paper background), gray-world white balance, CLAHE on lightness only and paper whitening, all in **float**, which removed the contour and "marble" artefacts that rounding had caused. **Noise-adaptive denoising**: σ estimated per image, non-local means on luma only, chroma smoothed at ¼ size, **~6× faster** than colour NLM, with a bilateral preview while it runs. Adaptive-threshold B&W and a separate OCR render (Google ML Kit). |
+| **Enhancement** | **Illumination normalisation** (dividing by an estimated paper background), gray-world white balance, CLAHE on lightness only and paper whitening, all in **float**, which removed the contour and "marble" artefacts that rounding had caused. **Noise-adaptive denoising**: σ estimated per image, a bilateral filter on luma only, chroma smoothed at ¼ size (~20× faster than the non-local means it replaced). Adaptive-threshold B&W and a separate OCR render (Google ML Kit). |
 | **Quality analysis** | **Partial-blur detection** on a 3 × 3 grid: the ratio of median Laplacian to gradient on each cell's strongest edges (≈ 1/σ of the blur). A retake is suggested only when part of the page is clearly softer than the rest. |
 | **Segmentation and matting** | Passport-photo background replacement: ML Kit selfie segmentation, refined at the hair line, then **blur-fusion foreground estimation** (Forte & Pitié 2021) so the old wall colour is removed from edge pixels before blending with the new background. |
 | **Mobile performance** | A **clean-once render architecture**: each page is denoised once at export size, and every filter, preview and export reuses it. Denoising had been **97 %** of a 16–25 s export on a 2019 mid-range phone. A two-lane priority worker isolate, a **low-RAM mode**, explicit native `Mat` ownership checked by a test, and **JPEG header parsing + reduced-scale decoding** for 48–200 MP photos. |
@@ -54,7 +54,7 @@ All of it runs on the phone, with OpenCV called from Dart over FFI. Details are 
 | **Documents** | Multi-page documents with smart names, folders (Bills, IDs, Education, Receipts, Office), rename, drag-to-reorder, add and delete pages. Long-press in Recent to select several documents and delete (with Undo), share or move them. |
 | **Viewer** | Opens on saved 1600 px display images, so pages appear instantly and never show the unfiltered photo. Pinch to zoom, page counter. |
 | **OCR** | Offline text extraction with Google ML Kit, run on a dedicated OCR-optimised render rather than the user's chosen filter. Edit, copy, or share the text as `.txt`. |
-| **Export** | PDF / JPG / PNG through the system share sheet or saved to the gallery. Standard (2000 px) or High (3000 px) quality with a per-page size estimate, page size (Auto, A4, Letter, same as scan), layout, image size, a maximum file size, and an optional "Scanned with Flash Dox" footer. The last choices are remembered per scan type. |
+| **Export** | PDF / JPG / PNG through the system share sheet or saved to the gallery. Standard (q80) or High (q92) quality at 2000 px with a per-page size estimate, page size (Auto, A4, Letter, same as scan), layout, image size, a maximum file size, and an optional "Scanned with Flash Dox" footer. The last choices are remembered per scan type. |
 | **Print layouts** | Cut-ready ID card and passport sheets at real physical size, as a double-sided PDF, a one-page PDF or an image, with a full-width swipeable preview and a front/back swap. |
 | **Passport photos** | On-device background removal (ML Kit selfie segmentation + matting) with white, off-white, light blue, sky blue or dark blue backgrounds, a natural touch-up, several people on one sheet, and up to 25 photos on A4 as PDF or JPG. |
 | **Signature** | Draw a signature once (smoothed with Catmull-Rom splines) or lift one from a photo, then place it on any page. |
@@ -98,8 +98,8 @@ data (Drift DB, OpenCV, ML Kit, PDF implementations)
 The core of the app is an OpenCV pipeline of about 3,500 lines (`features/editor/data/opencv/pipeline.dart`). It is written as small synchronous functions that can be tested in isolation and run inside the background isolate.
 
 ### Capture
-- **Orientation without EXIF.** Many Android camera stacks write no usable EXIF tag. `normalizeCapture` combines the tag with what the camera knew at capture time (device orientation from the sensors, lens facing) and bakes an upright JPEG once, so a page can never come back sideways or be turned twice.
-- **Smaller originals.** Photos above 3000 px are shrunk in the same single re-encode (JPEG q90): a 16 MP / 4 MB camera file becomes ~1.3 MB, still ~300 DPI on A4.
+- **Photos kept as the camera saved them.** The scanner camera is camerawesome (a patched copy in `packages/camerawesome`): a 4:3 preview, ~8 MP photos (HD: the sensor's largest) and a separate 320 px NV21 analysis stream for the live outline. A photo is never decoded or re-encoded to make it upright: the turn it needs (`tagUpright`, from the EXIF tag and what the camera knew) is written into its EXIF orientation tag, and every read applies it.
+- **Prepared while shooting.** Each photo gets a 1000 px work copy and its corners at once (on the interactive lane), then its full-quality base and first look in the background (`ScanWarmer`), so Done opens Adjust edges and Enhance on pages that are already made.
 - **Partial-blur check.** `blurryRegions` scores a 3 × 3 grid on each cell's strongest edges (median |Laplacian| / |gradient|, about 1/σ for an edge blurred by σ whatever the ink's darkness). A warning needs 2 of 9 cells under 0.4 × the sharpest, which keeps false alarms rare.
 
 ### Edge detection
@@ -109,7 +109,8 @@ The core of the app is an OpenCV pipeline of about 3,500 lines (`features/editor
 - **Magnetic edges:** Canny + `HoughLinesP`, collinear segment merging and line intersections produce snap targets for manual corner adjustment.
 
 ### Cleaning and filters
-- **Fast denoise.** Non-local means on luma only (YCrCb, template 5 / search 11), with chroma blurred at quarter size. Strength follows the measured noise (`clamp(σ × 0.8, 3, 6)`), and a clean photo (σ < 1.5) is left alone. About 6× faster than colour NLM. A bilateral `denoisePreview` (~10× cheaper) feeds the instant first preview.
+- **Fast denoise.** A bilateral filter on luma only (YCrCb, 5 px, colour σ = strength × 6), with chroma blurred at quarter size. Strength follows the measured noise (`clamp(σ × 0.8, 3, 6)`), and a clean photo (σ < 1.5) is left alone. It replaced non-local means (round 11c), which cost ~8 s per dim-light page on a low-end phone.
+- **Statistics on a sixteenth.** Every percentile, median and gray-world mean is taken on every 4th row and column, through histograms (no sorting); the whitening curve is a 1001-step lookup table.
 - **Auto:** gray-world white balance → illumination normalisation (dividing by an estimated paper background) → **paper whitening** → CLAHE on lightness only → slight saturation boost, all in **float**. Rounding between steps used to draw grey "marble" patches and contour lines on plain paper; working in float removes them. Text stays crisp, and stamps and photos keep their colour.
 - **ID colour:** sharp, true colours with no background whitening, because a card is not white paper.
 - **B&W print:** normalise → adaptive threshold with a block size scaled to the image width → median filter, for photocopy-style output.
@@ -121,8 +122,8 @@ The core of the app is an OpenCV pipeline of about 3,500 lines (`features/editor
 - `enhancePhoto` evens light and colour, softens skin and sharpens eyes and hair. `photoSheetImage` composes JPG sheets with dashed cut lines; PDF sheets place each photo at real size.
 
 ### Render pipeline and performance
-- **Clean once, reuse everywhere.** `CleanBaseService` owns one job per page and size: crop → warp → denoise → a lossless base at export size (2000 px, or 3000 px for High), plus a 1200 px copy for Enhance. Jobs are joined by whoever needs them next, promoted to the interactive lane when the user is waiting, and dropped while still queued when a page is deleted. Every filter is split into a `…From(clean)` step, so a filter change only re-runs the cheap part.
-- **Size tiers.** 300 px thumbnails (q80), 1200 px Enhance previews, 1600 px viewer images (q85), Standard exports at 2000 px (q80) and High at 3000 px (q92).
+- **Clean once, reuse everywhere.** `CleanBaseService` owns one job per page and size: crop → warp → denoise → a JPEG base (q95) at export size (2000 px; no page is ever longer), plus a 1200 px copy for Enhance. Jobs are joined by whoever needs them next, promoted to the interactive lane when the user is waiting, and dropped while still queued when a page is deleted. Every filter is split into a `…From(clean)` step, so a filter change only re-runs the cheap part.
+- **Size tiers.** 300 px thumbnails (q80), 1200 px Enhance previews, 1600 px viewer images (q85), Standard exports at 2000 px (q80) and High at 2000 px (q92).
 - **Encode once.** Every output is JPEG-encoded a single time, and PDFs embed those JPEG bytes directly instead of decoding and re-compressing them.
 - **Caches that survive saving.** Cache names are keyed on file size and modification time rather than path, so renders made while editing still match after the page moves into its document folder. Older documents get their viewer images built in the background shortly after launch.
 - **Huge photos without running out of memory.** Image size is read straight from the JPEG header (no decode), and 48–200 MP photos are decoded at ½ or ¼ scale (`IMREAD_REDUCED_COLOR_*`) when the target size allows.
@@ -146,10 +147,10 @@ The core of the app is an OpenCV pipeline of about 3,500 lines (`features/editor
 
 - **Android:** a Kotlin `MainActivity` receives `ACTION_SEND` / `ACTION_SEND_MULTIPLE` intents (both cold start and `onNewIntent`) and passes file paths to Dart over a `MethodChannel`. Further channels report free storage (low-space warnings) and total RAM / `isLowRamDevice` (low-RAM mode).
 - **iOS:** a Swift **Share Extension** target with an app group, so photos shared from other apps open in Flash Dox; `ProcessInfo.physicalMemory` feeds the same device profile.
-- **Camera start-up:** the camera list is fetched during the splash, and the camera is released when the app goes to the background and reopened on return.
+- **Camera:** camerawesome (CameraX on Android) runs the preview, ~8 MP photos and a small analysis stream at once; a patched copy (`packages/camerawesome/FLASHDOX_PATCH.md`) honours the photo size. The camera is released when the app goes to the background and reopened on return.
 - **Native splash** (`flutter_native_splash`) hands off to an in-app splash drawn at the same size and position, with night-mode-aware backgrounds.
 - **Native build hook config:** the OpenCV build includes only `imgproc`, `imgcodecs` and `photo`, which keeps the binary small.
-- **Permissions:** the release build asks only for `CAMERA`.
+- **Permissions:** the release build asks for `CAMERA`, plus storage on Android 9 and below only (Save to phone).
 
 ---
 
@@ -203,7 +204,7 @@ The core of the app is an OpenCV pipeline of about 3,500 lines (`features/editor
 | Computer vision | OpenCV via `opencv_dart` (FFI) |
 | Machine learning | Google ML Kit Text Recognition and Selfie Segmentation (on-device) |
 | Documents | `pdf` (PDF generation), `flutter_svg`, `share_plus`, `gal` |
-| Device | `camera`, `sensors_plus`, `image_picker`, `file_picker`, `audioplayers` |
+| Device | `camerawesome` (patched copy), `sensors_plus`, `image_picker`, `file_picker`, `audioplayers` |
 | Native | Kotlin (Android `MethodChannel`s), Swift (iOS Share Extension, device channel) |
 | Testing / CI | `flutter_test`, `mocktail`, golden tests, `very_good_analysis`, GitHub Actions |
 
@@ -282,10 +283,15 @@ flutter build apk --split-per-abi -t lib/main_prod.dart
   values).
 * **Logs.** `[capture]`, `[ingest]`, `[orient]`, `[step]`, `[queue]` and
   `[perf]` lines give per-step timings on a device (debug and profile builds).
+  `[FD-PERF]` lines (`page=3 step=detect ms=412 in=1000x750 out=4pts
+  isolate=worker`) are also written to `perf.log`; Settings → About →
+  long-press the version shares it and holds four feature switches for
+  timing runs (debug, profile, or a release build with
+  `--dart-define=FD_TEST=true`).
 * **Edge fixtures.** `test/fixtures/edges/*.jpg` + corner JSON (README
   there).
 * **OpenCV modules:** `hooks.user_defines.dartcv4.include_modules` in
-  pubspec — `photo` is required (non-local-means denoise).
+  pubspec — `photo` is required.
 * **iOS share-in** needs a one-time Xcode step: see `ios/ShareExtension/README.md`.
 * **Benchmarks / evidence:** `flutter test test/bench --tags bench
   --run-skipped` prints timings and writes `docs/round3/results_dart.jpg`.
