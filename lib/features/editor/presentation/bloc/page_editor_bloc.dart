@@ -9,7 +9,6 @@ import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
-import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
@@ -44,7 +43,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
     this._renderService,
     this._prepare,
     this._previews,
-    this._namer,
     this._bases,
     this._drafts,
     @factoryParam EditorArgs args,
@@ -122,7 +120,6 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
   final PageRenderService _renderService;
   final PreparePages _prepare;
   final PreviewCache _previews;
-  final SmartNamer _namer;
   final CleanBaseService _bases;
   final DraftService _drafts;
 
@@ -974,7 +971,8 @@ class PageEditorBloc extends Bloc<PageEditorEvent, PageEditorState> {
               ),
         );
         // A new scan gets a smart-name suggestion (feature 3).
-        if (args.isNewDocument) unawaited(_namer.suggestFor(docId));
+        // Round 11c: no automatic text recognition after a scan; the
+        // smart name comes after Extract text (OcrCubit).
       },
     );
   }

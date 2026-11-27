@@ -13,11 +13,11 @@ import 'package:flutter/painting.dart' show EdgeInsets;
 /// map screen fractions to the same photo fractions. They still handle a
 /// viewport of another shape (cover fit) for safety.
 abstract final class PreviewGeometry {
-  /// Portrait aspect (width / height) of a capture until the camera reports
-  /// its own: 9:16, the `ultraHigh` photo (round 7). The layout uses it from
-  /// the first frame, so nothing moves when the camera is ready (round 10,
-  /// P0-2).
-  static const double defaultPhotoAspect = 9 / 16;
+  /// Portrait aspect (width / height) of a capture: round 11c, 3:4 (the
+  /// camera runs at 4:3, so the photo, the preview and the small analysis
+  /// frames all see the same view). The layout uses it from the first
+  /// frame, so nothing moves when the camera is ready (round 10, P0-2).
+  static const double defaultPhotoAspect = 3 / 4;
 
   /// The guide frame as fractions of the [viewport]: a constant shape on
   /// screen (P1-4), 84 % of the width, or 72 % of the height of [area] if

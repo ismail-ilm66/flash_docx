@@ -1,21 +1,26 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:audioplayers/audioplayers.dart';
-import 'package:camera/camera.dart';
+import 'package:camerawesome/camerawesome_plugin.dart' as aw;
+import 'package:camerawesome/pigeon.dart' as awp;
 import 'package:flash_dox/app/di/injection.dart';
 import 'package:flash_dox/app/router/app_router.dart' show rootNavigatorKey;
 import 'package:flash_dox/app/router/routes.dart';
 import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/extensions/context_ext.dart';
+import 'package:flash_dox/core/perf/debug_switches.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/device_profile.dart';
+import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/services/storage_service.dart';
+import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/photo/presentation/photo_crop_page.dart';
-import 'package:flash_dox/features/scanner/data/camera_list.dart';
 import 'package:flash_dox/features/scanner/data/device_orientation_tracker.dart';
 import 'package:flash_dox/features/scanner/data/import_service.dart';
 import 'package:flash_dox/features/scanner/data/live_page_detector.dart';
@@ -50,7 +55,14 @@ class RetakeShot {
 
 /// The hint over the shutter, per entry point (round 5, P1-7). Without one,
 /// it follows the scan mode.
-enum CameraHint { document, idCard, passport, passportPhoto, signature, extractText }
+enum CameraHint {
+  document,
+  idCard,
+  passport,
+  passportPhoto,
+  signature,
+  extractText,
+}
 
 class CameraArgs {
   const CameraArgs({
@@ -93,7 +105,11 @@ class CameraPage extends StatelessWidget {
     final a = args ?? const CameraArgs();
     final mode = a.mode ?? ScanMode.document;
     // Round 7, P0-3: only a new scan is kept as a draft.
-    final draft = !a.retake && !a.returnPages && a.addToDocumentId == null && a.tool == null;
+    final draft =
+        !a.retake &&
+        !a.returnPages &&
+        a.addToDocumentId == null &&
+        a.tool == null;
     return BlocProvider(
       create: (_) => getIt<ScanSessionBloc>(param1: mode, param2: draft),
       child: _CameraView(args: a),
@@ -110,15 +126,30 @@ class _CameraView extends StatefulWidget {
 }
 
 class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
-  final DeviceOrientationTracker _orientation = getIt<DeviceOrientationTracker>();
-  CameraController? _controller;
+  final DeviceOrientationTracker _orientation =
+      getIt<DeviceOrientationTracker>();
+
+  /// Round 11c, B1: camerawesome. Its widget owns the camera; [_cam] is its
+  /// photo state once the preview runs. A new [_camKey] opens the camera
+  /// again (lens flip, back from the background); [_camOn] false closes it.
+  aw.PhotoCameraState? _cam;
+  int _camKey = 0;
+  bool _camOn = false;
+  aw.SensorConfig? _sensorConfig;
+
+  /// Where the next photo is written (camerawesome asks when it saves).
+  String? _nextShot;
+
+  /// The analysis frame's turn to the portrait screen, learned while the
+  /// phone is upright (the stream follows how the phone is held).
+  int? _portraitRotation;
   bool _permissionDenied = false;
   bool _initializing = true;
   bool _capturing = false;
 
   /// Passport photo (P1-3.1): the lens in use, the 3 s self-timer and its
   /// countdown.
-  CameraLensDirection _lens = CameraLensDirection.back;
+  bool _front = false;
   bool _timerOn = false;
   int? _countdown;
 
@@ -140,7 +171,6 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   StreamSubscription<GyroscopeEvent>? _gyro;
   Timer? _focusTimer;
   bool _moving = false;
-
 
   // ---- round 11 (section G) ----
   final PrefsService _prefs = getIt<PrefsService>();
@@ -177,14 +207,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   double _tilt = 0;
   StreamSubscription<AccelerometerEvent>? _accel;
 
-  /// Portrait aspect (width / height) of the capture, or 9:16 until known.
-  double get _photoAspect {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) {
-      return PreviewGeometry.defaultPhotoAspect;
-    }
-    return 1 / c.value.aspectRatio;
-  }
+  /// Portrait aspect (width / height) of the capture: the camera runs at
+  /// 4:3 (round 11c).
+  double get _photoAspect => PreviewGeometry.defaultPhotoAspect;
 
   @override
   void initState() {
@@ -193,66 +218,116 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     // P1-4: the camera screen is portrait only; EXIF uprights the photos.
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _orientation.start();
-    unawaited(_init(lens: _lens));
+    unawaited(_openCamera());
     unawaited(_checkStorage());
     unawaited(_loadShutterSound());
-    _gyro = gyroscopeEventStream(samplingPeriod: SensorInterval.uiInterval).listen(
-      (e) {
-        if (_motion.add((x: e.x, y: e.y, z: e.z, at: e.timestamp)) && mounted) {
-          setState(() => _moving = _motion.isMoving);
-        }
-      },
-      onError: (Object _) {}, // no gyroscope: no hint
-      cancelOnError: true,
-    );
+    _gyro = gyroscopeEventStream(samplingPeriod: SensorInterval.uiInterval)
+        .listen(
+          (e) {
+            if (_motion.add((x: e.x, y: e.y, z: e.z, at: e.timestamp)) &&
+                mounted) {
+              setState(() => _moving = _motion.isMoving);
+            }
+          },
+          onError: (Object _) {}, // no gyroscope: no hint
+          cancelOnError: true,
+        );
     // Focus before the tap: continuous autofocus, and every ~1.5 s, if the
     // phone moved, focus and exposure go back to the page.
-    _focusTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) => _refocusOnPage());
-    // P1-5: the tilt guide (angle between the screen and the floor).
-    _accel = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval).listen(
-      (e) {
-        final g = math.sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
-        if (g < 1) return;
-        final tilt = math.acos((e.z.abs() / g).clamp(0.0, 1.0)) * 180 / math.pi;
-        // Redraw only when it matters (the 20° line, the 8° green dot).
-        if ((tilt > 20) != (_tilt > 20) || (tilt < 8) != (_tilt < 8)) {
-          if (mounted) setState(() => _tilt = tilt);
-        } else {
-          _tilt = tilt;
-        }
-      },
-      onError: (Object _) {},
-      cancelOnError: true,
+    _focusTimer = Timer.periodic(
+      const Duration(milliseconds: 1500),
+      (_) => _refocusOnPage(),
     );
+    // P1-5: the tilt guide (angle between the screen and the floor).
+    _accel = accelerometerEventStream(samplingPeriod: SensorInterval.uiInterval)
+        .listen(
+          (e) {
+            final g = math.sqrt(e.x * e.x + e.y * e.y + e.z * e.z);
+            if (g < 1) return;
+            final tilt =
+                math.acos((e.z.abs() / g).clamp(0.0, 1.0)) * 180 / math.pi;
+            // Redraw only when it matters (the 20° line, the 8° green dot).
+            if ((tilt > 20) != (_tilt > 20) || (tilt < 8) != (_tilt < 8)) {
+              if (mounted) setState(() => _tilt = tilt);
+            } else {
+              _tilt = tilt;
+            }
+          },
+          onError: (Object _) {},
+          cancelOnError: true,
+        );
   }
 
   /// Round 11b, C1: the live outline runs in Document mode only (in ID /
   /// passport it sat on the table or grabbed the document under the card;
   /// those keep the frame guide).
   bool get _outlineWanted =>
-      !_selfieTools && widget.args.hint != CameraHint.signature && context.read<ScanSessionBloc>().state.mode == ScanMode.document;
+      DebugSwitches.liveOutline &&
+      !_selfieTools &&
+      widget.args.hint != CameraHint.signature &&
+      context.read<ScanSessionBloc>().state.mode == ScanMode.document;
 
   Future<void> _startOutline() async {
-    final c = _controller;
-    if (!_outlineWanted || c == null || !c.value.isInitialized || _streaming || _leaving) return;
+    final cam = _cam;
+    if (!_outlineWanted || cam == null || _streaming || _leaving) return;
     final live = _live ??= LivePageDetector();
     await live.start();
     _liveSub ??= live.quads.listen(_onOutline);
     try {
-      await c.startImageStream((img) => live.offer(img, c.description.sensorOrientation));
+      await cam.analysisController?.start();
       _streaming = true;
     } catch (e) {
-      debugPrint('[camera] no image stream: $e');
+      debugPrint('[camera] no analysis stream: $e');
     }
   }
 
   Future<void> _stopOutline() async {
-    final c = _controller;
-    if (!_streaming || c == null) return;
+    final cam = _cam;
+    if (!_streaming || cam == null) return;
     _streaming = false;
     try {
-      await c.stopImageStream();
+      await cam.analysisController?.stop();
     } catch (_) {}
+  }
+
+  /// Round 11c, B1: one small analysis frame (320 px, ~8 a second) to the
+  /// live isolate; frames that come while one is being looked at are
+  /// dropped there.
+  Future<void> _onFrame(aw.AnalysisImage img) async {
+    final live = _live;
+    if (!_streaming || live == null || _leaving) return;
+    final sw = Stopwatch()..start();
+    final reported = switch (img.rotation) {
+      aw.InputAnalysisImageRotation.rotation90deg => 90,
+      aw.InputAnalysisImageRotation.rotation180deg => 180,
+      aw.InputAnalysisImageRotation.rotation270deg => 270,
+      _ => 0,
+    };
+    if (_orientation.turns == 0) _portraitRotation = reported;
+    final rotation = _portraitRotation ?? (_front ? 270 : 90);
+    img.when(
+      nv21: (f) => live.offerFrame(
+        f.bytes,
+        w: f.width,
+        h: f.height,
+        stride: f.planes.isEmpty ? f.width : f.planes.first.bytesPerRow,
+        nv21: true,
+        rotation: rotation,
+      ),
+      bgra8888: (f) => live.offerFrame(
+        f.bytes,
+        w: f.width,
+        h: f.height,
+        stride: f.planes.isEmpty ? f.width * 4 : f.planes.first.bytesPerRow,
+        nv21: false,
+        rotation: rotation,
+      ),
+    );
+    PerfLog.step(
+      'stream_frame',
+      sw.elapsedMilliseconds,
+      input: '${img.width}x${img.height}',
+    );
   }
 
   /// Each frame's page through [LiveOutline]: the eased outline, and auto
@@ -260,10 +335,24 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   void _onOutline(Quad? q) {
     if (!mounted || _leaving) return;
     final (fw, fh) = _live!.frameSize;
+    PerfLog.step(
+      'live_detect',
+      _live!.sentAt.elapsedMilliseconds,
+      input: '${fw}x$fh',
+      output: q == null ? 'none' : '4pts',
+      isolate: 'live',
+    );
     final tracker = _tracker ??= LiveOutline(fw.toDouble(), fh.toDouble());
-    final s = tracker.update(q, _clock.elapsedMicroseconds / 1e6, phoneStill: !_moving);
+    final s = tracker.update(
+      q,
+      _clock.elapsedMicroseconds / 1e6,
+      phoneStill: !_moving,
+    );
     if (q != null) _lastPage = DateTime.now();
-    final auto = _autoCapture && context.read<ScanSessionBloc>().state.mode == ScanMode.document && _ready;
+    final auto =
+        _autoCapture &&
+        context.read<ScanSessionBloc>().state.mode == ScanMode.document &&
+        _ready;
     setState(() {
       _outline = s.outline;
       _autoProgress = auto ? s.progress : 0;
@@ -290,13 +379,29 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// the phone hasn't moved (re-aiming a steady phone only makes the lens
   /// hunt).
   Future<void> _refocusOnPage() async {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized || _capturing) return;
-    final tapped = _focusedAt != null && DateTime.now().difference(_focusedAt!) < const Duration(seconds: 5);
+    if (_cam == null || _capturing) return;
+    final tapped =
+        _focusedAt != null &&
+        DateTime.now().difference(_focusedAt!) < const Duration(seconds: 5);
     if (tapped || !_motion.takeFocusRefresh()) return;
-    final point = _cardFocusPoint() ?? const Offset(0.5, 0.5);
-    await _trySet(() => c.setFocusPoint(point));
-    await _trySet(() => c.setExposurePoint(point));
+    await _focusAt(_cardFocusPoint() ?? const Offset(0.5, 0.5));
+  }
+
+  /// Focus and exposure on [photo] (fractions of the portrait photo);
+  /// camerawesome goes back to continuous focus after 5 s.
+  Future<void> _focusAt(Offset photo) async {
+    final cam = _cam;
+    if (cam == null) return;
+    const w = 1000.0;
+    final h = w / _photoAspect;
+    final size = awp.PreviewSize(width: w, height: h);
+    await _trySet(
+      () => cam.focusOnPoint(
+        flutterPosition: Offset(photo.dx * w, photo.dy * h),
+        pixelPreviewSize: size,
+        flutterPreviewSize: size,
+      ),
+    );
   }
 
   Future<void> _checkStorage() async {
@@ -305,69 +410,104 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (mounted) setState(() => _storage = level);
   }
 
-  Future<void> _init({CameraLensDirection lens = CameraLensDirection.back}) async {
+  /// Round 11c, B1: asks for the camera permission, then mounts the
+  /// camerawesome preview ([_preview]); [_onCameraState] finishes the
+  /// set-up once it runs.
+  Future<void> _openCamera() async {
     try {
-      final cams = await CameraList.get();
-      if (cams.isEmpty) {
-        setState(() => _initializing = false);
+      final granted = await aw.CamerawesomePlugin.checkAndRequestPermissions(
+        false,
+        checkMicrophonePermissions: false,
+      );
+      if (!mounted) return;
+      if (granted != null &&
+          !granted.contains(awp.CamerAwesomePermission.camera)) {
+        setState(() {
+          _initializing = false;
+          _permissionDenied = true;
+        });
         return;
       }
-      // The back camera unless the passport photo flip asked for the front.
-      final back = cams.firstWhere(
-        (c) => c.lensDirection == lens,
-        orElse: () => cams.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cams.first),
-      );
-      // Round 7, P0-1/P0-2: 3840 × 2160 instead of the full 16 MP sensor.
-      // Pages are resized to 3000 px anyway, and old phones save it much
-      // faster. Preview and photo share the 16:9 shape, and the preview is
-      // shown whole, so what you see is what you get.
-      // Round 11, P1-9: HD photos use the full sensor (up to 16 MP).
-      final ctrl = CameraController(
-        back,
-        _hd ? ResolutionPreset.max : ResolutionPreset.ultraHigh,
-        enableAudio: false,
-        imageFormatGroup: ImageFormatGroup.jpeg,
-      );
-      await ctrl.initialize();
-      await ctrl.lockCaptureOrientation(DeviceOrientation.portraitUp);
-      await _trySet(() => ctrl.setFocusMode(FocusMode.auto));
-      await _trySet(() => ctrl.setExposureMode(ExposureMode.auto));
-      if (!mounted) {
-        await ctrl.dispose();
-        return;
-      }
-      _controller = ctrl;
-      // A new controller (resume, lens flip) starts at 1×: apply the mode again.
-      _cameraMode = null;
-      final session = context.read<ScanSessionBloc>().state;
-      await _applyFlash(session.flashOn);
-      await _applyModeCamera(session.mode);
-      setState(() => _initializing = false);
-      unawaited(_startOutline());
-    } on CameraException catch (e) {
-      setState(() {
-        _initializing = false;
-        _permissionDenied =
-            e.code.toLowerCase().contains('accessdenied') ||
-            e.code.toLowerCase().contains('permission');
-      });
     } catch (_) {
-      setState(() => _initializing = false);
+      // No permission API on this platform: let the camera ask.
+    }
+    if (!mounted || _leaving) return;
+    _sensorConfig?.dispose();
+    _sensorConfig = aw.SensorConfig.single(
+      sensor: aw.Sensor.position(
+        _front ? aw.SensorPosition.front : aw.SensorPosition.back,
+      ),
+      aspectRatio: aw.CameraAspectRatios.ratio_4_3,
+      flashMode: aw.FlashMode.none,
+    );
+    setState(() {
+      _cam = null;
+      _camOn = true;
+      _camKey++;
+      _initializing = true;
+    });
+  }
+
+  /// The camera is running: photo size, flash, the mode's zoom and focus,
+  /// then the live outline. Once per opening.
+  void _onCameraState(aw.CameraState state) {
+    state.when(
+      onPhotoMode: (photo) {
+        if (identical(_cam, photo)) return;
+        _cam = photo;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted || !identical(_cam, photo)) return;
+          setState(() => _initializing = false);
+          await _applyPhotoSize();
+          // A new camera starts at 1×: apply the mode again.
+          _cameraMode = null;
+          if (!mounted) return;
+          final session = context.read<ScanSessionBloc>().state;
+          await _applyFlash(session.flashOn);
+          await _applyModeCamera(session.mode);
+          unawaited(_startOutline());
+        });
+      },
+    );
+  }
+
+  /// Round 11c, B1: about 8 MP (the largest 4:3 size up to 8.5 MP); HD the
+  /// sensor's largest. Needs the patched camerawesome on Android
+  /// (packages/camerawesome/FLASHDOX_PATCH.md).
+  Future<void> _applyPhotoSize() async {
+    try {
+      final sizes = await aw.CamerawesomePlugin.getSizes();
+      if (sizes.isEmpty) return;
+      bool fourThree(Size s) =>
+          ((s.longestSide / s.shortestSide) - 4 / 3).abs() < 0.02;
+      final candidates = sizes.where(fourThree).toList()
+        ..sort((a, b) => (b.width * b.height).compareTo(a.width * a.height));
+      if (candidates.isEmpty) return;
+      final pick = _hd
+          ? candidates.first
+          : candidates.firstWhere(
+              (s) => s.width * s.height <= 8.5e6,
+              orElse: () => candidates.last,
+            );
+      debugPrint(
+        '[camera] photo size ${pick.width.toInt()}×${pick.height.toInt()}${_hd ? ' (HD)' : ''}',
+      );
+      await aw.CamerawesomePlugin.setPhotoSize(
+        pick.width.toInt(),
+        pick.height.toInt(),
+      );
+    } catch (e) {
+      debugPrint('[camera] photo size: $e');
     }
   }
 
   /// P1-3.1: reopen the camera on the other lens.
   Future<void> _flip() async {
     if (_capturing || _countdown != null) return;
-    final old = _controller;
     await _stopOutline();
-    setState(() {
-      _controller = null;
-      _initializing = true;
-      _lens = _lens == CameraLensDirection.back ? CameraLensDirection.front : CameraLensDirection.back;
-    });
-    await old?.dispose();
-    if (mounted) await _init(lens: _lens);
+    _front = !_front;
+    _portraitRotation = null;
+    if (mounted) await _openCamera();
   }
 
   /// The shutter: straight away, or after the 3 s self-timer (P1-3.1).
@@ -394,8 +534,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
 
   /// Tap-to-focus: focus and exposure jump to the tapped point.
   Future<void> _onPreviewTap(Offset screen) async {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
+    if (_cam == null) return;
     final photo = PreviewGeometry.viewportToPhoto(
       screen,
       photoAspect: _photoAspect,
@@ -408,9 +547,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       if (mounted) setState(() => _focusPoint = null);
     });
     // ID / passport: every tap refocuses on the card frame (P0-2).
-    final target = _cardFocusPoint() ?? photo;
-    await _trySet(() => c.setFocusPoint(target));
-    await _trySet(() => c.setExposurePoint(target));
+    await _focusAt(_cardFocusPoint() ?? photo);
   }
 
   /// Sound, haptic and the white flash — before `takePicture()` (P0-C).
@@ -418,7 +555,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     unawaited(HapticFeedback.mediumImpact());
     if (getIt<PrefsService>().shutterSound) {
       unawaited(
-        _shutterPlayer.seek(Duration.zero).then((_) => _shutterPlayer.resume()).catchError((Object _) {}),
+        _shutterPlayer
+            .seek(Duration.zero)
+            .then((_) => _shutterPlayer.resume())
+            .catchError((Object _) {}),
       );
     }
     // Round 11b, P0-17: a short flash and the thumbnail are the only
@@ -436,23 +576,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// the card fills more of the sensor; 1× for Document. Focus and exposure
   /// go to the frame centre.
   Future<void> _applyModeCamera(ScanMode mode) async {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized || mode == _cameraMode) return;
+    final cam = _cam;
+    if (cam == null || mode == _cameraMode) return;
     _cameraMode = mode;
     final card = ScanModeRules.of(mode).aspectRatio != null;
     try {
-      final max = await c.getMaxZoomLevel();
-      final min = await c.getMinZoomLevel();
-      await c.setZoomLevel((card ? math.min(_cardZoom, max) : 1.0).clamp(min, max));
+      // camerawesome zooms linearly (0..1 of the field of view between 1×
+      // and the maximum): 1.2× is 1 − 1/1.2 of the way to 1 − 1/max.
+      final max = (await aw.CamerawesomePlugin.getMaxZoom()) ?? 1.0;
+      final ratio = card ? math.min(_cardZoom, max) : 1.0;
+      final linear = max <= 1
+          ? 0.0
+          : ((1 - 1 / ratio) / (1 - 1 / max)).clamp(0.0, 1.0);
+      await cam.sensorConfig.setZoom(linear);
     } catch (_) {}
-    final focus = _cardFocusPoint();
-    if (focus != null) {
-      await _trySet(() => c.setFocusPoint(focus));
-      await _trySet(() => c.setExposurePoint(focus));
-    } else {
-      await _trySet(() => c.setFocusPoint(null));
-      await _trySet(() => c.setExposurePoint(null));
-    }
+    await _focusAt(_cardFocusPoint() ?? const Offset(0.5, 0.5));
   }
 
   /// Centre of the ID / passport frame in photo coordinates; null in
@@ -476,31 +614,34 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   Future<void> _applyFlash(bool on) async {
-    final c = _controller;
-    if (c == null || !c.value.isInitialized) return;
+    final cam = _cam;
+    if (cam == null) return;
     try {
-      await c.setFlashMode(on ? FlashMode.always : FlashMode.off);
+      await cam.sensorConfig.setFlashMode(
+        on ? aw.FlashMode.on : aw.FlashMode.none,
+      );
     } catch (_) {}
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final c = _controller;
     // Round 10, P0-2: released when the app is really in the background
     // (paused), not on every brief "inactive" (the notification shade, a
     // system dialog), which restarted the camera.
     if (state == AppLifecycleState.paused) {
-      if (c == null) return;
+      if (!_camOn) return;
       setState(() => _outline = null);
       unawaited(_shutDown(forGood: false));
-    } else if (state == AppLifecycleState.resumed && _controller == null && !_permissionDenied && !_leaving) {
-      setState(() => _initializing = true);
-      unawaited(_init(lens: _lens));
+    } else if (state == AppLifecycleState.resumed &&
+        !_camOn &&
+        !_permissionDenied &&
+        !_leaving) {
+      unawaited(_openCamera());
     }
   }
 
   /// The preview is live: shutter enabled, hints shown.
-  bool get _ready => !_initializing && (_controller?.value.isInitialized ?? false);
+  bool get _ready => !_initializing && _cam != null;
 
   @override
   void dispose() {
@@ -514,7 +655,7 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     unawaited(_liveSub?.cancel());
     unawaited(_live?.dispose());
     _shutterPlayer.dispose();
-    _controller?.dispose();
+    _sensorConfig?.dispose();
     super.dispose();
   }
 
@@ -532,10 +673,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       if (!auto) _queuedShots++;
       return;
     }
-    final c = _controller;
+    final cam = _cam;
     final bloc = context.read<ScanSessionBloc>();
-    if (c == null ||
-        !c.value.isInitialized ||
+    if (cam == null ||
         _capturing ||
         _storage == StorageLevel.critical ||
         !bloc.state.canCapture) {
@@ -545,33 +685,36 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     setState(() => _capturing = true);
     _captureFeedback();
     WidgetsBinding.instance.addPostFrameCallback(
-      (_) => debugPrint('[perf] shutter tap → flash on screen ${total.elapsedMilliseconds} ms'),
+      (_) => debugPrint(
+        '[perf] shutter tap → flash on screen ${total.elapsedMilliseconds} ms',
+      ),
     );
     try {
       // How the phone is held right now (round 5, P0-1): from the
       // accelerometer, since the plugin's orientation follows the UI, which
       // is locked to portrait. Applied with the sensor angle at ingest.
+      // camerawesome turns the photo for how the phone is held and says so
+      // in its EXIF tag; the turns here only map the guide and the live
+      // outline into the photo.
       final capture = CaptureMeta(
-        sensorOrientation: c.description.sensorOrientation,
+        sensorOrientation: _front ? 270 : 90,
         deviceTurns: _orientation.turns,
-        frontCamera: c.description.lensDirection == CameraLensDirection.front,
+        frontCamera: _front,
+        deviceInExif: true,
       );
-      XFile shot;
-      try {
-        shot = await c.takePicture();
-      } on CameraException catch (e) {
-        // P1-7: a phone that can't take a photo while streaming: stop the
-        // stream just for the shot.
-        if (!_streaming) rethrow;
-        debugPrint('[capture] retry without the outline stream: $e');
-        await _stopOutline();
-        try {
-          shot = await c.takePicture();
-        } finally {
-          unawaited(_startOutline());
-        }
-      }
-      debugPrint('[perf] shutter tap → photo saved ${total.elapsedMilliseconds} ms');
+      // Round 11c, B2: the live outline at the shutter, the page's corners
+      // if detection finds none.
+      final live = _outline;
+      final shot = await _takePhoto(cam);
+      debugPrint(
+        '[perf] shutter tap → photo saved ${total.elapsedMilliseconds} ms',
+      );
+      PerfLog.step(
+        'capture',
+        total.elapsedMilliseconds,
+        page: bloc.state.count + 1,
+        output: '${(File(shot).lengthSync() / 1024).round()} KB',
+      );
       if (!mounted) return;
       // The guide frame in photo coordinates: searched first, and the
       // fallback crop if detection finds nothing (ID / passport only).
@@ -586,13 +729,17 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
               area: layout.guideArea,
             );
       if (widget.args.retake) {
-        context.pop(RetakeShot(shot.path, guide: guide, capture: capture));
+        context.pop(RetakeShot(shot, guide: guide, capture: capture));
         return;
       }
-      bloc.add(SessionCaptured(shot.path, guide: guide, capture: capture));
+      bloc.add(
+        SessionCaptured(shot, guide: guide, capture: capture, live: live),
+      );
       setState(() => _flyTick++);
       // ID card (2 sides) / passport (1 page) finish by themselves.
-      if (bloc.state.isComplete) bloc.add(SessionFinished(waitAll: widget.args.returnPages));
+      if (bloc.state.isComplete) {
+        bloc.add(SessionFinished(waitAll: widget.args.returnPages));
+      }
     } catch (e) {
       debugPrint('[capture] failed: $e');
       if (mounted) context.showSnack(context.l10n.errorImage, error: true);
@@ -608,6 +755,36 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     }
   }
 
+  /// One photo to a new file; a phone that can't take one while the
+  /// analysis stream runs gets a second try without it (P1-7).
+  Future<String> _takePhoto(aw.PhotoCameraState cam) async {
+    Future<String> once() async {
+      final path = _nextShot = getIt<FileStore>().newCapturePath(
+        'shot_${newId()}',
+      );
+      Object? failure;
+      await cam.takePhoto(onPhotoFailed: (e) => failure = e);
+      final f = File(path);
+      if (failure != null || !f.existsSync() || f.lengthSync() == 0) {
+        throw StateError('photo failed: $failure');
+      }
+      return path;
+    }
+
+    try {
+      return await once();
+    } catch (e) {
+      if (!_streaming) rethrow;
+      debugPrint('[capture] retry without the outline stream: $e');
+      await _stopOutline();
+      try {
+        return await once();
+      } finally {
+        unawaited(_startOutline());
+      }
+    }
+  }
+
   /// Round 11b, P0-15.6: leaving the camera (Done, ✕, the app going to
   /// the background) stops everything: the image stream, the live isolate
   /// and the camera. No detection runs after this.
@@ -617,20 +794,20 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// background and the camera comes back on resume.
   Future<void> _shutDown({bool forGood = true}) async {
     if (forGood) _leaving = true;
-    final c = _controller;
-    _controller = null;
-    if (c != null && _streaming) {
-      _streaming = false;
-      try {
-        await c.stopImageStream();
-      } catch (_) {}
-    }
+    await _stopOutline();
     unawaited(_liveSub?.cancel());
     _liveSub = null;
     unawaited(_live?.dispose());
     _live = null;
     _tracker = null;
-    await c?.dispose();
+    _cam = null;
+    // Unmounting camerawesome's widget closes the camera.
+    if (mounted) {
+      setState(() {
+        _camOn = false;
+        _initializing = !forGood;
+      });
+    }
   }
 
   /// P0-16: one status line under the preview, by priority (tilted and no
@@ -642,25 +819,38 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (given != null) {
       want = cameraHintText(l, given);
     } else if (s.guide != GuideLabel.documentPage) {
-      want = cameraHintText(l, s.guide == GuideLabel.passport ? CameraHint.passport : CameraHint.idCard);
+      want = cameraHintText(
+        l,
+        s.guide == GuideLabel.passport
+            ? CameraHint.passport
+            : CameraHint.idCard,
+      );
     } else if (!_ready) {
       want = null;
     } else if (_outline != null) {
       want = l.cameraPageFound;
-    } else if (_tiltGuide && _tilt > 20 && DateTime.now().difference(_lastPage) > const Duration(seconds: 1)) {
+    } else if (_tiltGuide &&
+        _tilt > 20 &&
+        DateTime.now().difference(_lastPage) > const Duration(seconds: 1)) {
       want = l.cameraHoldFlat;
     } else {
       want = l.cameraPointAtPage;
     }
     final now = DateTime.now();
-    if (want != _status && (_status == null || now.difference(_statusSince) >= const Duration(milliseconds: 1500))) {
+    if (want != _status &&
+        (_status == null ||
+            now.difference(_statusSince) >=
+                const Duration(milliseconds: 1500))) {
       _status = want;
       _statusSince = now;
     } else if (want != _status) {
       // Check again once the current message has had its time.
-      Future<void>.delayed(const Duration(milliseconds: 1500) - now.difference(_statusSince), () {
-        if (mounted) setState(() {});
-      });
+      Future<void>.delayed(
+        const Duration(milliseconds: 1500) - now.difference(_statusSince),
+        () {
+          if (mounted) setState(() {});
+        },
+      );
     }
     return _status;
   }
@@ -670,24 +860,25 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (on == _hd || _capturing) return;
     // Round 11b, P0-20: once, on a phone with 4 GB or less.
     final ram = getIt<DeviceProfile>().totalBytes;
-    if (on && !_prefs.hdWarned && (getIt<DeviceProfile>().isLowRam || (ram != null && ram <= 4 * 1024 * 1024 * 1024 + (256 << 20)))) {
+    if (on &&
+        !_prefs.hdWarned &&
+        (getIt<DeviceProfile>().isLowRam ||
+            (ram != null && ram <= 4 * 1024 * 1024 * 1024 + (256 << 20)))) {
       unawaited(_prefs.setHdWarned());
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.cameraHdSlow), persist: false, behavior: SnackBarBehavior.floating),
+          SnackBar(
+            content: Text(context.l10n.cameraHdSlow),
+            persist: false,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
     }
     setState(() => _hd = on);
     unawaited(_prefs.setHdPhotos(on));
-    final old = _controller;
-    await _stopOutline();
-    setState(() {
-      _controller = null;
-      _initializing = true;
-    });
-    await old?.dispose();
-    if (mounted) await _init(lens: _lens);
+    // Only the photo size changes; the preview box stays as it is.
+    await _applyPhotoSize();
   }
 
   void _setAutoCapture(bool on) {
@@ -721,14 +912,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (m == ScanMode.photo) {
       final root = rootNavigatorKey.currentContext;
       context.pop();
-      if (root != null && root.mounted) await startPassportPhoto(root, fromCamera: true);
+      if (root != null && root.mounted) {
+        await startPassportPhoto(root, fromCamera: true);
+      }
       return;
     }
     bloc.add(SessionModeChanged(m));
   }
 
   void _onSwipe(int step) {
-    const modes = [ScanMode.passport, ScanMode.idCard, ScanMode.document, ScanMode.photo];
+    const modes = [
+      ScanMode.passport,
+      ScanMode.idCard,
+      ScanMode.document,
+      ScanMode.photo,
+    ];
     final i = modes.indexOf(context.read<ScanSessionBloc>().state.mode) + step;
     if (i >= 0 && i < modes.length) unawaited(_onMode(modes[i]));
   }
@@ -740,23 +938,43 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) {
           final l = ctx.l10n;
-          Widget toggle(String title, String hint, bool value, void Function(bool) onChanged) => SwitchListTile.adaptive(
-                value: value,
-                onChanged: (v) {
-                  onChanged(v);
-                  setSheet(() {});
-                },
-                title: Text(title, style: ctx.text.titleSmall?.copyWith(fontWeight: FontWeight.w700)),
-                subtitle: Text(hint),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              );
+          Widget toggle(
+            String title,
+            String hint,
+            bool value,
+            void Function(bool) onChanged,
+          ) => SwitchListTile.adaptive(
+            value: value,
+            onChanged: (v) {
+              onChanged(v);
+              setSheet(() {});
+            },
+            title: Text(
+              title,
+              style: ctx.text.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(hint),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          );
           return AppBottomSheet(
             title: l.cameraSettings,
             child: Column(
               children: [
-                toggle(l.cameraAutoCapture, l.cameraAutoCaptureHint, _autoCapture, _setAutoCapture),
-                toggle(l.cameraHdPhotos, l.cameraHdPhotosHint, _hd, (v) => unawaited(_setHd(v))),
-                toggle(l.cameraTiltGuide, l.cameraTiltGuideHint, _tiltGuide, (v) {
+                toggle(
+                  l.cameraAutoCapture,
+                  l.cameraAutoCaptureHint,
+                  _autoCapture,
+                  _setAutoCapture,
+                ),
+                toggle(
+                  l.cameraHdPhotos,
+                  l.cameraHdPhotosHint,
+                  _hd,
+                  (v) => unawaited(_setHd(v)),
+                ),
+                toggle(l.cameraTiltGuide, l.cameraTiltGuideHint, _tiltGuide, (
+                  v,
+                ) {
                   setState(() => _tiltGuide = v);
                   unawaited(_prefs.setTiltGuide(v));
                 }),
@@ -764,8 +982,18 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   setState(() => _grid = v);
                   unawaited(_prefs.setGrid(v));
                 }),
-                toggle(l.cameraShutterSound, l.cameraShutterSoundHint, _prefs.shutterSound, (v) => unawaited(_prefs.setShutterSound(v))),
-                toggle(l.cameraAutoCrop, l.cameraAutoCropHint, _prefs.autoCrop, (v) => unawaited(_prefs.setAutoCrop(v))),
+                toggle(
+                  l.cameraShutterSound,
+                  l.cameraShutterSoundHint,
+                  _prefs.shutterSound,
+                  (v) => unawaited(_prefs.setShutterSound(v)),
+                ),
+                toggle(
+                  l.cameraAutoCrop,
+                  l.cameraAutoCropHint,
+                  _prefs.autoCrop,
+                  (v) => unawaited(_prefs.setAutoCrop(v)),
+                ),
               ],
             ),
           );
@@ -779,7 +1007,11 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   /// Round 11b, C2: the box has the same size and place in every mode and
   /// setting (HD changes the photo's shape on some phones); the camera
   /// stream is cover-fitted into it.
-  CameraLayout get _layout => CameraOverlay.layoutFor(MediaQuery.of(context), PreviewGeometry.defaultPhotoAspect, modes: _showModes);
+  CameraLayout get _layout => CameraOverlay.layoutFor(
+    MediaQuery.of(context),
+    PreviewGeometry.defaultPhotoAspect,
+    modes: _showModes,
+  );
 
   /// The live outline (photo fractions) where it shows in the box.
   Quad? _outlineOnScreen() {
@@ -787,14 +1019,21 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
     if (q == null) return null;
     final box = _layout.box.size;
     Pt map(Pt p) {
-      final o = PreviewGeometry.photoToViewport(Offset(p.x, p.y), photoAspect: _photoAspect, viewport: box);
+      final o = PreviewGeometry.photoToViewport(
+        Offset(p.x, p.y),
+        photoAspect: _photoAspect,
+        viewport: box,
+      );
       return Pt(o.dx, o.dy);
     }
 
     return Quad(tl: map(q.tl), tr: map(q.tr), br: map(q.br), bl: map(q.bl));
   }
 
-  bool get _showModes => !widget.args.retake && !widget.args.returnPages && widget.args.addToDocumentId == null;
+  bool get _showModes =>
+      !widget.args.retake &&
+      !widget.args.returnPages &&
+      widget.args.addToDocumentId == null;
 
   Widget? _banner(BuildContext context, ScanSessionState s) {
     final l = context.l10n;
@@ -933,7 +1172,9 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   photoAspect: PreviewGeometry.defaultPhotoAspect,
                   ready: _ready,
                   // P0-17: never grey while a photo is being taken.
-                  capturing: s.status == SessionStatus.preparing || _storage == StorageLevel.critical,
+                  capturing:
+                      s.status == SessionStatus.preparing ||
+                      _storage == StorageLevel.critical,
                   onClose: () => Navigator.of(context).maybePop(),
                   onFlash: () => context.read<ScanSessionBloc>().add(
                     const SessionFlashToggled(),
@@ -941,26 +1182,35 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                   onMode: (m) => unawaited(_onMode(m)),
                   onShutter: _shutter,
                   onFlip: _selfieTools ? _flip : null,
-                  onTimer: _selfieTools ? () => setState(() => _timerOn = !_timerOn) : null,
+                  onTimer: _selfieTools
+                      ? () => setState(() => _timerOn = !_timerOn)
+                      : null,
                   timerOn: _timerOn,
                   countdown: _countdown,
                   onGallery: widget.args.retake ? null : _importFromSheet,
                   onFinish: () {
                     // P0-15.6: the camera and the live outline stop at once.
                     unawaited(_shutDown());
-                    context.read<ScanSessionBloc>().add(SessionFinished(waitAll: widget.args.returnPages));
+                    context.read<ScanSessionBloc>().add(
+                      SessionFinished(waitAll: widget.args.returnPages),
+                    );
                   },
                   onRemoveLast: s.count == 0 ? null : _undo,
                   onUndo: widget.args.retake ? null : _undo,
                   onSettings: _selfieTools ? null : _openSettings,
                   autoCapture: _autoCapture,
-                  onAutoCapture: s.mode == ScanMode.document && !widget.args.retake ? () => _setAutoCapture(!_autoCapture) : null,
+                  onAutoCapture:
+                      s.mode == ScanMode.document && !widget.args.retake
+                      ? () => _setAutoCapture(!_autoCapture)
+                      : null,
                   hd: _hd,
                   onHd: _selfieTools ? null : () => unawaited(_setHd(!_hd)),
                   outline: _outlineWanted ? _outlineOnScreen() : null,
                   grid: _grid,
                   level: _status == l.cameraHoldFlat ? _tilt : null,
-                  captureProgress: _autoCapture && s.mode == ScanMode.document ? _autoProgress : 0,
+                  captureProgress: _autoCapture && s.mode == ScanMode.document
+                      ? _autoProgress
+                      : 0,
                   preparing: s.status == SessionStatus.preparing,
                   onSwipe: _showModes ? _onSwipe : null,
                   focusPoint: _focusPoint,
@@ -973,7 +1223,8 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
                 // Round 11, P1-2: no box over the preview while the pages are
                 // finished; a small spinner on the stack instead. (Imports,
                 // with no stack yet, still say so.)
-                if (s.status == SessionStatus.preparing && s.count == 0) ProgressOverlay(label: l.sharePreparing),
+                if (s.status == SessionStatus.preparing && s.count == 0)
+                  ProgressOverlay(label: l.sharePreparing),
               ],
             ),
           ),
@@ -983,11 +1234,10 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
   }
 
   Widget _preview(BuildContext context) {
-    final c = _controller;
     final l = context.l10n;
     // Round 10, P0-2: while the camera starts, the box is plain black (no
     // spinner) and the preview fades in when it's live.
-    if (_permissionDenied || (c == null && !_initializing)) {
+    if (_permissionDenied || (!_camOn && !_initializing)) {
       return EmptyState(
         icon: AppIcons.camera,
         title: l.cameraPermissionTitle,
@@ -1000,36 +1250,56 @@ class _CameraViewState extends State<_CameraView> with WidgetsBindingObserver {
         ),
       );
     }
-    // Round 7, P0-2: the whole preview in a box of its own shape, never
-    // cover-cropped: the photo shows exactly what's on screen.
+    final config = _sensorConfig;
+    // Round 7, P0-2: the whole preview in a box of its own shape (3:4, like
+    // the photo), never cover-cropped: the photo shows what's on screen.
     return ColoredBox(
       color: Colors.black,
-      child: AnimatedOpacity(
-        opacity: _ready ? 1 : 0,
-        duration: const Duration(milliseconds: 150),
-        child: !_ready || c == null
-            ? const SizedBox.expand()
-            : ClipRect(
-                child: FittedBox(
-                  fit: BoxFit.cover,
-                  child: SizedBox(
-                    width: 1000,
-                    height: 1000 / _photoAspect,
-                    child: CameraPreview(c),
+      child: !_camOn || config == null
+          ? const SizedBox.expand()
+          : AnimatedOpacity(
+              opacity: _ready ? 1 : 0,
+              duration: const Duration(milliseconds: 150),
+              child: KeyedSubtree(
+                key: ValueKey(_camKey),
+                child: aw.CameraAwesomeBuilder.custom(
+                  sensorConfig: config,
+                  saveConfig: aw.SaveConfig.photo(
+                    pathBuilder: (sensors) async =>
+                        aw.SingleCaptureRequest(_nextShot, sensors.first),
                   ),
+                  previewFit: aw.CameraPreviewFit.cover,
+                  progressIndicator: const SizedBox.expand(),
+                  // Our own tap-to-focus and zoom (the overlay above it).
+                  onPreviewTapBuilder: (_) =>
+                      aw.OnPreviewTap(onTap: (_, _, _) {}, onTapPainter: null),
+                  onPreviewScaleBuilder: (_) =>
+                      aw.OnPreviewScale(onScale: (_) {}),
+                  onImageForAnalysis: _onFrame,
+                  imageAnalysisConfig: aw.AnalysisConfig(
+                    androidOptions: const aw.AndroidAnalysisOptions.nv21(
+                      width: LivePageDetector.liveSize,
+                    ),
+                    maxFramesPerSecond: 8,
+                    autoStart: false,
+                  ),
+                  builder: (state, _) {
+                    _onCameraState(state);
+                    return const SizedBox.shrink();
+                  },
                 ),
               ),
-      ),
+            ),
     );
   }
 }
 
 /// Storage, blur and low-light notices above the camera controls.
 String cameraHintText(AppLocalizations l, CameraHint hint) => switch (hint) {
-      CameraHint.document => l.cameraHintDocument,
-      CameraHint.idCard => l.cameraHintCard,
-      CameraHint.passport => l.cameraHintPassport,
-      CameraHint.passportPhoto => l.cameraHintPassportPhoto,
-      CameraHint.signature => l.cameraHintSignature,
-      CameraHint.extractText => l.cameraHintExtractText,
-    };
+  CameraHint.document => l.cameraHintDocument,
+  CameraHint.idCard => l.cameraHintCard,
+  CameraHint.passport => l.cameraHintPassport,
+  CameraHint.passportPhoto => l.cameraHintPassportPhoto,
+  CameraHint.signature => l.cameraHintSignature,
+  CameraHint.extractText => l.cameraHintExtractText,
+};

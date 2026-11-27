@@ -25,7 +25,9 @@ class CleanBaseService {
   final PrefsService _prefs;
 
   /// The base's long edge for High quality (600 DPI cards, High PDFs).
-  static const int highLongEdge = 3000;
+  /// Round 11c: pages are never longer than 2000 px (reference PAGE_MAX),
+  /// so High and Standard share one base.
+  static const int highLongEdge = 2000;
 
   final _jobs = <String, _CleanJob>{};
 

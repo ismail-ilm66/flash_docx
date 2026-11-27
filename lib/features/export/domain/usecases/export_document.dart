@@ -95,8 +95,10 @@ class ExportDocument {
   /// ("Standard · ~0.4 MB per page"). An A4-shaped page at the export size;
   /// bytes per pixel from typical scanned pages at that JPEG quality.
   static int estimatePageBytes(ExportOptions o) {
-    final long = o.quality == ExportQuality.high ? 3000 : RenderPx.standardExportLongEdge;
-    final px = long * long / 1.414;
+    // Round 11c: pages are at most 2000 px (PAGE_MAX); High is the better
+    // JPEG quality.
+    const long = RenderPx.standardExportLongEdge;
+    const px = long * long / 1.414;
     final perPixel = switch ((o.format, o.quality)) {
       (ExportFormat.png, _) => 0.9,
       (_, ExportQuality.high) => 0.19,

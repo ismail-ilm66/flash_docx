@@ -7,6 +7,7 @@ import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
+import 'package:flash_dox/features/editor/data/services/scan_warmer.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/editor/presentation/editor_args.dart';
 import 'package:flash_dox/features/scanner/data/draft_service.dart';
@@ -35,6 +36,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
     this._prefs,
     this._previews,
     this._drafts,
+    this._warmer,
     @factoryParam ScanMode? initialMode,
     @factoryParam bool? keepDraft,
   )   : _keepDraft = keepDraft ?? false,
@@ -91,6 +93,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
   final PreparePages _prepare;
   final PrefsService _prefs;
   final PreviewCache _previews;
+  final ScanWarmer _warmer;
 
   /// Serial background queue: one page at a time.
   Future<void> _queue = Future.value();
@@ -117,7 +120,7 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
 
   void _onCaptured(SessionCaptured e, Emitter<ScanSessionState> emit) {
     if (!state.canCapture) return;
-    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide, capture: e.capture);
+    final capture = Capture(newId(), e.path, side: state.nextSide, guide: e.guide, capture: e.capture, live: e.live);
     final list = [...state.captures];
     final at = state.insertAt;
     if (at != null && at <= list.length) {
@@ -145,11 +148,15 @@ class ScanSessionBloc extends Bloc<ScanSessionEvent, ScanSessionState> {
         sides: [c.side],
         fallbacks: [c.guide],
         captures: [c.capture],
+        lives: [c.live],
+        perfPages: [state.captures.indexWhere((x) => x.id == c.id) + 1],
         copySource: false,
         onPrepared: (_, result) => res = result,
       );
       debugPrint('[capture] processed in background in ${sw.elapsedMilliseconds} ms');
       done.complete(r.fold((_) => null, (pages) => (page: pages.single, blurry: _blurry(res))));
+      // Round 11c, B2: its base and first look, in the background.
+      r.fold((_) {}, (pages) => unawaited(_warmer.warm(pages.single, mode)));
       if (isClosed) return;
       r.fold(
         (f) => add(_CaptureProcessed(c.id, null, null, f)),

@@ -5,7 +5,6 @@ import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
-import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/documents/presentation/tools/tool_target.dart';
@@ -41,8 +40,6 @@ class _Log extends Mock implements LogActivity {}
 class _Render extends Mock implements PageRenderService {}
 
 class _Prepare extends Mock implements PreparePages {}
-
-class _Namer extends Mock implements SmartNamer {}
 
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
@@ -173,7 +170,7 @@ void main() {
       _Render(),
       _Prepare(),
       PreviewCache(proc, files),
-      _Namer(),
+     
       bases,
       FakeDrafts(),
       args,
@@ -323,7 +320,7 @@ void main() {
         _Render(),
         prepare,
         PreviewCache(proc, files),
-        _Namer(),
+       
         bases,
         FakeDrafts(),
         EditorArgs(pages: [front, back], mode: args.mode, initialIndex: 1),
@@ -547,7 +544,7 @@ void main() {
         _Render(),
         _Prepare(),
         PreviewCache(proc, files),
-        _Namer(),
+       
         bases,
         FakeDrafts(),
         args,
@@ -608,7 +605,7 @@ void main() {
         _Render(),
         _Prepare(),
         PreviewCache(proc, files),
-        _Namer(),
+       
         bases,
         FakeDrafts(),
         args,
@@ -714,7 +711,7 @@ void main() {
     addTearDown(() => PageEditorBloc.blurryShown = const Duration(seconds: 4));
     final second = page.copyWith(id: 'p2', order: 1);
     final args = EditorArgs(pages: [page, second], mode: ScanMode.document, blurryPages: {page.id});
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await settle();
     expect(bloc.state.currentBlurry, isTrue);
@@ -732,7 +729,7 @@ void main() {
   test('P0-3: the Adjust strip gets a crop-only preview for every page', () async {
     final second = page.copyWith(id: 'p2', order: 1);
     final args = EditorArgs(pages: [page, second], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await settle();
     for (final pg in [page, second]) {
@@ -745,8 +742,8 @@ void main() {
   });
 
   group('round 7, P0-3: a new scan is kept as a draft', () {
-    PageEditorBloc editor(FakeDrafts drafts, EditorArgs args, {_Create? create, _Render? render, _Namer? namer}) =>
-        PageEditorBloc(proc, files, create ?? _Create(), _Add(), _Update(), _Log(), render ?? _Render(), _Prepare(), PreviewCache(proc, files), namer ?? _Namer(), bases, drafts, args)
+    PageEditorBloc editor(FakeDrafts drafts, EditorArgs args, {_Create? create, _Render? render}) =>
+        PageEditorBloc(proc, files, create ?? _Create(), _Add(), _Update(), _Log(), render ?? _Render(), _Prepare(), PreviewCache(proc, files), bases, drafts, args)
           ..add(EditorStarted(args));
 
     test('from the start, and again once a corner drag rests', () async {
@@ -768,13 +765,11 @@ void main() {
       final drafts = FakeDrafts();
       final create = _Create();
       final render = _Render();
-      final namer = _Namer();
       when(() => create(mode: any(named: 'mode'), pages: any(named: 'pages'), title: any(named: 'title'))).thenAnswer(
         (_) async => Right(ScanDocument(id: 'd', title: 'D', mode: ScanMode.document, pages: const [], createdAt: DateTime(2026), updatedAt: DateTime(2026))),
       );
       when(() => render.ensureCachesFor(any())).thenAnswer((_) async {});
-      when(() => namer.suggestFor(any())).thenAnswer((_) async {});
-      final bloc = editor(drafts, EditorArgs(pages: [page], mode: ScanMode.document), create: create, render: render, namer: namer);
+      final bloc = editor(drafts, EditorArgs(pages: [page], mode: ScanMode.document), create: create, render: render);
       await settle();
       bloc.add(const EditorSaveRequested());
       await settle();
@@ -814,7 +809,7 @@ void main() {
   test('round 11, P0-12: Enhance opens on page 1, then where the user was', () async {
     final pages = [for (var i = 0; i < 3; i++) page.copyWith(id: 'p$i', order: i)];
     final args = EditorArgs(pages: pages, mode: ScanMode.document, initialIndex: 2);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args);
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), bases, FakeDrafts(), args);
     expect(bloc.state.index, 2, reason: 'Adjust edges ended on the last page');
     expect(bloc.prepareEnhance(), 0);
     await settle();

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:equatable/equatable.dart';
 import 'package:flash_dox/core/error/failures.dart';
+import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/ocr/domain/recognize_page_text.dart';
@@ -87,6 +88,7 @@ class OcrCubit extends Cubit<OcrState> {
     this._getDoc,
     this._recognize,
     this._log,
+    this._namer,
     @factoryParam String documentId,
     @factoryParam String? pageId,
   ) : super(OcrState(pageId: pageId)) {
@@ -96,6 +98,7 @@ class OcrCubit extends Cubit<OcrState> {
   final GetDocument _getDoc;
   final RecognizePageText _recognize;
   final LogActivity _log;
+  final SmartNamer _namer;
 
   /// Separator pattern; the localised string is supplied by the UI.
   String Function(int n) separator = (n) => '--- Page $n ---';
@@ -152,6 +155,9 @@ class OcrCubit extends Cubit<OcrState> {
       emit(state.copyWith(status: OcrWorking(i + 1, pages.length), text: buf.toString().trimRight()));
     }
     emit(state.copyWith(status: const OcrDone(), text: buf.toString().trimRight()));
+    // Round 11c: ML Kit never runs in the scan flow, so the smart name
+    // (feature 3) is suggested once the user has read page 1 here.
+    if (pages.any((p) => p.id == doc.sortedPages.first.id)) unawaited(_namer.suggestFor(doc.id));
   }
 
   Future<void> logCopied() async {

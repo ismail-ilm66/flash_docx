@@ -11,6 +11,7 @@ class Capture extends Equatable {
     this.side,
     this.guide,
     this.capture,
+    this.live,
     this.status = CaptureStatus.processing,
     this.page,
     this.sharpness,
@@ -35,6 +36,9 @@ class Capture extends Equatable {
 
   /// How the phone was held when it was taken (P0-1).
   final CaptureMeta? capture;
+
+  /// The live outline at the shutter (round 11c, B2).
+  final Quad? live;
   final CaptureStatus status;
 
   /// The prepared draft page once [status] is ready.
@@ -58,6 +62,7 @@ class Capture extends Equatable {
         id,
         path,
         side: side,
+        live: live,
         guide: guide,
         capture: capture,
         status: status ?? this.status,

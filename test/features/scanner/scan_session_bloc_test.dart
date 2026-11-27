@@ -5,6 +5,7 @@ import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/services/preview_cache.dart';
+import 'package:flash_dox/features/editor/data/services/scan_warmer.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_checks.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
@@ -49,6 +50,8 @@ void main() {
         sides: any(named: 'sides'),
         fallbacks: any(named: 'fallbacks'),
         captures: any(named: 'captures'),
+        lives: any(named: 'lives'),
+        perfPages: any(named: 'perfPages'),
         copySource: any(named: 'copySource'),
         onPrepared: any(named: 'onPrepared'),
       ),
@@ -74,7 +77,7 @@ void main() {
   Future<void> pump() => Future<void>.delayed(const Duration(milliseconds: 20));
 
   test('round 11b, P0-18: Done opens Adjust edges at once; photos still in the queue follow, in order', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b', hold: true);
     final c = shot('c', hold: true);
@@ -101,7 +104,7 @@ void main() {
   });
 
   test('the shutter only records; Done (waitAll) waits for the queue, then hands over pages in order', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b', hold: true);
     bloc
@@ -130,7 +133,7 @@ void main() {
   });
 
   test('round 7, P0-4: a blurry page is never raised on the camera; Adjust edges gets it', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     final a = shot('a');
     final b = shot('b');
     final c = shot('c');
@@ -159,7 +162,7 @@ void main() {
   });
 
   test('ID card keeps front / back when the back is retaken', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.idCard, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.idCard, null);
     final f = shot('front');
     final back = shot('back');
     sharpnessFor[back] = 1;
@@ -181,7 +184,7 @@ void main() {
   });
 
   test('removing a capture while it waits in the queue skips it and deletes the file', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     final a = shot('a', hold: true);
     final b = shot('b');
     bloc
@@ -201,6 +204,8 @@ void main() {
         sides: any(named: 'sides'),
         fallbacks: any(named: 'fallbacks'),
         captures: any(named: 'captures'),
+        lives: any(named: 'lives'),
+        perfPages: any(named: 'perfPages'),
         copySource: any(named: 'copySource'),
         onPrepared: any(named: 'onPrepared'),
       ),
@@ -216,11 +221,13 @@ void main() {
         sides: any(named: 'sides'),
         fallbacks: any(named: 'fallbacks'),
         captures: any(named: 'captures'),
+        lives: any(named: 'lives'),
+        perfPages: any(named: 'perfPages'),
         copySource: any(named: 'copySource'),
         onPrepared: any(named: 'onPrepared'),
       ),
     ).thenAnswer((_) async => const Left(ImageProcessingFailure('x')));
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     bloc.add(SessionCaptured(shot('a')));
     await pump();
     expect(bloc.state.notice?.kind, NoticeKind.unreadable);
@@ -238,6 +245,8 @@ void main() {
         sides: any(named: 'sides'),
         fallbacks: any(named: 'fallbacks'),
         captures: any(named: 'captures'),
+        lives: any(named: 'lives'),
+        perfPages: any(named: 'perfPages'),
         copySource: any(named: 'copySource'),
         onPrepared: any(named: 'onPrepared'),
       ),
@@ -247,7 +256,7 @@ void main() {
       cb?.call(0, const AutoEditsResult(edits: PageEdits(), detected: true, sharpness: 500, brightness: CaptureChecks.darkThreshold - 1));
       return Right([ScanPage(id: path, documentId: '', originalPath: path, edits: const PageEdits(), order: 0)]);
     });
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), null, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), null, null);
     expect(bloc.state.mode, ScanMode.document, reason: 'camera always opens in Document');
     bloc.add(SessionCaptured(shot('dark1')));
     await pump();
@@ -265,7 +274,7 @@ void main() {
   });
 
   test('P0-3: the page stack shows the cropped page, never the photo', () async {
-    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
     final a = shot('a', hold: true);
     bloc.add(SessionCaptured(a));
     await pump();
@@ -280,7 +289,7 @@ void main() {
 
   test('round 7, P0-3: a new scan saves each page to the draft as it is ready; Discard deletes it', () async {
     final drafts = FakeDrafts();
-    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, ScanMode.document, true);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, _NoWarm(), ScanMode.document, true);
     final a = shot('a');
     final b = shot('b', hold: true);
     bloc
@@ -306,7 +315,7 @@ void main() {
 
   test('round 7, P0-3: a retake or added-pages camera keeps no draft', () async {
     final drafts = FakeDrafts();
-    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, ScanMode.document, false);
+    final bloc = ScanSessionBloc(prepare, prefs, previews, drafts, _NoWarm(), ScanMode.document, false);
     bloc.add(SessionCaptured(shot('a')));
     await pump();
     bloc.add(const SessionReset());
@@ -318,11 +327,20 @@ void main() {
 
   test('round 7, P0-1: Document starts with the flash off; ID cards remember it', () async {
     await prefs.setFlashOn(true);
-    final doc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.document, null);
-    final card = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), ScanMode.idCard, null);
+    final doc = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.document, null);
+    final card = ScanSessionBloc(prepare, prefs, previews, FakeDrafts(), _NoWarm(), ScanMode.idCard, null);
     expect(doc.state.flashOn, isFalse);
     expect(card.state.flashOn, isTrue);
     await doc.close();
     await card.close();
   });
+}
+
+/// The background warm-up isn't part of these tests.
+class _NoWarm implements ScanWarmer {
+  @override
+  Future<void> warm(ScanPage page, ScanMode mode) async {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

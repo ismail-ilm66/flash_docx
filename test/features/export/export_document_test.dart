@@ -231,7 +231,7 @@ void main() {
     },
   );
 
-  test('round 10, P1-1: Standard and High really differ (2000 px q80 vs 3000 px q92)', () async {
+  test('round 10, P1-1: Standard and High really differ (q80 vs q92; both 2000 px since round 11c)', () async {
     for (final q in ExportQuality.values) {
       await export.prepare(doc, ExportOptions(quality: q, format: ExportFormat.jpg));
     }
@@ -247,10 +247,10 @@ void main() {
     final pairs = {for (var i = 0; i < calls.length; i += 2) (calls[i] as RenderSize, calls[i + 1] as int)};
     expect(pairs, {(RenderSize.standard, 80), (RenderSize.full, 92)});
     expect(RenderSize.standard.longEdge, 2000);
-    expect(CleanBaseService.highLongEdge, 3000, reason: 'High renders the 3000 px base');
+    expect(CleanBaseService.highLongEdge, 2000, reason: 'PAGE_MAX (round 11c)');
     expect(
       ExportDocument.estimatePageBytes(const ExportOptions(quality: ExportQuality.high)),
-      greaterThan(2 * ExportDocument.estimatePageBytes(const ExportOptions())),
+      greaterThan(ExportDocument.estimatePageBytes(const ExportOptions())),
     );
   });
 

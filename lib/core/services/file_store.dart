@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:injectable/injectable.dart';
@@ -47,6 +48,8 @@ class FileStore {
     _captureTemp = Directory(p.join(tmp.path, 'flashdox_capture'));
     _draftDir = Directory(p.join(_root.path, 'draft'));
     _legacyExportCache = Directory(p.join(tmp.path, 'flashdox_export_cache'));
+    // Round 11c, section 0: the [FD-PERF] log lives with the app's files.
+    PerfLog.init(p.join(_root.path, 'perf.log'));
     await Future.wait([
       Directory(p.join(_root.path, 'docs')).create(recursive: true),
       _exportTemp.create(recursive: true),
@@ -102,7 +105,7 @@ class FileStore {
   );
 
   /// The Auto filter of the page's cleaned preview (round 6; before that, of
-  /// the [workPath] page), lossless (PNG): Auto, Colour Boost and Grayscale
+  /// the [workPath] page), round 11c a JPEG q95 (A4): Auto, Colour Boost and Grayscale
   /// previews all start from it.
   String autoBasePath(
     String pageId,
@@ -110,11 +113,13 @@ class FileStore {
     PageEdits edits,
   ) => p.join(
     _captureTemp.path,
-    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.png',
+    'auto_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey)}.jpg',
   );
 
   /// Round 6, P0-2: the page cropped, turned and cleaned once at
-  /// [longEdge] (export size), lossless. [card]: the ID colour strength.
+  /// [longEdge] (export size); round 11c a JPEG q95, no longer PNG (A4:
+  /// a 2000 px PNG took seconds to write and read). [card]: the ID colour
+  /// strength.
   String cleanBasePath(
     String pageId,
     String originalPath,
@@ -123,7 +128,7 @@ class FileStore {
     required bool card,
   }) => p.join(
     _captureTemp.path,
-    'clean_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, longEdge, card)}.png',
+    'clean_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, longEdge, card)}.jpg',
   );
 
   /// The cleaned base at preview size, written with it: Enhance's filters
@@ -135,7 +140,7 @@ class FileStore {
     required bool card,
   }) => p.join(
     _captureTemp.path,
-    'cleanprev_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, card)}.png',
+    'cleanprev_${pageId}_${Object.hash(_stamp(originalPath), edits.geometryKey, card)}.jpg',
   );
 
   /// Enhance's first image for one filter, before the cleaned base exists.

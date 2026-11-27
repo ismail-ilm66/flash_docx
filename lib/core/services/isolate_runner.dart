@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:isolate';
 
+import 'package:flash_dox/core/perf/debug_switches.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flutter/foundation.dart';
 import 'package:injectable/injectable.dart';
 
@@ -107,9 +109,24 @@ class IsolateRunner {
   /// `[queue] look waited 2400 ms (1 ahead), ran 310 ms`: time spent behind
   /// other jobs vs on the worker. Dev and profile builds only.
   void _log(_Pending job, int waited, int ran) {
+    // Round 11c, section 0: every worker job in the [FD-PERF] log, by the
+    // step it is in the scan flow.
+    PerfLog.step(_steps[job.label] ?? 'job_${job.label}', ran, output: 'waited ${waited}ms', isolate: 'worker');
     if (kReleaseMode) return;
     debugPrint('[queue] ${job.label} waited $waited ms (${job.ahead} ahead), ran $ran ms');
   }
+
+  static const _steps = {
+    'instantLook': 'filter_preview',
+    'cleanLook': 'filter_preview',
+    'look': 'filter_preview',
+    'fromClean': 'filter_full',
+    'caches': 'page_caches',
+    'cleanBase': 'full_base',
+    'fingers': 'fingers',
+    'quick': 'thumb',
+    'ingest': 'prepare_page',
+  };
 
   Future<_Worker> _ensureWorker() {
     final w = _worker;
@@ -188,7 +205,8 @@ class _Worker {
     });
     final isolate = await Isolate.spawn(
       _workerMain,
-      (responses.sendPort, init),
+      // Round 11c: the perf log file and the test switches go along.
+      (responses.sendPort, init, PerfLog.path, DebugSwitches.toMap()),
       debugName: 'flashdox-worker',
       onExit: exit.sendPort,
       onError: exit.sendPort,
@@ -232,8 +250,10 @@ class _Worker {
   }
 }
 
-Future<void> _workerMain((SendPort, void Function()?) start) async {
-  final (replyTo, init) = start;
+Future<void> _workerMain((SendPort, void Function()?, String?, Map<String, bool>) start) async {
+  final (replyTo, init, perfPath, switches) = start;
+  if (perfPath != null) PerfLog.init(perfPath, isolate: 'worker');
+  DebugSwitches.apply(switches);
   try {
     init?.call();
   } catch (_) {
@@ -257,3 +277,6 @@ Future<void> _workerMain((SendPort, void Function()?) start) async {
     }
   }
 }
+
+/// Round 11c, C2: sends the debug switches to a running worker.
+void applyDebugSwitches(Map<String, bool> m) => DebugSwitches.apply(m);

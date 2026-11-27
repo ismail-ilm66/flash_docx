@@ -32,6 +32,8 @@ abstract interface class ImageProcessor {
     double? outputAspect,
     FilterType filter = FilterType.auto,
     CaptureMeta? capture,
+    Quad? live,
+    Object? perfPage,
   });
 
   /// Enhance preview (filter only; sliders are applied live in the UI).

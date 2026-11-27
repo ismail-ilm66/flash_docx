@@ -6,13 +6,10 @@ import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
 import 'package:flash_dox/core/utils/id.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
-import 'package:flash_dox/features/editor/domain/entities/render_size.dart';
 import 'package:flash_dox/features/editor/domain/services/image_processor.dart';
-import 'package:flash_dox/features/ocr/domain/text_recognizer.dart';
 import 'package:flash_dox/features/scanner/domain/capture_orientation_log.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/entities/scan_mode_rules.dart';
-import 'package:flutter/foundation.dart';
 import 'package:fpdart/fpdart.dart';
 import 'package:injectable/injectable.dart';
 
@@ -21,12 +18,11 @@ import 'package:injectable/injectable.dart';
 /// filter from Settings → draft [ScanPage] ready for Adjust edges.
 @injectable
 class PreparePages {
-  PreparePages(this._processor, this._files, this._prefs, this._ocr);
+  PreparePages(this._processor, this._files, this._prefs);
 
   final ImageProcessor _processor;
   final FileStore _files;
   final PrefsService _prefs;
-  final TextRecognizer _ocr;
 
   FilterType get _defaultFilter =>
       FilterType.values.where((f) => f.name == _prefs.defaultFilter).firstOrNull ??
@@ -40,6 +36,8 @@ class PreparePages {
     List<CardSide?>? sides,
     List<Quad?>? fallbacks,
     List<CaptureMeta?>? captures,
+    List<Quad?>? lives,
+    List<Object?>? perfPages,
     List<String>? ids,
     bool copySource = true,
     void Function(int index, AutoEditsResult result)? onPrepared,
@@ -76,6 +74,8 @@ class PreparePages {
           // ID colour is the default for cards; documents use the Settings default.
           filter: isCard ? FilterType.idColor : filter,
           capture: captures != null && i < captures.length ? captures[i] : null,
+          live: lives != null && i < lives.length ? lives[i] : null,
+          perfPage: perfPages != null && i < perfPages.length ? perfPages[i] : null,
         );
         if (auto.orientation != null) CaptureOrientationLog.record(id, auto.orientation!);
         var edits = auto.edits;
@@ -125,40 +125,14 @@ class PreparePages {
     ];
   }
 
-  /// P0-1: ID / passport cards end up landscape and the right way up.
-  /// Portrait warps turn to landscape; then 0° vs 180° is decided by which
-  /// way ML Kit reads more characters on a 640 px render of the preview.
-  /// Ties keep 0°. The result is plain `quarterTurns`, so the user can still
-  /// rotate by hand.
+  /// P0-1: ID / passport cards end up landscape. Round 11c: text
+  /// recognition never runs while scanning, so 0° vs 180° is no longer
+  /// guessed by reading the card; the user turns an upside-down card.
   Future<int> _cardTurns(String id, String original, PageEdits edits, AutoEditsResult auto) async {
     final crop = edits.crop;
     final w = auto.width;
     final h = auto.height;
-    var base = 0;
-    if (crop != null && w != null && h != null && crop.avgWidth * w < crop.avgHeight * h) {
-      base = 1;
-    }
-    final preview = _files.basePreviewPath(id, original);
-    try {
-      Future<int> score(int t) async {
-        final out = await _processor.render(
-          preview,
-          edits.copyWith(quarterTurns: t, filter: FilterType.original),
-          size: RenderSize.probe,
-          outputPath: _files.newCapturePath('probe_${id}_$t'),
-          jpegQuality: 85,
-        );
-        final text = (await _ocr.read(out)).getOrElse((_) => '');
-        unawaited(File(out).delete().catchError((_) => File(out)));
-        return RegExp('[A-Za-z0-9]').allMatches(text).length;
-      }
-
-      final up = await score(base);
-      final flipped = await score(base + 2);
-      return flipped > up ? base + 2 : base;
-    } catch (e) {
-      debugPrint('[ingest] card orientation check failed: $e');
-      return base;
-    }
+    return crop != null && w != null && h != null && crop.avgWidth * w < crop.avgHeight * h ? 1 : 0;
   }
+
 }

@@ -73,8 +73,7 @@ import 'package:flash_dox/features/photo/domain/background_segmenter.dart'
     as _i491;
 import 'package:flash_dox/features/photo/data/mlkit_face_locator.dart'
     as _i9003;
-import 'package:flash_dox/features/photo/domain/face_locator.dart'
-    as _i9004;
+import 'package:flash_dox/features/photo/domain/face_locator.dart' as _i9004;
 import 'package:flash_dox/features/print_layout/data/sheet_image_renderer.dart'
     as _i84;
 import 'package:flash_dox/features/print_layout/domain/usecases/build_print_layout.dart'
@@ -104,7 +103,10 @@ import 'package:get_it/get_it.dart' as _i174;
 import 'package:image_picker/image_picker.dart' as _i183;
 import 'package:injectable/injectable.dart' as _i526;
 import 'package:flash_dox/features/reduce/data/reduce_service.dart' as _i9001;
-import 'package:flash_dox/features/documents/data/services/document_fixups.dart' as _i9002;
+import 'package:flash_dox/features/editor/data/services/scan_warmer.dart'
+    as _i9005;
+import 'package:flash_dox/features/documents/data/services/document_fixups.dart'
+    as _i9002;
 import 'package:share_plus/share_plus.dart' as _i998;
 import 'package:shared_preferences/shared_preferences.dart' as _i460;
 
@@ -230,6 +232,13 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i567.PrefsService>(),
       ),
     );
+    gh.lazySingleton<_i9005.ScanWarmer>(
+      () => _i9005.ScanWarmer(
+        gh<_i618.ImageProcessor>(),
+        gh<_i626.FileStore>(),
+        gh<_i32.CleanBaseService>(),
+      ),
+    );
     gh.factory<_i713.HomeCubit>(
       () => _i713.HomeCubit(
         gh<_i948.WatchDocuments>(),
@@ -266,7 +275,6 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i618.ImageProcessor>(),
         gh<_i626.FileStore>(),
         gh<_i567.PrefsService>(),
-        gh<_i917.TextRecognizer>(),
       ),
     );
     gh.lazySingleton<_i120.PageRenderService>(
@@ -319,7 +327,10 @@ extension GetItInjectableX on _i174.GetIt {
       ),
     );
     gh.lazySingleton<_i9002.DocumentFixups>(
-      () => _i9002.DocumentFixups(gh<_i132.DocumentRepository>(), gh<_i567.PrefsService>()),
+      () => _i9002.DocumentFixups(
+        gh<_i132.DocumentRepository>(),
+        gh<_i567.PrefsService>(),
+      ),
     );
     gh.lazySingleton<_i9001.ReduceService>(
       () => _i9001.ReduceService(
@@ -365,7 +376,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i120.PageRenderService>(),
         gh<_i922.PreparePages>(),
         gh<_i769.PreviewCache>(),
-        gh<_i108.SmartNamer>(),
+
         gh<_i32.CleanBaseService>(),
         gh<_i756.DraftService>(),
         args,
@@ -376,6 +387,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i310.GetDocument>(),
         gh<_i813.RecognizePageText>(),
         gh<_i310.LogActivity>(),
+        gh<_i108.SmartNamer>(),
         documentId,
         pageId,
       ),
@@ -386,6 +398,7 @@ extension GetItInjectableX on _i174.GetIt {
         gh<_i567.PrefsService>(),
         gh<_i769.PreviewCache>(),
         gh<_i756.DraftService>(),
+        gh<_i9005.ScanWarmer>(),
         initialMode,
         keepDraft,
       ),

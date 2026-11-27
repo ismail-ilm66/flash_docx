@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flash_dox/core/constants/sizes.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
@@ -47,22 +48,31 @@ class OpenCvImageProcessor implements ImageProcessor {
     double? outputAspect,
     FilterType filter = FilterType.auto,
     CaptureMeta? capture,
+    Quad? live,
+    Object? perfPage,
   }) async {
-    // The guide was mapped into the portrait capture; turn it the way the
-    // phone was held (the sensor part brings the raw pixels to that frame).
+    // The guide and the live outline were mapped into the portrait
+    // capture; turn them the way the phone was held (the sensor part brings
+    // the raw pixels to that frame).
     if (capture != null) {
-      guide = guide?.rotatedQuarterTurns(capture.frontCamera ? -capture.deviceTurns : capture.deviceTurns);
+      final turns = capture.frontCamera ? -capture.deviceTurns : capture.deviceTurns;
+      guide = guide?.rotatedQuarterTurns(turns);
+      live = live?.rotatedQuarterTurns(turns);
     }
     final r = await _runner.run(
       ingestInIsolate,
-      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide, capture),
+      IngestMsg(sourcePath, previewOut, snapAspectRatio, guide, capture, perfPage),
       debugLabel: 'ingest',
+      // Round 11c, B2: a new photo is prepared before any warm-up work.
+      priority: JobPriority.interactive,
     );
     debugPrint(r.orientation);
     debugPrint('[ingest] ${r.log}');
     return AutoEditsResult(
       edits: PageEdits(
-        crop: r.quad ?? pipe.fallbackQuad(guide: guide),
+        // Round 11c, B2/B3: the corners found on the work copy, else the
+        // live outline at the shutter, else the fallback.
+        crop: r.quad ?? live ?? pipe.fallbackQuad(guide: guide),
         filter: filter,
         outputAspect: outputAspect,
       ),
@@ -508,8 +518,10 @@ class IngestMsg {
     this.snapAspect,
     this.guide, [
     this.capture,
+    this.perfPage,
   ]);
   final String src;
+  final Object? perfPage;
   final String previewOut;
   final double? snapAspect;
   final Quad? guide;
@@ -564,9 +576,10 @@ IngestResult ingestInIsolate(IngestMsg m) {
   final r = pipe.ingest(
     src: m.src,
     previewOut: m.previewOut,
-    previewLongEdge: RenderPx.previewLongEdge,
+    previewLongEdge: RenderPx.workLongEdge,
     aspectHint: m.snapAspect,
     capture: m.capture,
+    perfPage: m.perfPage,
     searchArea: g == null
         ? null
         : (
@@ -629,17 +642,13 @@ class CleanBaseMsg {
   final bool quick;
 }
 
-/// Writes PNG (compression 1: fast, lossless) under a temp name, then
-/// renames, so a half-written base is never read.
-void _writePngAtomic(cv.Mat img, String path) {
+/// Writes a JPEG q95 under a temp name, then renames, so a half-written
+/// base is never read. Round 11c (A4): no longer PNG, which took seconds
+/// for a 2000 px page on the test phone.
+void _writeBaseAtomic(cv.Mat img, String path) {
   File(path).parent.createSync(recursive: true);
-  final tmp = '$path.part.png';
-  final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);
-  try {
-    if (!cv.imwrite(tmp, img, params: params)) throw StateError('Could not write $path');
-  } finally {
-    params.dispose();
-  }
+  final tmp = '$path.part.jpg';
+  pipe.writeJpeg(img, tmp, quality: 95);
   File(tmp).renameSync(path);
 }
 
@@ -647,11 +656,13 @@ String cleanBaseInIsolate(CleanBaseMsg m) {
   final t = StepTimer('clean base ${m.longEdge} px${m.card ? ' card' : ''}');
   final clean = pipe.renderCleanBase(m.path, m.edits, longEdge: m.longEdge, card: m.card, quick: m.quick, timer: t);
   try {
-    _writePngAtomic(clean, m.out);
+    final sw = Stopwatch()..start();
+    _writeBaseAtomic(clean, m.out);
     t.lap('save base');
+    PerfLog.step('save_jpg', sw.elapsedMilliseconds, input: '${clean.cols}x${clean.rows}', output: 'base', isolate: 'worker');
     if (!File(m.previewOut).existsSync()) {
       final prev = pipe.fitLongEdge(clean, RenderPx.previewLongEdge);
-      _writePngAtomic(prev, m.previewOut);
+      _writeBaseAtomic(prev, m.previewOut);
       pipe.disposeUnless(prev, clean);
       t.lap('save preview copy');
     }

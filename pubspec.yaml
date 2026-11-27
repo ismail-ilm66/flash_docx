@@ -25,7 +25,12 @@ dependencies:
   drift: ^2.34.4
   drift_flutter: ^0.3.1
   shared_preferences: ^2.5.5
-  camera: ^0.12.0+2
+  # Round 11c, B1: the scanner camera (preview + full photo + a separate
+  # 320 px analysis stream for the live outline).
+  # Patched copy (packages/camerawesome/FLASHDOX_PATCH.md): photo size on
+  # Android.
+  camerawesome:
+    path: packages/camerawesome
   image_picker: ^1.2.3
   file_picker: ^13.3.2
   share_plus: ^13.3.1

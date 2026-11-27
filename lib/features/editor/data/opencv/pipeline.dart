@@ -9,12 +9,14 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:flash_dox/core/perf/debug_switches.dart';
+import 'package:flash_dox/core/perf/perf_log.dart';
 import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/core/utils/step_timer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/export/domain/entities/page_footer.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show listEquals, visibleForTesting;
 import 'package:opencv_dart/opencv.dart' as cv;
 
 // ---------------------------------------------------------------------------
@@ -136,6 +138,58 @@ String normalizeCapture(String path, CaptureMeta? meta, {int? maxLongEdge}) {
     return report;
   } finally {
     turned.dispose();
+  }
+}
+
+/// Round 11c, B2: a document photo is kept exactly as the camera saved it
+/// (no decode, no re-encode, no shrinking: every page is made at most
+/// [pageMax] long anyway). The turn it still needs (from [meta]) goes
+/// into its EXIF orientation tag, which every read here applies
+/// ([readUpright]). Returns the `[orient]` line.
+String tagUpright(String path, CaptureMeta? meta) {
+  final o = readJpegOrientation(path);
+  final size = jpegSize(path);
+  if (size == null) return '[orient] not a JPEG: kept as is';
+  final rot = captureRotation(exif: o, width: size.width, height: size.height, meta: meta);
+  final report =
+      '[orient] exif=$o ${meta ?? 'import'} pixels=${size.width}x${size.height} '
+      'final=${rot.turns * 90}°${rot.mirror ? ' mirrored' : ''} (tag only)';
+  if (rot.turns == 0 && !rot.mirror) return report;
+  writeJpegOrientation(path, composeOrientation(o, rot.turns, mirror: rot.mirror));
+  return report;
+}
+
+/// The EXIF orientation that does [exif]'s transform, then [turns]
+/// clockwise quarter turns, then a left–right flip if [mirror]: found by
+/// trying all eight on a small test image with the same functions the
+/// reads use.
+int composeOrientation(int exif, int turns, {bool mirror = false}) {
+  final probe = cv.Mat.fromList(2, 3, cv.MatType.CV_8UC1, [1, 2, 3, 4, 5, 6]);
+  List<int> apply(int o) {
+    final a = applyExifOrientation(probe, o);
+    final out = [a.rows, ...a.data];
+    if (!identical(a, probe)) a.dispose();
+    return out;
+  }
+
+  try {
+    var want = applyExifOrientation(probe, exif);
+    final turned = rotateQuarterTurns(want, turns);
+    if (!identical(turned, want) && !identical(want, probe)) want.dispose();
+    want = turned;
+    if (mirror) {
+      final f = cv.flip(want, 1);
+      if (!identical(want, probe)) want.dispose();
+      want = f;
+    }
+    final target = [want.rows, ...want.data];
+    if (!identical(want, probe)) want.dispose();
+    for (var o = 1; o <= 8; o++) {
+      if (listEquals(apply(o), target)) return o;
+    }
+    return exif;
+  } finally {
+    probe.dispose();
   }
 }
 
@@ -2103,7 +2157,8 @@ cv.Mat cropAndRotate(cv.Mat src, PageEdits edits, {int? maxLongEdge}) {
     // Round 11, P0-14: Document pages follow a bent page's real edges;
     // cards are stiff and keep the plain warp.
     step(
-      edits.isDocumentPage
+      // Round 11c, C2: the test switch can turn bent-page flattening off.
+      edits.isDocumentPage && DebugSwitches.bentPages
           ? warpCurved(cur, crop, cornersFixed: edits.cornersFixed)
           : warpToQuad(cur, crop, aspect: edits.outputAspect),
     );
@@ -2765,7 +2820,7 @@ cv.Mat autoFrom(cv.Mat dn, {double chroma = 1.10, String? cacheKey}) {
   if (!identical(w.l, l)) l.dispose();
   // Round 11b: dim-light grain, on text pages only.
   final mag = cv.magnitude(labCh[1], labCh[2]);
-  final wl = despeckleL(w.l, w.strength, mag);
+  final wl = DebugSwitches.grain ? despeckleL(w.l, w.strength, mag) : w.l;
   mag.dispose();
   if (!identical(wl, w.l)) w.l.dispose();
   // Neutral paper, [chroma] × colour elsewhere.
@@ -3162,11 +3217,10 @@ cv.Mat applyFilter(cv.Mat bgr, FilterType filter) => switch (filter) {
 // ---------------------------------------------------------------------------
 
 /// The page's noise removed: the document strength (3–6), or the ID colour
-/// one (2–3) for cards, whose fine print strong cleaning smears. [quick]
-/// (low-RAM phones, P0-4): a quiet photo (σ < 2.5) gets the bilateral
-/// clean-up instead of non-local means.
+/// one (2–3) for cards, whose fine print strong cleaning smears. Round 11c:
+/// the bilateral [denoise] is cheap, so [quick] (low-RAM phones) no longer
+/// takes a different clean-up.
 cv.Mat cleanPage(cv.Mat warped, {bool card = false, bool quick = false}) {
-  if (quick && estimateNoise(warped) < 2.5) return denoisePreview(warped);
   return card
       ? denoise(warped, minH: cardDenoiseMin, maxH: cardDenoiseMax)
       : denoise(warped);
@@ -3444,14 +3498,19 @@ cv.Mat renderCleanBase(
   bool quick = false,
   StepTimer? timer,
 }) {
+  final sw = Stopwatch()..start();
   final img = readUprightForCrop(originalPath, edits.crop, longEdge);
   timer?.lap('decode ${img.cols}×${img.rows}');
+  final decoded = '${img.cols}x${img.rows}';
   final cropped = cropAndRotate(img, edits, maxLongEdge: longEdge);
   disposeUnless(img, cropped);
   timer?.lap('crop to ${cropped.cols}×${cropped.rows}');
+  PerfLog.step(edits.isDocumentPage && DebugSwitches.bentPages ? 'warp_curved' : 'warp', sw.elapsedMilliseconds, input: decoded, output: '${cropped.cols}x${cropped.rows}', isolate: 'worker');
+  sw.reset();
   final clean = cleanPage(cropped, card: card, quick: quick);
   cropped.dispose();
-  timer?.lap('clean${quick ? ' (low-RAM)' : ''}');
+  timer?.lap('clean');
+  PerfLog.step('denoise', sw.elapsedMilliseconds, input: '${clean.cols}x${clean.rows}', isolate: 'worker');
   return clean;
 }
 
@@ -4743,22 +4802,28 @@ IngestReport ingest({
   double? aspectHint,
   ({double left, double top, double right, double bottom})? searchArea,
   CaptureMeta? capture,
+  Object? perfPage,
 }) {
   // P0-1: make the original upright once (EXIF, sensor, how it was held),
   // and no larger than 3000 px (round 6, P0-3).
-  final orientation = normalizeCapture(src, capture, maxLongEdge: scanMaxLongEdge);
+  final sw = Stopwatch()..start();
+  // Round 11c: the tag only; the photo stays as the camera saved it.
+  final orientation = tagUpright(src, capture);
   final header = jpegSize(src);
   final (img, scale) = _decodeForPreview(src, previewLongEdge, header);
   final preview = fitLongEdge(img, previewLongEdge);
   try {
     File(previewOut).parent.createSync(recursive: true);
     writeJpeg(preview, previewOut, quality: 85);
+    PerfLog.step('work_copy', sw.elapsedMilliseconds, page: perfPage, input: '${img.cols * scale}x${img.rows * scale}', output: '${preview.cols}x${preview.rows}', isolate: 'worker');
+    sw.reset();
     final detection = detectDocument(
       preview,
       aspectHint: aspectHint,
       searchArea: searchArea,
       imported: capture == null,
     );
+    PerfLog.step('detect', sw.elapsedMilliseconds, page: perfPage, input: '${preview.cols}x${preview.rows}', output: detection.quad == null ? 'none' : '4pts', isolate: 'worker');
     final stats = captureStats(preview);
     double? cardSharpness;
     if (aspectHint != null) {
@@ -4910,6 +4975,7 @@ List<List<Pt>>? findFingersOnPage(
   required String maskOut,
   StepTimer? timer,
 }) {
+  if (!DebugSwitches.fingers) return null;
   final work = _workImage(originalPath, edits, workPath, previewLongEdge, timer);
   try {
     final mask = findFingers(work);
@@ -5031,14 +5097,11 @@ cv.Mat _autoBase(cv.Mat work, String path, StepTimer? timer, {bool cleaned = fal
   }
   final auto = cleaned ? autoFrom(work, cacheKey: cacheKey) : autoFilter(work);
   timer?.lap(cleaned ? 'auto' : 'auto base (denoise)');
-  // Lossless and fast to write; renamed so a half-written file is never read.
-  final tmp = '$path.part.png';
-  final params = cv.VecI32.fromList([cv.IMWRITE_PNG_COMPRESSION, 1]);
-  try {
-    if (cv.imwrite(tmp, auto, params: params)) File(tmp).renameSync(path);
-  } finally {
-    params.dispose();
-  }
+  // Round 11c (A4): JPEG q95, not PNG; renamed so a half-written file is
+  // never read.
+  final tmp = '$path.part.jpg';
+  writeJpeg(auto, tmp, quality: 95);
+  File(tmp).renameSync(path);
   timer?.lap('save auto base');
   return auto;
 }

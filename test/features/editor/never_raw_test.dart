@@ -6,7 +6,6 @@ import 'package:flash_dox/core/services/device_profile.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
-import 'package:flash_dox/features/documents/data/services/smart_namer.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/documents/domain/usecases/document_usecases.dart';
 import 'package:flash_dox/features/editor/data/services/clean_base_service.dart';
@@ -42,8 +41,6 @@ class _Log extends Mock implements LogActivity {}
 class _Render extends Mock implements PageRenderService {}
 
 class _Prepare extends Mock implements PreparePages {}
-
-class _Namer extends Mock implements SmartNamer {}
 
 class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
   _Paths(this.root);
@@ -118,7 +115,7 @@ void main() {
 
   testWidgets('Enhance shows the instant cleaned image, never the raw photo', (tester) async {
     final args = EditorArgs(pages: [page], mode: ScanMode.document);
-    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), _Namer(), bases, FakeDrafts(), args)
+    final bloc = PageEditorBloc(proc, files, _Create(), _Add(), _Update(), _Log(), _Render(), _Prepare(), PreviewCache(proc, files), bases, FakeDrafts(), args)
       ..add(EditorStarted(args));
     await tester.pumpWidget(
       MaterialApp(

@@ -15,9 +15,13 @@ class SessionFlashToggled extends ScanSessionEvent {
 
 /// A photo was just taken. Only records it; processing is queued.
 class SessionCaptured extends ScanSessionEvent {
-  const SessionCaptured(this.path, {this.guide, this.capture});
+  const SessionCaptured(this.path, {this.guide, this.capture, this.live});
   final String path;
   final Quad? guide;
+
+  /// Round 11c, B2: the live outline at the shutter (portrait screen
+  /// frame): the page's corners if detection finds none.
+  final Quad? live;
 
   /// What the camera knew at the shutter; made upright at ingest (P0-1).
   final CaptureMeta? capture;

@@ -28,6 +28,9 @@ abstract final class RenderPx {
   static const int thumbLongEdge = 300;
   /// Editor previews (round 3: 1200 px).
   static const int previewLongEdge = 1200;
+  /// Round 11c, B2: the work copy made right after each photo (Adjust
+  /// edges' picture, corner detection, the crop-only previews).
+  static const int workLongEdge = 1000;
   /// The finished page the viewer shows (round 10, P0-3), saved with the
   /// page: crop, filter and border clean-up at 1600 px.
   static const int displayLongEdge = 1600;

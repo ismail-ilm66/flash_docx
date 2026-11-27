@@ -3,7 +3,12 @@ import 'dart:math' as math;
 /// What the camera knew at the shutter (round 5, P0-1), so the photo can be
 /// turned upright even when the phone writes no EXIF orientation tag.
 class CaptureMeta {
-  const CaptureMeta({required this.sensorOrientation, required this.deviceTurns, this.frontCamera = false});
+  const CaptureMeta({required this.sensorOrientation, required this.deviceTurns, this.frontCamera = false, this.deviceInExif = false});
+
+  /// Round 11c: the camera (camerawesome) already turned the photo for how
+  /// the phone was held and says so in its EXIF tag; [deviceTurns] then
+  /// only maps the screen's quads (guide, live outline) into the photo.
+  final bool deviceInExif;
 
   /// `CameraDescription.sensorOrientation`: 90 on most back cameras, 270 on
   /// most front ones.
@@ -17,7 +22,7 @@ class CaptureMeta {
   final bool frontCamera;
 
   @override
-  String toString() => 'sensor=$sensorOrientation device=$deviceTurns${frontCamera ? ' front' : ''}';
+  String toString() => 'sensor=$sensorOrientation device=$deviceTurns${frontCamera ? ' front' : ''}${deviceInExif ? ' (in exif)' : ''}';
 }
 
 /// Whether front-camera files come out mirrored on disk and need flipping.
@@ -38,7 +43,7 @@ const frontCaptureMirrored = false;
 /// front camera turns the other way. Imports ([meta] null) get the tag only.
 ({int turns, bool mirror}) captureRotation({required int exif, required int width, required int height, CaptureMeta? meta}) {
   if (meta == null) return (turns: 0, mirror: false);
-  final device = meta.frontCamera ? -meta.deviceTurns : meta.deviceTurns;
+  final device = meta.deviceInExif ? 0 : (meta.frontCamera ? -meta.deviceTurns : meta.deviceTurns);
   final untagged = exif <= 1;
   final sensor = untagged && width > height ? meta.sensorOrientation ~/ 90 : 0;
   return (turns: ((sensor + device) % 4 + 4) % 4, mirror: meta.frontCamera && frontCaptureMirrored);

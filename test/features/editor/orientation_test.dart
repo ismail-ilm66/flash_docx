@@ -1,6 +1,5 @@
 import 'dart:io';
 
-import 'package:flash_dox/core/error/failures.dart';
 import 'package:flash_dox/core/services/file_store.dart';
 import 'package:flash_dox/core/services/isolate_runner.dart';
 import 'package:flash_dox/core/services/prefs_service.dart';
@@ -8,11 +7,9 @@ import 'package:flash_dox/core/utils/exif_orientation.dart';
 import 'package:flash_dox/features/documents/domain/entities/entities.dart';
 import 'package:flash_dox/features/editor/data/opencv/pipeline.dart' as pipe;
 import 'package:flash_dox/features/editor/data/services/opencv_image_processor.dart';
-import 'package:flash_dox/features/ocr/domain/text_recognizer.dart';
 import 'package:flash_dox/features/scanner/domain/entities/capture_meta.dart';
 import 'package:flash_dox/features/scanner/domain/usecases/prepare_pages.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fpdart/fpdart.dart';
 import 'package:opencv_dart/opencv.dart' as cv;
 import 'package:path/path.dart' as p;
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
@@ -32,19 +29,6 @@ class _Paths extends PathProviderPlatform with MockPlatformInterfaceMixin {
 
 /// "Reads text" only when the probe image is the right way up: the marker
 /// (where the card's printing would be) must be at the top.
-class _MarkerOcr implements TextRecognizer {
-  @override
-  Future<Either<Failure, String>> read(String imagePath) async {
-    final m = cv.imread(imagePath);
-    final up = markerSide(m) == 'top';
-    m.dispose();
-    return Right(up ? 'PAKISTAN NATIONAL IDENTITY CARD 35202' : 'q');
-  }
-
-  @override
-  Future<void> dispose() async {}
-}
-
 /// P0-1: photos come out upright whatever EXIF says and however the phone
 /// was held; nothing is ever rotated twice.
 void main() {
@@ -76,6 +60,32 @@ void main() {
       });
     }
 
+    test('round 11c: the tag is written without re-encoding, into a file with or without EXIF', () {
+      final up = uprightWithMarker();
+      // No EXIF block: one is added in front, the image data stays.
+      final plain = p.join(tmp.path, 'plain.jpg');
+      final rotated = cv.rotate(up, cv.ROTATE_90_COUNTERCLOCKWISE);
+      pipe.writeJpeg(rotated, plain, quality: 95);
+      final data = File(plain).readAsBytesSync();
+      expect(writeJpegOrientation(plain, 6), isTrue);
+      expect(readJpegOrientation(plain), 6);
+      final after = File(plain).readAsBytesSync();
+      expect(after.sublist(after.length - (data.length - 2)), data.sublist(2), reason: 'image data untouched');
+      final read = pipe.readUpright(plain);
+      expect(markerSide(read), 'top');
+      // A tag already there is changed in place (same length).
+      final tagged = writeWithExif(up, p.join(tmp.path, 'tagged.jpg'), 3);
+      final len = File(tagged).lengthSync();
+      expect(writeJpegOrientation(tagged, 1), isTrue);
+      expect(readJpegOrientation(tagged), 1);
+      expect(File(tagged).lengthSync(), len);
+      expect(pipe.composeOrientation(1, 1), 6);
+      expect(pipe.composeOrientation(6, 2), 8);
+      for (final m in [up, rotated, read]) {
+        m.dispose();
+      }
+    });
+
     test('reduced-size reads apply the tag too', () {
       final up = uprightWithMarker(w: 2400, h: 1600);
       final path = writeWithExif(up, p.join(tmp.path, 'big6.jpg'), 6);
@@ -86,13 +96,15 @@ void main() {
       read.dispose();
     });
 
-    test('ingest bakes the tag and detects on the upright image', () {
+    test('round 11c: ingest keeps the tag (no re-encode) and detects on the upright image', () {
       final up = uprightWithMarker();
       final path = writeWithExif(up, p.join(tmp.path, 'ingest8.jpg'), 8);
       up.dispose();
+      final before = File(path).readAsBytesSync();
       final r = ingestInIsolate(IngestMsg(path, p.join(tmp.path, 'prev.jpg'), null, null));
       expect((r.width, r.height), (600, 400));
-      expect(readJpegOrientation(path), 1);
+      expect(File(path).readAsBytesSync(), before);
+      expect(readJpegOrientation(path), 8);
       final prev = cv.imread(p.join(tmp.path, 'prev.jpg'));
       expect(markerSide(prev), 'top');
       prev.dispose();
@@ -225,34 +237,32 @@ void main() {
     });
   });
 
-  test('ID cards are turned the right way up using text recognition', () async {
+  test('round 11c: a card is turned to landscape, with no text recognition while scanning', () async {
     PathProviderPlatform.instance = _Paths(tmp);
     SharedPreferences.setMockInitialValues({});
     final files = FileStore();
     await files.init();
     final prefs = PrefsService(await SharedPreferences.getInstance());
-    final prepare = PreparePages(OpenCvImageProcessor(IsolateRunner()), files, prefs, _MarkerOcr());
+    final prepare = PreparePages(OpenCvImageProcessor(IsolateRunner()), files, prefs);
 
-    // A landscape card photographed upside down: the marker is at the bottom.
-    final card = cv.Mat.fromScalar(1000, 1400, cv.MatType.CV_8UC3, cv.Scalar.all(40));
+    // A card photographed with the phone upright: the card is portrait.
+    final card = cv.Mat.fromScalar(1400, 1000, cv.MatType.CV_8UC3, cv.Scalar.all(40));
     final face = uprightWithMarker(w: 856, h: 540);
-    final flipped = cv.rotate(face, cv.ROTATE_180);
-    final roi = card.region(cv.Rect(272, 230, 856, 540));
-    flipped.copyTo(roi);
+    final turned = cv.rotate(face, cv.ROTATE_90_CLOCKWISE);
+    final roi = card.region(cv.Rect(230, 272, 540, 856));
+    turned.copyTo(roi);
     final src = p.join(tmp.path, 'card.jpg');
     pipe.writeJpeg(card, src, quality: 95);
-    for (final m in [card, face, flipped, roi]) {
+    for (final m in [card, face, turned, roi]) {
       m.dispose();
     }
 
     final r = await prepare([src], mode: ScanMode.idCard, sides: [CardSide.front]);
     final page = r.getOrElse((f) => fail('$f')).single;
-    expect(page.edits.normalizedTurns, 2);
+    expect(page.edits.normalizedTurns.isOdd, isTrue);
     expect(page.side, CardSide.front);
-
     final out = pipe.renderEdits(page.originalPath, page.edits.copyWith(filter: FilterType.original), maxLongEdge: 800);
     expect(out.cols, greaterThan(out.rows), reason: 'landscape');
-    expect(markerSide(out), 'top');
     out.dispose();
   });
 }

@@ -65,7 +65,11 @@ class PreviewCache {
     return _inFlight[path] ??= () async {
       final sw = Stopwatch()..start();
       try {
-        final out = await _processor.renderQuick(page.originalPath, page.edits, outputPath: path);
+        // Round 11c: from the 1000 px work copy when it's there (the
+        // same upright photo, no tag), not the camera file.
+        final work = _files.basePreviewPath(page.id, page.originalPath);
+        final src = File(work).existsSync() ? work : page.originalPath;
+        final out = await _processor.renderQuick(src, page.edits, outputPath: path);
         debugPrint('[perf] quick preview ${page.id} in ${sw.elapsedMilliseconds} ms');
         return out;
       } finally {
