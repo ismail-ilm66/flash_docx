@@ -1874,17 +1874,19 @@ cv.Mat? findFingers(cv.Mat page) {
     centroids.dispose();
     final lbl = Int32List.fromList(labels.data.buffer.asInt32List(labels.data.offsetInBytes, w * h));
     labels.dispose();
-    final out = cv.Mat.zeros(h, w, cv.MatType.CV_8UC1);
-    final od = out.data;
+    // Built in Dart, then handed to OpenCV once (never written into native
+    // memory from Dart).
+    final od = Uint8List(w * h);
+    final st = _statsOf(stats, n);
     const m = 4;
     final short = math.min(h, w);
     var any = false;
     for (var i = 1; i < n; i++) {
-      final x = stats.at<int>(i, cv.CC_STAT_LEFT);
-      final y = stats.at<int>(i, cv.CC_STAT_TOP);
-      final bw = stats.at<int>(i, cv.CC_STAT_WIDTH);
-      final bh = stats.at<int>(i, cv.CC_STAT_HEIGHT);
-      final a = stats.at<int>(i, cv.CC_STAT_AREA);
+      final x = st[i * 5];
+      final y = st[i * 5 + 1];
+      final bw = st[i * 5 + 2];
+      final bh = st[i * 5 + 3];
+      final a = st[i * 5 + 4];
       if (!(0.002 * h * w < a && a < 0.20 * h * w)) continue;
       // Which edge does it come in from, how wide, how deep?
       final touch = {
@@ -1941,10 +1943,8 @@ cv.Mat? findFingers(cv.Mat page) {
       any = true;
     }
     stats.dispose();
-    if (!any) {
-      out.dispose();
-      return null;
-    }
+    if (!any) return null;
+    final out = cv.Mat.fromList(h, w, cv.MatType.CV_8UC1, od);
     // Fill nail / shading holes, then grow over the soft edge and shadow.
     final (cnts, hier) = cv.findContours(out, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
     cv.drawContours(out, cnts, -1, cv.Scalar.all(255), thickness: -1);
@@ -2005,7 +2005,7 @@ cv.Mat removeFingers(cv.Mat page, cv.Mat mask) {
   final ring = ringM.data;
   final g = gray.data;
   final px = page.data;
-  final ringVals = <int>[for (var i = 0; i < ring.length; i++) if (ring[i] != 0) g[i]];
+  final ringVals = Uint8List.fromList([for (var i = 0; i < ring.length; i++) if (ring[i] != 0) g[i]]);
   if (ringVals.isEmpty) {
     for (final x in [m, ringM, gray]) {
       x.dispose();
@@ -2013,10 +2013,8 @@ cv.Mat removeFingers(cv.Mat page, cv.Mat mask) {
     return page;
   }
   // Paper pixels of the ring only, not ink: at least its 40th percentile.
-  ringVals.sort();
-  final pos = 0.40 * (ringVals.length - 1);
-  final lo = pos.floor();
-  final p40 = ringVals[lo] + (ringVals[math.min(lo + 1, ringVals.length - 1)] - ringVals[lo]) * (pos - lo);
+  // (A histogram, not a sort: round 11c.)
+  final p40 = _pct8(ringVals, 40);
   final hists = List.generate(3, (_) => Int32List(256));
   var n = 0;
   for (var i = 0; i < ring.length; i++) {
@@ -2043,19 +2041,21 @@ cv.Mat removeFingers(cv.Mat page, cv.Mat mask) {
   }
   // a = blurred mask, fully filled inside.
   final blur = cv.gaussianBlur(m, (0, 0), math.max(2.0, 0.004 * short));
-  final a = blur.data;
-  final md = m.data;
-  final out = page.clone();
-  final od = out.data;
-  for (var i = 0; i < md.length; i++) {
-    final alpha = md[i] != 0 ? 1.0 : a[i] / 255.0;
-    if (alpha == 0) continue;
-    for (var c = 0; c < 3; c++) {
-      od[i * 3 + c] = (px[i * 3 + c] * (1 - alpha) + col[c] * alpha).toInt();
-    }
+  // Round 11c: blended in OpenCV, not pixel by pixel in Dart:
+  // out = px + (colour − px) · alpha, alpha 1 inside, the blur outside;
+  // truncated like the reference.
+  final am = cv.max(m, blur);
+  final af = am.convertTo(cv.MatType.CV_32FC1, alpha: 1 / 255);
+  final a3 = cv.merge(cv.VecMat.fromList([af, af, af]));
+  final pf = page.convertTo(cv.MatType.CV_32FC3);
+  final colM = cv.Mat.fromScalar(page.rows, page.cols, cv.MatType.CV_32FC3, cv.Scalar(col[0].toDouble(), col[1].toDouble(), col[2].toDouble()));
+  final diff = cv.subtract(colM, pf);
+  final lift = cv.multiply(diff, a3);
+  final res = cv.add(pf, lift);
+  final out = res.convertTo(cv.MatType.CV_8UC3, beta: _trunc);
+  for (final x in [blur, m, am, af, a3, pf, colM, diff, lift, res]) {
+    x.dispose();
   }
-  blur.dispose();
-  m.dispose();
   return out;
 }
 
@@ -2625,14 +2625,15 @@ cv.Mat _paperBackgroundSmall(cv.Mat f) {
   final hole = cv.Mat.zeros(sh, sw, cv.MatType.CV_8UC1);
   final minArea = 0.004 * sw * sh;
   final k5 = cv.getStructuringElement(cv.MORPH_RECT, (5, 5));
+  final st = _statsOf(stats, n);
   for (var i = 1; i < n; i++) {
-    if (stats.at<int>(i, cv.CC_STAT_AREA) < minArea) continue;
+    if (st[i * 5 + 4] < minArea) continue;
     // Work in the area's bounding box plus a margin wider than the kernels,
     // so the morphology gives the same pixels as on the whole image.
-    final x0 = math.max(0, stats.at<int>(i, cv.CC_STAT_LEFT) - 4);
-    final y0 = math.max(0, stats.at<int>(i, cv.CC_STAT_TOP) - 4);
-    final x1 = math.min(sw, stats.at<int>(i, cv.CC_STAT_LEFT) + stats.at<int>(i, cv.CC_STAT_WIDTH) + 4);
-    final y1 = math.min(sh, stats.at<int>(i, cv.CC_STAT_TOP) + stats.at<int>(i, cv.CC_STAT_HEIGHT) + 4);
+    final x0 = math.max(0, st[i * 5] - 4);
+    final y0 = math.max(0, st[i * 5 + 1] - 4);
+    final x1 = math.min(sw, st[i * 5] + st[i * 5 + 2] + 4);
+    final y1 = math.min(sh, st[i * 5 + 1] + st[i * 5 + 3] + 4);
     final rw = x1 - x0;
     final rh = y1 - y0;
     final rect = cv.Rect(x0, y0, rw, rh);
@@ -2841,7 +2842,8 @@ cv.Mat despeckleL(cv.Mat l, double strength, cv.Mat chroma) {
       final c = lab[i];
       if (lv[i] < mins[c]) mins[c] = lv[i];
     }
-    final speck = List<bool>.generate(count, (c) => c > 0 && stats.at<int>(c, cv.CC_STAT_AREA) <= amax && mins[c] > 40);
+    final st = _statsOf(stats, count);
+    final speck = List<bool>.generate(count, (c) => c > 0 && st[c * 5 + 4] <= amax && mins[c] > 40);
     if (speck.contains(true)) {
       for (var i = 0; i < n; i++) {
         if (speck[lab[i]] && cr[i] < 12) lv[i] = lv[i] + strength * (100 - lv[i]);
@@ -3005,6 +3007,11 @@ List<double> _subMeans3(cv.Mat m, {int step = 4}) {
   if (!identical(cont, m)) cont.dispose();
   return [for (final v in sum) n == 0 ? 0.0 : v / n];
 }
+
+/// The rows of a connected-components stats Mat (left, top, width,
+/// height, area per label), read once.
+Int32List _statsOf(cv.Mat stats, int n) =>
+    Int32List.fromList(stats.data.buffer.asInt32List(stats.data.offsetInBytes, n * 5));
 
 /// numpy.percentile (linear) of 8-bit values, from a 256-bin histogram.
 double _pct8(Uint8List v, double pct) {
